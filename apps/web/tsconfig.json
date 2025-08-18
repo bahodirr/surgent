@@ -5,7 +5,11 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "baseUrl": ".", // to make @ possible in the web project
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
   "include": [
     "**/*.ts",
