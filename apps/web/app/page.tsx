@@ -3,12 +3,14 @@
 import { useState, useRef } from 'react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function Index() {
   const [input, setInput] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
+  
 
   const handleStartBuilding = () => {
     if (!input.trim()) return;
@@ -29,6 +31,24 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 relative overflow-hidden">
+      <Dialog open={true} onOpenChange={() => {}}>
+        <DialogContent
+          showCloseButton={false}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          className="sm:max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle className="tracking-tight">Launching September 5</DialogTitle>
+            <DialogDescription>
+              <span className="font-medium text-zinc-900 dark:text-zinc-100">surgent.dev</span> is coming soon.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-sm text-zinc-600 dark:text-zinc-400">
+            We’re putting the finishing touches on the experience. See you on <span className="font-medium text-zinc-900 dark:text-zinc-100">September 5</span>.
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* Subtle gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-zinc-50 via-white to-zinc-100 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900" />
       
@@ -46,8 +66,7 @@ export default function Index() {
         <header className="w-full px-6 py-6">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
-              <Sparkles className="h-5 w-5" />
-              <span className="text-lg font-medium tracking-tight">Orbit</span>
+              <span className="text-lg font-bold tracking-tight">Surgent</span>
             </div>
             <button
               onClick={handleGetStarted}
@@ -64,10 +83,10 @@ export default function Index() {
             {/* Hero text */}
             <div className="text-center space-y-6">
               <h1 className="text-5xl md:text-7xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-100">
-                Build anything
+                Build faster with AI
               </h1>
               <p className="text-lg md:text-xl text-zinc-500 dark:text-zinc-400 font-light max-w-2xl mx-auto">
-                Describe your idea and watch it come to life with AI-powered development
+                Describe what you want. <span className="text-zinc-900 dark:text-zinc-100">surgent.dev</span> turns ideas into working software.
               </p>
               
               {/* Get Started Button */}
