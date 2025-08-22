@@ -1,7 +1,8 @@
 import { FastifyInstance } from "fastify";
 import { projectService } from "../../services/project";
-import { ClaudeAgent } from "../../agentic/agent/claude";
-import { createDaytonaProvider } from "../../agentic/sandbox/daytona";
+import { sessionService } from "../../services/session";
+import { VibeKit } from "@vibe-kit/sdk";
+import { createE2BProvider } from "@vibe-kit/e2b";
 
 interface ClaudeStreamQuery {
   projectId: string;
@@ -10,24 +11,25 @@ interface ClaudeStreamQuery {
   model?: string;
   mode?: "ask" | "code";
 }
+console.log(process.env.E2B_API_KEY);
 
 export default async function (fastify: FastifyInstance) {
-  const createClaudeAgent = (sandboxId: string, modelOverride?: string) => {
-    const daytonaProvider = createDaytonaProvider({
-      apiKey: process.env.DAYTONA_API_KEY!,
-      image: "claude-code-env:1.0.0",
+  const createVibeKit = (modelOverride?: string) => {
+    const e2bProvider = createE2BProvider({
+      apiKey: process.env.E2B_API_KEY!,
+      templateId: "vibekit-claude",
     });
 
-    const agent = new ClaudeAgent({
-      provider: "anthropic",
-      providerApiKey: process.env.ANTHROPIC_API_KEY!,
-      model: modelOverride || "claude-sonnet-4-20250514",
-      sandboxProvider: daytonaProvider,
-      sandboxId: sandboxId!,
-      workingDirectory: "/tmp/project",
-    });
+    const vibeKit = new VibeKit()
+      .withAgent({
+        type: "claude",
+        provider: "anthropic",
+        apiKey: process.env.ANTHROPIC_API_KEY!,
+        model: "claude-sonnet-4-20250514",
+      })
+      .withSandbox(e2bProvider);
 
-    return agent;
+    return vibeKit;
   };
 
   // Generate code using VibeKit with Daytona sandbox
@@ -51,54 +53,51 @@ export default async function (fastify: FastifyInstance) {
         return reply.code(400).send({ error: "prompt is required" });
       }
 
-      let agent: ClaudeAgent | null = null;
+      let vibeKit: VibeKit | null = null;
       try {
-        // Start Server-Sent Events stream ASAP with plugin and flush headers
-        const allowedOrigin = process.env.CLIENT_ORIGIN || "http://localhost:3000";
-        const requestOrigin = (request.headers.origin as string) || "";
-        const corsOrigin = requestOrigin || allowedOrigin;
-        reply.header("Access-Control-Allow-Origin", corsOrigin);
-        reply.header("Vary", "Origin");
-        reply.header("Access-Control-Allow-Credentials", "true");
-
         // Verify project ownership
         const project = await projectService.getProject(projectId, user.id);
         if (!project) {
-          reply.sse({ event: "error", data: JSON.stringify({ error: "Project not found" }) });
-          reply.sseContext.source.end();
-          return;
+          return reply.code(404).send({ error: "Project not found" });
         }
 
         // Ensure we have an active app session for this project
-        // Create agent
-        agent = createClaudeAgent(project.sandbox_id!, model);
+
+        console.log(`🚀 Starting VibeKit generation for project ${projectId}`);
+        console.log(`📝 Prompt: ${prompt}`);
+        console.log(`🔗 Session ID: ${sessionIdFromClient || "new"}`);
+
+        // Inline VibeKit usage
+        vibeKit = createVibeKit(model);
         if (sessionIdFromClient) {
-          await agent.setSession(sessionIdFromClient);
+          await vibeKit.setSession(sessionIdFromClient);
         }
 
         const startedAt = Date.now();
-        await agent.generateCode(
+        const generatedResp = await vibeKit.generateCode({
           prompt,
-          mode === "code" ? "code" : "ask",
-          undefined,
-          {
-            onUpdate: (message: string) => {
-              reply.sse({ event: "update", data: JSON.stringify({ chunk: message }) });
-              try {
-                const parsed = JSON.parse(message);
-                if (parsed?.subtype === "success") {
-                  // End stream immediately when the final marker arrives
-                  reply.sse({ event: "complete", data: JSON.stringify({ success: true }) });
-                  reply.sseContext.source.end();
-                }
-              } catch {}
-            },
-          },
-          true
-        );
+          mode: mode === "code" ? "code" : "ask",
+        } as any);
         const duration = Date.now() - startedAt;
+        console.log("generatedResp.sandboxId", generatedResp.sandboxId);
+        // Set up event listeners for streaming
+        vibeKit.on("update", (message) => {
+          // Handle streaming updates
+          console.log("Streaming update:", message);
+          // Update your UI with the new content
+        });
 
-        const newSessionId = await agent.getSession();
+        vibeKit.on("error", (error) => {
+          // Handle streaming errors
+          console.error("Streaming error:", error);
+        });
+
+        const newSessionId = await vibeKit.getSession();
+        console.log("Generated response", generatedResp.stdout);
+        
+        console.log(`✅ VibeKit generation completed`);
+        console.log(`⏱️ Duration: ${duration}ms`);
+        console.log(`🔗 Session ID: ${newSessionId}`);
 
         // // Store the user message
         // await sessionService.addMessage(
@@ -148,18 +147,23 @@ export default async function (fastify: FastifyInstance) {
         //   },
         //   user.id
         // );
+
+        // Return JSON response instead of streaming
+        return reply.send({
+          success: true,
+          // result: extractText(generatedResp),
+          sessionId: newSessionId,
+          metadata: { duration },
+        });
       } catch (error: any) {
+        console.error("❌ VibeKit generation error:", error);
         fastify.log.error("VibeKit chat error:", error);
-        try {
-          reply.sse({ event: "error", data: JSON.stringify({ error: error?.message || "Unknown error" }) });
-          reply.sseContext.source.end();
-          return;
-        } catch {
-          return reply.code(500).send({ error: error?.message || "Unknown error" });
-        }
+        return reply
+          .code(500)
+          .send({ error: error?.message || "Unknown error" });
       } finally {
         try {
-          // await agent?.killSandbox();
+          await (vibeKit as any)?.kill?.();
         } catch {}
       }
     }

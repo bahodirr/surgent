@@ -7,21 +7,10 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "migrate": "tsx src/migrate.ts",
-    "migrate:down": "tsx src/migrate.ts down"
+    "migrate:down": "tsx src/migrate.ts down",
+    "create-snapshot": "tsx src/scripts/create-snapshot.ts"
   },
   "dependencies": {
-    "@daytonaio/sdk": "^0.24.2",
-    "@fastify/autoload": "^6.3.1",
-    "@fastify/cookie": "^11.0.2",
-    "@fastify/cors": "^11.1.0",
-    "@fastify/sensible": "^6.0.3",
-    "@fastify/websocket": "^11.2.0",
-    "dotenv": "^17.2.1",
-    "fastify": "^5.2.1",
-    "fastify-plugin": "^5.0.1",
-    "kysely": "^0.28.3",
-    "node-pty": "^1.0.0",
-    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

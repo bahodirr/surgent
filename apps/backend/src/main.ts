@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import { FastifySSEPlugin } from 'fastify-sse-v2';
 import { app } from './app/app';
 
 const host = process.env.HOST ?? 'localhost';
@@ -26,6 +27,7 @@ server.register(cors, {
 
 // Register your application as a normal plugin.
 server.register(app);
+server.register(FastifySSEPlugin);
 
 // Start listening.
 server.listen({ port, host }, (err) => {

@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { projectService } from '../../services/project';
+import { sandboxService } from '../../services/sandbox';
 
 interface CreateProjectBody {
   name: string;
@@ -27,7 +28,7 @@ export default async function (fastify: FastifyInstance) {
         const projects = await projectService.listProjects(request.user!.id);
         return reply.send({ projects });
       } catch (error) {
-        fastify.log.error('Failed to list projects', error);
+        fastify.log.error(`Failed to list projects: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return reply.code(500).send({
           error: 'Failed to list projects',
           details: error instanceof Error ? error.message : 'Unknown error'
@@ -48,7 +49,7 @@ export default async function (fastify: FastifyInstance) {
         );
         return reply.send({ project });
       } catch (error) {
-        fastify.log.error('Failed to create project', error);
+        fastify.log.error(`Failed to create project: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return reply.code(500).send({
           error: 'Failed to create project',
           details: error instanceof Error ? error.message : 'Unknown error'
@@ -74,7 +75,7 @@ export default async function (fastify: FastifyInstance) {
         
         return reply.send({ project });
       } catch (error) {
-        fastify.log.error('Failed to get project', error);
+        fastify.log.error(`Failed to get project: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return reply.code(500).send({
           error: 'Failed to get project',
           details: error instanceof Error ? error.message : 'Unknown error'
@@ -96,7 +97,7 @@ export default async function (fastify: FastifyInstance) {
         );
         return reply.send({ project });
       } catch (error) {
-        fastify.log.error('Failed to update project', error);
+        fastify.log.error(`Failed to update project: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return reply.code(500).send({
           error: 'Failed to update project',
           details: error instanceof Error ? error.message : 'Unknown error'
@@ -117,7 +118,7 @@ export default async function (fastify: FastifyInstance) {
         );
         return reply.send({ success: true });
       } catch (error) {
-        fastify.log.error('Failed to delete project', error);
+        fastify.log.error(`Failed to delete project: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return reply.code(500).send({
           error: 'Failed to delete project',
           details: error instanceof Error ? error.message : 'Unknown error'
@@ -138,7 +139,7 @@ export default async function (fastify: FastifyInstance) {
         );
         return reply.send({ stats });
       } catch (error) {
-        fastify.log.error('Failed to get project stats', error);
+        fastify.log.error(`Failed to get project stats: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return reply.code(500).send({
           error: 'Failed to get project stats',
           details: error instanceof Error ? error.message : 'Unknown error'
@@ -152,20 +153,18 @@ export default async function (fastify: FastifyInstance) {
     '/api/projects/:id/initialize',
     { preHandler: fastify.authenticate },
     async (request, reply) => {
+
       const user = request.user!;
       const projectId = request.params.id;
       const { template = 'vite-react-ts' } = request.body || {};
 
-      fastify.log.info('Initializing project sandbox', { 
-        userId: user.id, 
-        projectId, 
-        template 
-      });
+      fastify.log.info(`Initializing project sandbox userId=${user.id} projectId=${projectId} template=${template}`);
 
       try {
-        // Verify project exists and belongs to user
+      //   // Verify project exists and belongs to user
         const project = await projectService.getProject(projectId, user.id);
-
+        console.log('Project information', project);
+        
         if (!project) {
           return reply.code(404).send({ 
             success: false,
@@ -173,66 +172,59 @@ export default async function (fastify: FastifyInstance) {
           });
         }
 
-        // Check if already initialized
-        if (project.sandbox_id) {
-          const sandboxMetadata = project.sandbox_metadata as any;
+        // If already initialized, verify sandbox is STARTED and dev server is healthy
+        if (project.sandbox_id && project.sandbox_metadata?.isInitialized) {
+          await sandboxService.getOrCreateSandbox(projectId, user.id, {
+            snapshotName: 'claude-code-env:1.0.0',
+            port: 3000,
+          });
+
           return reply.send({
             success: true,
-            message: "Project already initialized",
+            message: 'Project already initialized',
             sandboxId: project.sandbox_id,
-            devServerUrl: sandboxMetadata?.preview_url || null,
-            alreadyInitialized: true
+            previewUrl: project.sandbox_metadata?.preview_url,
+            alreadyInitialized: true,
           });
         }
 
-        // TODO: Integrate with Daytona SDK
-        // For now, simulate the initialization process
-        
-        // Simulate sandbox creation
-        const mockSandboxId = `sandbox_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const mockDevServerUrl = `https://${mockSandboxId}.preview.daytona.dev`;
-        
-        fastify.log.info('Creating sandbox...', { sandboxId: mockSandboxId });
-        
-        // Simulate async operations
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Update project with sandbox information
-        await projectService.updateProject(
-          projectId,
-          {
-            metadata: {
-              sandbox_id: mockSandboxId,
-              sandbox_metadata: {
-                preview_url: mockDevServerUrl,
-                template,
-                status: 'running',
-                created_at: new Date().toISOString()
-              }
-            }
-          },
-          user.id
-        );
+        // Create or recover sandbox
+        const sandbox = await sandboxService.getOrCreateSandbox(projectId, user.id, {
+          snapshotName: 'claude-code-env:1.0.0',
+          port: 3000,
+        });
 
-        fastify.log.info('Project initialized successfully', { 
-          projectId, 
-          sandboxId: mockSandboxId,
-          devServerUrl: mockDevServerUrl
+        // Setup claude user and project template
+        // await sandbox.commands.run('id claude || useradd -m -s /bin/bash claude');
+        await sandbox.commands.run('cp -r /workspace/template /tmp/project');
+        // await sandbox.commands.run('chown -R claude:claude /tmp/project');
+
+        // Start dev server via PM2 and save
+        await sandbox.commands.run('cd /tmp/project && pm2 start ecosystem.config.cjs');
+        await sandbox.commands.run('pm2 save');
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        // Get preview URL and persist
+        const previewUrl = await sandbox.getHost(3000);
+        await sandboxService.set(projectId, user.id, {
+          sandboxId: sandbox.sandboxId,
+          metadata: {
+            preview_url: previewUrl,
+            status: 'started',
+            isInitialized: true,
+            template,
+          },
         });
 
         return reply.send({
           success: true,
           message: `Project initialized successfully with ${template} template`,
-          sandboxId: mockSandboxId,
-          devServerUrl: mockDevServerUrl
+          sandboxId: project.sandbox_id,
+          previewUrl: previewUrl,
         });
 
       } catch (error) {
-        fastify.log.error('Failed to initialize project', { 
-          error: error instanceof Error ? error.message : 'Unknown error',
-          projectId,
-          userId: user.id
-        });
+        fastify.log.error(`Failed to initialize project: ${error instanceof Error ? error.message : 'Unknown error'}`);
 
         return reply.code(500).send({
           success: false,

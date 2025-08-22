@@ -4,7 +4,7 @@ import { Daytona, Image } from '@daytonaio/sdk';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 
-const SNAPSHOT_NAME = "orbit-dev-env:1.0.0";
+const SNAPSHOT_NAME = "claude-code-env:1.0.0";
 
 async function createSnapshot(): Promise<void> {
   try {
@@ -26,6 +26,11 @@ async function createSnapshot(): Promise<void> {
 
     await daytona.snapshot.create({
       name: SNAPSHOT_NAME,
+      resources: {
+        cpu: 4,
+        memory: 8,
+        disk: 10,
+      },
       image,
     }, {
       onLogs: (chunk: string) => process.stdout.write(chunk),

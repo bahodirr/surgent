@@ -1,6 +1,7 @@
 import { db } from '../kysely_db';
 import { sql } from 'kysely';
 import { projectService } from './project';
+import type { SDKMessage } from '@anthropic-ai/claude-code';
 
 export interface Session {
   id: string;
@@ -12,12 +13,15 @@ export interface Session {
   updated_at: Date;
 }
 
+export type ClaudeSDKMessage = SDKMessage;
+
 export interface Message {
   id: string;
   content: string;
   sender: 'user' | 'assistant';
   timestamp: number;
   metadata?: any;
+  raw?: ClaudeSDKMessage;
 }
 
 export interface CreateSessionInput {
@@ -30,9 +34,26 @@ export interface AddMessageInput {
   content: string;
   sender: 'user' | 'assistant';
   metadata?: Record<string, any>;
+  raw?: ClaudeSDKMessage;
 }
 
 export class SessionService {
+  private parseMessagesSafe(value: any): any[] {
+    try {
+      if (value === null || value === undefined) return [];
+      if (Array.isArray(value)) return value;
+      if (typeof value === 'object') return value as any[];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed.length === 0) return [];
+        return JSON.parse(trimmed);
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
   async listSessions(projectId: string, userId: string) {
     // Verify project ownership
     const project = await projectService.getProject(projectId, userId);
@@ -49,7 +70,7 @@ export class SessionService {
     // Parse messages JSON
     return sessions.map(session => ({
       ...session,
-      messages: JSON.parse(session.messages as string)
+      messages: this.parseMessagesSafe(session.messages)
     }));
   }
 
@@ -76,7 +97,7 @@ export class SessionService {
 
     return {
       ...session,
-      messages: JSON.parse(session.messages as string)
+      messages: this.parseMessagesSafe(session.messages)
     };
   }
 
@@ -123,7 +144,7 @@ export class SessionService {
 
     return {
       ...session,
-      messages: JSON.parse(session.messages as string)
+      messages: this.parseMessagesSafe(session.messages)
     };
   }
 
@@ -140,7 +161,8 @@ export class SessionService {
       content: input.content,
       sender: input.sender,
       timestamp: Date.now(),
-      metadata: input.metadata
+      metadata: input.metadata,
+      raw: input.raw
     };
 
     messages.push(newMessage);
@@ -191,7 +213,7 @@ export class SessionService {
 
     return {
       ...session,
-      messages: JSON.parse(session.messages as string)
+      messages: this.parseMessagesSafe(session.messages)
     };
   }
 
@@ -211,6 +233,46 @@ export class SessionService {
       .execute();
 
     return { success: true };
+  }
+
+  async updateSessionMetadata(
+    sessionId: string,
+    patch: Record<string, any>,
+    userId: string
+  ) {
+    // Verify ownership
+    const existing = await this.getSession(sessionId, userId);
+    if (!existing) {
+      throw new Error('Session not found');
+    }
+
+    const currentMeta = (() => {
+      try {
+        if (!existing.metadata) return {} as Record<string, any>;
+        if (typeof existing.metadata === 'string') return JSON.parse(existing.metadata);
+        return existing.metadata as Record<string, any>;
+      } catch {
+        return {} as Record<string, any>;
+      }
+    })();
+
+    const merged = { ...currentMeta, ...patch };
+
+    const updated = await db
+      .updateTable('sessions')
+      .set({
+        metadata: JSON.stringify(merged) as any,
+        updated_at: new Date(),
+      })
+      .where('id', '=', sessionId)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    return {
+      ...updated,
+      messages: this.parseMessagesSafe(updated.messages),
+      metadata: merged,
+    };
   }
 
   async getSessionStats(sessionId: string, userId: string) {
