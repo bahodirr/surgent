@@ -3,23 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { useAuthActions } from '@convex-dev/auth/react';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const { signIn } = useAuthActions();
 
   const handleGoogleLogin = async () => {
-    setIsLoading(true);
-    setError("");
     try {
-      await authClient.signIn.social({
-        provider: "google",
-        callbackURL: "http://localhost:3000/project",
-      });
-    } catch (err) {
-      setError("Failed to login with Google");
+      setIsLoading(true);
+      const result = await signIn('google', { redirectTo: `${window.location.origin}/dashboard` });
+      console.log("result", result);
+    } catch (e) {
+      console.error('Google sign-in error', e);
       setIsLoading(false);
     }
   };

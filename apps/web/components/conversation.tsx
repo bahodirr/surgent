@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowUp, Plus } from 'lucide-react';
-import { ClaudeClient, SDKMessage } from '@/lib/claude-client';
+import { ArrowUp } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -12,21 +11,23 @@ interface Message {
   timestamp: Date;
   metadata?: {
     sessionId?: string;
-    model?: string;
-    tools?: string[];
-    cost?: number;
-    duration?: number;
+    durationMs?: number;
     isError?: boolean;
-    numTurns?: number;
-    apiKeySource?: string;
-    permissionMode?: string;
-    inputTokens?: number;
-    outputTokens?: number;
-    stopReason?: string;
   };
 }
 
-export default function Conversation() {
+interface InitStatus {
+  state: 'initializing' | 'ready' | 'error';
+  message: string;
+}
+
+interface ConversationProps {
+  disabled?: boolean;
+  initStatus?: InitStatus | null;
+  projectId?: string;
+}
+
+export default function Conversation({ disabled = false, initStatus = null, projectId }: ConversationProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -38,12 +39,8 @@ export default function Conversation() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>();
-  const [claudeInfo, setClaudeInfo] = useState<SDKMessage & { type: 'system' } | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const claudeClient = useRef(new ClaudeClient()).current;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -62,12 +59,100 @@ export default function Conversation() {
     };
   }, []);
 
+  const resetConversation = () => {
+    // Close any active stream
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setIsLoading(false);
+    setSessionId(undefined);
+    setMessages([
+      {
+        id: '1',
+        role: 'assistant',
+        content: 'Hello! I\'m here to help you with your development tasks. What would you like to work on today?',
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  const stopStreaming = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setIsLoading(false);
+  };
+
+  // Lightweight SSE client for backend /api/chat/stream using named events: 'update', 'complete', 'error'
+  const openChatStream = (
+    prompt: string,
+    callbacks: {
+      onUpdate?: (chunk: string) => void;
+      onComplete?: (payload: { success?: boolean; sessionId?: string; metadata?: { duration?: number } }) => void;
+      onError?: (error: string) => void;
+    },
+    options?: { sessionId?: string; projectId?: string; mode?: 'ask' | 'code' }
+  ): EventSource => {
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+    const params = new URLSearchParams({ prompt });
+    if (options?.projectId) params.append('projectId', options.projectId);
+    if (options?.sessionId) params.append('sessionId', options.sessionId);
+    if (options?.mode) params.append('mode', options.mode);
+
+    const es = new EventSource(`${baseUrl}/api/chat/stream?${params.toString()}` as string, { withCredentials: true });
+
+    es.addEventListener('update', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        callbacks.onUpdate?.(String(data?.chunk ?? ''));
+      } catch {
+        callbacks.onUpdate?.('');
+      }
+    });
+
+    es.addEventListener('complete', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        callbacks.onComplete?.({
+          success: data?.success,
+          sessionId: data?.sessionId,
+          metadata: data?.metadata,
+        });
+      } catch {
+        callbacks.onComplete?.({});
+      } finally {
+        es.close();
+      }
+    });
+
+    es.addEventListener('error', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        callbacks.onError?.(String(data?.error || 'Unknown error'));
+      } catch {
+        callbacks.onError?.('Connection error');
+      } finally {
+        es.close();
+      }
+    });
+
+    es.onerror = () => {
+      callbacks.onError?.('Connection error');
+      es.close();
+    };
+
+    return es;
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
     // Close any existing event source
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
 
     const userMessage: Message = {
@@ -81,177 +166,114 @@ export default function Conversation() {
     setInput('');
     setIsLoading(true);
 
-    // Create assistant message placeholder
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, assistantMessage]);
-
     try {
-      // Use streaming with Daytona
-      let accumulatedContent = '';
-      
-      eventSourceRef.current = claudeClient.streamPrompt(
+      // Stream via backend chat endpoint using SSE with credentials
+      eventSourceRef.current = openChatStream(
         userMessage.content,
         {
-          onMessage: (message) => {
-            console.log('SDK Message:', message);
-          },
-          onInit: (message) => {
-            console.log('Claude init:', message);
-            setClaudeInfo(message);
-            setIsInitialized(true);
-            
-            if (message.session_id) {
-              setSessionId(message.session_id);
+          onUpdate: (chunk: string) => {
+            // Each update is its own message. Chunk may itself be JSON-encoded string.
+            let content = '';
+            let role: 'system' | 'assistant' = 'system';
+            try {
+              const parsed = JSON.parse(chunk);
+              // If it's an assistant event with text, render the assistant text; otherwise render the pretty JSON
+              if (parsed?.type === 'assistant' && parsed?.message?.content) {
+                const text = Array.isArray(parsed.message.content)
+                  ? parsed.message.content.filter((b: any) => b?.type === 'text').map((b: any) => String(b?.text || '')).join('')
+                  : '';
+                content = text || JSON.stringify(parsed);
+                role = 'assistant';
+              } else {
+                content = `[update] ${parsed?.type || 'event'}${parsed?.subtype ? `:${parsed.subtype}` : ''}\n` + JSON.stringify(parsed, null, 2);
+              }
+            } catch {
+              content = `[update] raw\n${chunk}`;
             }
-            
-            // Add system message about initialization
-            if (!isInitialized) {
-              const initMessage: Message = {
-                id: 'init-' + Date.now(),
-                role: 'system',
-                content: `Claude initialized • Model: ${message.model} • Tools: ${message.tools?.length || 0} available • Mode: ${message.permissionMode}`,
-                timestamp: new Date(),
-                metadata: {
-                  sessionId: message.session_id,
-                  model: message.model,
-                  tools: message.tools,
-                  apiKeySource: message.apiKeySource,
-                  permissionMode: message.permissionMode
-                }
-              };
-              setMessages(prev => [...prev.slice(0, -1), initMessage, prev[prev.length - 1]]);
-            }
+            const eventMessage: Message = {
+              id: 'evt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+              role,
+              content,
+              timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, eventMessage]);
           },
-          onAssistant: (content, message) => {
-            accumulatedContent += content;
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === assistantMessage.id
-                  ? { 
-                      ...msg, 
-                      content: accumulatedContent,
-                      metadata: {
-                        ...msg.metadata,
-                        model: message.message.model,
-                        inputTokens: message.message.usage.input_tokens,
-                        outputTokens: message.message.usage.output_tokens,
-                        stopReason: message.message.stop_reason || undefined
-                      }
-                    }
-                  : msg
-              )
-            );
+          onComplete: (payload) => {
+            if (payload?.sessionId) setSessionId(payload.sessionId);
+            const completeMsg: Message = {
+              id: 'complete-' + Date.now(),
+              role: 'system',
+              content: `[complete] success=${String(payload?.success ?? '')}${payload?.metadata?.duration ? ` • duration=${payload.metadata.duration}ms` : ''}`,
+              timestamp: new Date(),
+              metadata: { sessionId: payload?.sessionId, durationMs: payload?.metadata?.duration },
+            };
+            setMessages(prev => [...prev, completeMsg]);
+            stopStreaming();
           },
-          onUser: (message) => {
-            console.log('User message:', message);
-          },
-          onResult: (message) => {
-            console.log('Claude result:', message);
-            
-            // Update the assistant message with final metadata
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === assistantMessage.id
-                  ? { 
-                      ...msg, 
-                      content: message.type === 'result' && message.subtype === 'success' && message.result ? message.result : msg.content,
-                      metadata: {
-                        ...msg.metadata,
-                        sessionId: message.session_id,
-                        cost: message.total_cost_usd,
-                        duration: message.duration_ms,
-                        isError: message.is_error,
-                        numTurns: message.num_turns
-                      }
-                    }
-                  : msg
-              )
-            );
-            
-            // Add error message if needed
-            if (message.is_error && message.subtype !== 'success') {
-              const errorMessage: Message = {
-                id: 'error-' + Date.now(),
-                role: 'system',
-                content: `Error: ${message.subtype === 'error_max_turns' ? 'Maximum turns reached' : 'Error during execution'}`,
-                timestamp: new Date(),
-                metadata: {
-                  isError: true,
-                  numTurns: message.num_turns
-                }
-              };
-              setMessages(prev => [...prev, errorMessage]);
-            }
-          },
-          onError: (error) => {
-            console.error('Claude streaming error:', error);
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === assistantMessage.id
-                  ? { ...msg, content: msg.content || `Error: ${error}` }
-                  : msg
-              )
-            );
-            setIsLoading(false);
-          },
-          onComplete: () => {
-            setIsLoading(false);
-            accumulatedContent = '';
+          onError: (error: string) => {
+            const errorMsg: Message = {
+              id: 'error-' + Date.now(),
+              role: 'system',
+              content: `Error: ${error}`,
+              timestamp: new Date(),
+              metadata: { isError: true },
+            };
+            setMessages(prev => [...prev, errorMsg]);
+            stopStreaming();
           },
         },
-        { sessionId }
+        { sessionId, projectId, mode: 'ask' }
       );
     } catch (error: any) {
       console.error('Claude API error:', error);
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === assistantMessage.id
-            ? { ...msg, content: `Error: ${error.message}` }
-            : msg
-        )
-      );
-      setIsLoading(false);
-    }
-  };
-
-  const handleFileClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      // Handle file upload logic here
-      console.log('Files selected:', files);
+      const errorMsg: Message = {
+        id: 'error-' + Date.now(),
+        role: 'system',
+        content: `Error: ${error.message}`,
+        timestamp: new Date(),
+        metadata: { isError: true },
+      };
+      setMessages(prev => [...prev, errorMsg]);
+      stopStreaming();
     }
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Status bar */}
-      {claudeInfo && (
-        <div className="px-4 py-2 border-b bg-muted/30">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1">
-                <span className={`w-2 h-2 rounded-full ${isInitialized ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                {isInitialized ? 'Connected' : 'Connecting'}
-              </span>
-              <span>Session: {sessionId?.slice(0, 8) || 'none'}</span>
-              <span>Model: {claudeInfo.model}</span>
-              <span>Tools: {claudeInfo.tools?.length || 0}</span>
+    <div className="h-full min-h-0 flex flex-col bg-background">
+      {initStatus && (
+        <div className={`px-4 py-2 border-b ${initStatus.state === 'error' ? 'bg-destructive/10 border-destructive/50 text-destructive' : 'bg-muted/30'}`}>
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              {initStatus.state === 'initializing' && (
+                <span className="inline-flex h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              )}
+              <span>{initStatus.message}</span>
             </div>
           </div>
         </div>
       )}
+      <div className="px-4 py-2 border-b bg-muted/30">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <span className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`} />
+              {isLoading ? 'Streaming' : 'Ready'}
+            </span>
+            {sessionId && <span>Session: {sessionId}</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={resetConversation}
+              className="text-muted-foreground hover:underline"
+            >
+              New
+            </button>
+          </div>
+        </div>
+      </div>
       
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4 space-y-3">
           {messages.map((message) => (
             <div
@@ -281,20 +303,8 @@ export default function Conversation() {
                     message.role === 'user' ? 'justify-end' : message.role === 'system' ? 'justify-center' : 'justify-start'
                   }`}>
                     <span>{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    {message.metadata?.model && message.role === 'assistant' && (
-                      <span>• {message.metadata.model}</span>
-                    )}
-                    {message.metadata?.inputTokens && message.metadata?.outputTokens && (
-                      <span>• {message.metadata.inputTokens + message.metadata.outputTokens} tokens</span>
-                    )}
-                    {message.metadata?.cost && (
-                      <span>• ${message.metadata.cost.toFixed(4)}</span>
-                    )}
-                    {message.metadata?.duration && (
-                      <span>• {(message.metadata.duration / 1000).toFixed(1)}s</span>
-                    )}
-                    {message.metadata?.stopReason && (
-                      <span>• {message.metadata.stopReason}</span>
+                    {message.metadata?.durationMs && (
+                      <span>• {(message.metadata.durationMs / 1000).toFixed(1)}s</span>
                     )}
                     {message.metadata?.isError && (
                       <span className="text-red-500">• Error</span>
@@ -325,25 +335,27 @@ export default function Conversation() {
                 handleSend();
               }
             }}
-            placeholder="Ask anything..."
-            className="w-full resize-none bg-transparent px-2 pb-8 pt-2 text-sm placeholder:text-muted-foreground focus:outline-none min-h-[56px] max-h-[120px]"
+            placeholder={disabled ? 'Initializing project environment...' : 'Ask anything...'}
+            disabled={disabled}
+            className="w-full resize-none bg-transparent px-2 pb-8 pt-2 text-sm placeholder:text-muted-foreground focus:outline-none min-h-[56px] max-h-[120px] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ lineHeight: '1.5' }}
           rows={2}
           />
           
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleFileClick}
-              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted transition-colors cursor-pointer"
-              aria-label="Add attachments"
-            >
-              <Plus className="h-5 w-5 text-muted-foreground" />
-            </button>
-            
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-end gap-2">
+            {isLoading && (
+              <button
+                type="button"
+                onClick={stopStreaming}
+                className="px-2 h-8 rounded-full text-xs border hover:bg-muted transition-colors"
+                aria-label="Stop streaming"
+              >
+                Stop
+              </button>
+            )}
             <button
               type="submit"
-              disabled={!input.trim() || isLoading}
+              disabled={disabled || !input.trim() || isLoading}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity cursor-pointer"
               aria-label="Send message"
             >
@@ -354,15 +366,6 @@ export default function Conversation() {
               )}
             </button>
           </div>
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,.pdf,.doc,.docx,.txt"
-            onChange={handleFileChange}
-            className="hidden"
-          />
         </form>
       </div>
     </div>
