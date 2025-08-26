@@ -215,6 +215,10 @@ export const getSession = query({
     const timeline: any[] = [];
     for (let i = 0; i < normalized.length; ) {
       const nm = normalized[i];
+      if (!nm) {
+        i++;
+        continue;
+      }
       // System events: init and result/error with stats
       if (nm.role === "system" && (nm.type === "init")) {
         timeline.push({ kind: "systemInit", msg: nm });
@@ -227,6 +231,9 @@ export const getSession = query({
         const items: NormalizedMessage[] = [];
         while (i < normalized.length) {
           const cur = normalized[i];
+          if (!cur) {
+            break;
+          }
           if (cur.type === "tool" || cur.type === "tool_result") {
             items.push(cur);
             i++;
@@ -239,7 +246,7 @@ export const getSession = query({
       }
 
       if (nm.role === "system" && (nm.type === "result" || nm.type === "error")) {
-        const msgId = nm.raw.systemMessageId;
+        const msgId = nm.raw?.systemMessageId;
         const checkpoint = msgId ? commitByMessageId[msgId] : undefined;
         timeline.push({ kind: "systemResult", msg: nm, checkpoint });
         i++;
