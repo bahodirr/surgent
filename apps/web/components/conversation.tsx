@@ -1,20 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ArrowUp } from 'lucide-react';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-  metadata?: {
-    sessionId?: string;
-    durationMs?: number;
-    isError?: boolean;
-  };
-}
+import { Check, ChevronDown, PlayCircle, AlertCircle, GitCommit } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
 
 interface InitStatus {
   state: 'initializing' | 'ready' | 'error';
@@ -22,352 +12,377 @@ interface InitStatus {
 }
 
 interface ConversationProps {
-  disabled?: boolean;
   initStatus?: InitStatus | null;
-  projectId?: string;
+  timeline?: any[];
+  todos?: any[];
+  onClose?: () => void;
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
+  composer?: React.ReactNode;
 }
 
-export default function Conversation({ disabled = false, initStatus = null, projectId }: ConversationProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Hello! I\'m here to help you with your development tasks. What would you like to work on today?',
-      timestamp: new Date(),
-    },
-  ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | undefined>();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
+export default function Conversation({ initStatus = null, timeline, todos, isOpen, composer }: ConversationProps) {
+  const endRef = useRef<HTMLDivElement>(null);
+  const [todosCollapsed, setTodosCollapsed] = useState(true);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [openToolItems, setOpenToolItems] = useState<Record<string, boolean>>({});
 
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '56px';
-      const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
-    }
-  }, [input]);
+    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [timeline?.length]);
 
-  // Cleanup event source on unmount
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-    };
-  }, []);
-
-  const resetConversation = () => {
-    // Close any active stream
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    setIsLoading(false);
-    setSessionId(undefined);
-    setMessages([
-      {
-        id: '1',
-        role: 'assistant',
-        content: 'Hello! I\'m here to help you with your development tasks. What would you like to work on today?',
-        timestamp: new Date(),
-      },
-    ]);
+  const stringify = (value: any) => {
+    if (typeof value === 'string') return value;
+    try { return JSON.stringify(value, null, 2); } catch { return String(value); }
   };
-
-  const stopStreaming = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    setIsLoading(false);
-  };
-
-  // Lightweight SSE client for backend /api/chat/stream using named events: 'update', 'complete', 'error'
-  const openChatStream = (
-    prompt: string,
-    callbacks: {
-      onUpdate?: (chunk: string) => void;
-      onComplete?: (payload: { success?: boolean; sessionId?: string; metadata?: { duration?: number } }) => void;
-      onError?: (error: string) => void;
-    },
-    options?: { sessionId?: string; projectId?: string; mode?: 'ask' | 'code' }
-  ): EventSource => {
-    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
-    const params = new URLSearchParams({ prompt });
-    if (options?.projectId) params.append('projectId', options.projectId);
-    if (options?.sessionId) params.append('sessionId', options.sessionId);
-    if (options?.mode) params.append('mode', options.mode);
-
-    const es = new EventSource(`${baseUrl}/api/chat/stream?${params.toString()}` as string, { withCredentials: true });
-
-    es.addEventListener('update', (event: MessageEvent) => {
+  
+  // Produce a short, intuitive hint (e.g., file name or key arg) from tool input
+  const getToolHint = (input: any): string | undefined => {
+    if (!input) return undefined;
+    const toBasename = (str: string) => {
+      if (!str) return str;
       try {
-        const data = JSON.parse(event.data);
-        callbacks.onUpdate?.(String(data?.chunk ?? ''));
-      } catch {
-        callbacks.onUpdate?.('');
-      }
-    });
-
-    es.addEventListener('complete', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        callbacks.onComplete?.({
-          success: data?.success,
-          sessionId: data?.sessionId,
-          metadata: data?.metadata,
-        });
-      } catch {
-        callbacks.onComplete?.({});
-      } finally {
-        es.close();
-      }
-    });
-
-    es.addEventListener('error', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        callbacks.onError?.(String(data?.error || 'Unknown error'));
-      } catch {
-        callbacks.onError?.('Connection error');
-      } finally {
-        es.close();
-      }
-    });
-
-    es.onerror = () => {
-      callbacks.onError?.('Connection error');
-      es.close();
+        // Handle URLs
+        if (/^https?:\/\//i.test(str)) {
+          const url = new URL(str);
+          const pathname = url.pathname || '';
+          const segs = pathname.split('/').filter(Boolean);
+          return segs[segs.length - 1] || url.hostname;
+        }
+      } catch {}
+      const normalized = String(str).replace(/\n/g, ' ').trim();
+      const parts = normalized.split(/[\\/]/);
+      const base = parts[parts.length - 1] || normalized;
+      return base;
     };
-
-    return es;
-  };
-
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-
-    // Close any existing event source
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input,
-      timestamp: new Date(),
+    const shorten = (str: string, max = 40) => {
+      if (str.length <= max) return str;
+      return str.slice(0, max - 1) + '…';
     };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      // Stream via backend chat endpoint using SSE with credentials
-      eventSourceRef.current = openChatStream(
-        userMessage.content,
-        {
-          onUpdate: (chunk: string) => {
-            // Each update is its own message. Chunk may itself be JSON-encoded string.
-            let content = '';
-            let role: 'system' | 'assistant' = 'system';
-            try {
-              const parsed = JSON.parse(chunk);
-              // If it's an assistant event with text, render the assistant text; otherwise render the pretty JSON
-              if (parsed?.type === 'assistant' && parsed?.message?.content) {
-                const text = Array.isArray(parsed.message.content)
-                  ? parsed.message.content.filter((b: any) => b?.type === 'text').map((b: any) => String(b?.text || '')).join('')
-                  : '';
-                content = text || JSON.stringify(parsed);
-                role = 'assistant';
-              } else {
-                content = `[update] ${parsed?.type || 'event'}${parsed?.subtype ? `:${parsed.subtype}` : ''}\n` + JSON.stringify(parsed, null, 2);
-              }
-            } catch {
-              content = `[update] raw\n${chunk}`;
-            }
-            const eventMessage: Message = {
-              id: 'evt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              role,
-              content,
-              timestamp: new Date(),
-            };
-            setMessages(prev => [...prev, eventMessage]);
-          },
-          onComplete: (payload) => {
-            if (payload?.sessionId) setSessionId(payload.sessionId);
-            const completeMsg: Message = {
-              id: 'complete-' + Date.now(),
-              role: 'system',
-              content: `[complete] success=${String(payload?.success ?? '')}${payload?.metadata?.duration ? ` • duration=${payload.metadata.duration}ms` : ''}`,
-              timestamp: new Date(),
-              metadata: { sessionId: payload?.sessionId, durationMs: payload?.metadata?.duration },
-            };
-            setMessages(prev => [...prev, completeMsg]);
-            stopStreaming();
-          },
-          onError: (error: string) => {
-            const errorMsg: Message = {
-              id: 'error-' + Date.now(),
-              role: 'system',
-              content: `Error: ${error}`,
-              timestamp: new Date(),
-              metadata: { isError: true },
-            };
-            setMessages(prev => [...prev, errorMsg]);
-            stopStreaming();
-          },
-        },
-        { sessionId, projectId, mode: 'ask' }
-      );
-    } catch (error: any) {
-      console.error('Claude API error:', error);
-      const errorMsg: Message = {
-        id: 'error-' + Date.now(),
-        role: 'system',
-        content: `Error: ${error.message}`,
-        timestamp: new Date(),
-        metadata: { isError: true },
-      };
-      setMessages(prev => [...prev, errorMsg]);
-      stopStreaming();
-    }
+    const fromString = (str: string) => {
+      const singleLine = str.replace(/\n/g, ' ').trim();
+      const base = toBasename(singleLine);
+      return shorten(base);
+    };
+    const fromObject = (obj: any) => {
+      const candidates = [
+        obj?.target_file,
+        obj?.file,
+        obj?.path,
+        Array.isArray(obj?.paths) ? obj.paths[0] : undefined,
+        obj?.target_notebook,
+        obj?.command,
+        obj?.query,
+        obj?.pullNumberOrCommitHash,
+        obj?.search_term,
+        obj?.title,
+      ].filter(Boolean) as string[];
+      if (!candidates.length) return undefined;
+      return fromString(String(candidates[0]));
+    };
+    if (typeof input === 'string') return fromString(input);
+    if (typeof input === 'object') return fromObject(input);
+    return undefined;
   };
+  
+  const isSimpleTool = (name?: string) => name === 'Edit' || name === 'Bash';
+  const getEditFilePath = (input: any): string | undefined => {
+    if (!input) return undefined;
+    return input.file_path || input.target_file || input.path || input.target_notebook;
+  };
+  const getBashCommand = (input: any): string | undefined => {
+    if (!input) return undefined;
+    return input.command;
+  };
+  // timeline is provided by parent
+
+  // Shared classes for large blocks to avoid layout overflow
+  const preClamp = "bg-gray-100 p-2 rounded text-[10px] font-mono overflow-auto max-h-48 whitespace-pre-wrap break-words";
+
+  if (!isOpen) return null;
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-background">
-      {initStatus && (
-        <div className={`px-4 py-2 border-b ${initStatus.state === 'error' ? 'bg-destructive/10 border-destructive/50 text-destructive' : 'bg-muted/30'}`}>
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              {initStatus.state === 'initializing' && (
-                <span className="inline-flex h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              )}
-              <span>{initStatus.message}</span>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="px-4 py-2 border-b bg-muted/30">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <span className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`} />
-              {isLoading ? 'Streaming' : 'Ready'}
-            </span>
-            {sessionId && <span>Session: {sessionId}</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={resetConversation}
-              className="text-muted-foreground hover:underline"
-            >
-              New
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-4 space-y-3">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.role === 'user' ? 'justify-end' : message.role === 'system' ? 'justify-center' : 'justify-start'
-              }`}
-            >
-              <div className={`max-w-[75%] ${
-                message.role === 'user' ? 'ml-12' : message.role === 'system' ? '' : 'mr-12'
-              }`}>
-                <div className="flex flex-col gap-1">
-                  <div
-                    className={`rounded-2xl px-4 py-3 border ${
-                      message.role === 'user'
-                        ? 'bg-muted/50 border-muted/50 ml-auto'
-                        : message.role === 'system'
-                        ? 'bg-muted/30 border-muted/30 text-xs'
-                        : 'bg-background border-border/50'
-                    }`}
-                  >
-                    <p className={`${message.role === 'system' ? 'text-xs' : 'text-sm'} leading-relaxed`}>
-                      {message.content}
-                    </p>
-                  </div>
-                  <div className={`flex items-center gap-2 text-xs text-muted-foreground px-2 ${
-                    message.role === 'user' ? 'justify-end' : message.role === 'system' ? 'justify-center' : 'justify-start'
-                  }`}>
-                    <span>{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    {message.metadata?.durationMs && (
-                      <span>• {(message.metadata.durationMs / 1000).toFixed(1)}s</span>
-                    )}
-                    {message.metadata?.isError && (
-                      <span className="text-red-500">• Error</span>
+    <div className={cn(
+      "min-h-0 flex flex-col bg-background overflow-hidden rounded-none w-full h-full"
+    )}>
+
+      <ScrollArea
+        className={cn(
+          "flex-1 min-h-0",
+          // Slimmer, borderless scrollbar only within Conversation
+          "[&_[data-slot='scroll-area-scrollbar']]:w-1.5",
+          "[&_[data-slot='scroll-area-scrollbar']]:border-0",
+          "[&_[data-slot='scroll-area-scrollbar'][data-orientation='horizontal']]:h-1.5"
+        )}
+      >
+        <div className="p-2 space-y-2">
+            {timeline?.length === 0 && (
+              <div className="text-xs text-muted-foreground">No messages yet. Ask something to get started.</div>
+            )}
+            {timeline?.map((entry: any, idx: number) => {
+            if (entry.kind === 'toolGroup') {
+              const items = entry.items as any[];
+              const ts = items[0]?._creationTime ? new Date(items[0]._creationTime) : undefined;
+              const key = `tool-group-${idx}-${items.length}`;
+              return (
+                <div key={key} className="flex justify-start">
+                  <div className="max-w-full p-2 rounded border bg-background w-full">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between text-left"
+                      onClick={() => setOpenGroups((s) => ({ ...s, [key]: !s[key] }))}
+                      aria-expanded={!!openGroups[key]}
+                    >
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                        <span className={`inline-flex h-3 w-3 border-2 border-current border-t-transparent rounded-full ${items.some((mm:any)=>!mm.tool?.result && mm.tool?.status!=='error') ? 'animate-spin' : ''}`} />
+                        <span className="font-medium text-foreground">{items.length} tool{items.length > 1 ? 's' : ''}</span>
+                        {ts && <span>• {ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+                      </div>
+                      <ChevronDown size={14} className={cn("text-muted-foreground transition-transform", openGroups[key] && "rotate-180")} />
+                    </button>
+
+                    {openGroups[key] && (
+                      <div className="mt-2 space-y-1">
+                        {items.map((mm, j) => {
+                          const status = mm.tool?.status as string | undefined;
+                          const label = status === 'error' ? 'error' : mm.tool?.result ? 'completed' : mm.tool?.input ? 'running' : 'processing';
+                          const itemKey = `${key}-${j}`;
+                          const hint = getToolHint(mm.tool?.input);
+                          return (
+                            <div key={`tool-${idx}-${j}`} className="rounded border bg-white/60">
+                              <button
+                                type="button"
+                                className="w-full flex items-center justify-between px-2 py-1 text-xs"
+                                onClick={() => setOpenToolItems((s) => ({ ...s, [itemKey]: !s[itemKey] }))}
+                                aria-expanded={!!openToolItems[itemKey]}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={cn(
+                                      "h-2.5 w-2.5 rounded-full",
+                                      label === 'completed' && "bg-green-500",
+                                      label === 'error' && "bg-red-500",
+                                      label !== 'completed' && label !== 'error' && "bg-yellow-500"
+                                    )}
+                                  />
+                                  <span className="font-mono">{mm.tool?.name || 'tool'}</span>
+                                  {hint && <span className="text-muted-foreground font-mono">({hint})</span>}
+                                  <span className="text-muted-foreground">• {label}</span>
+                                </div>
+                                <ChevronDown size={12} className={cn("text-muted-foreground transition-transform", openToolItems[itemKey] && "rotate-180")} />
+                              </button>
+                              {isSimpleTool(mm.tool?.name) && (
+                                <div className="px-2 pb-1 text-[10px] text-muted-foreground font-mono">
+                                  {mm.tool?.name === 'Edit' && (
+                                    <span>{getEditFilePath(mm.tool?.input) || '-'}</span>
+                                  )}
+                                  {mm.tool?.name === 'Bash' && (
+                                    <span>{getBashCommand(mm.tool?.input) || '-'}</span>
+                                  )}
+                                </div>
+                              )}
+                              {openToolItems[itemKey] && (
+                                <div className="px-2 pb-2 max-h-60 overflow-auto">
+                                  {isSimpleTool(mm.tool?.name) ? (
+                                    <>
+                                      {mm.tool?.name === 'Edit' && (
+                                        <div className="mt-1">
+                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">file</div>
+                                          <code className="bg-gray-100 px-1 py-0.5 rounded text-[10px] font-mono">
+                                            {getEditFilePath(mm.tool?.input) || '-'}
+                                          </code>
+                                        </div>
+                                      )}
+                                      {mm.tool?.name === 'Bash' && (
+                                        <div className="mt-1">
+                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">command</div>
+                                          <code className="bg-gray-100 px-1 py-0.5 rounded text-[10px] font-mono">
+                                            {getBashCommand(mm.tool?.input) || '-'}
+                                          </code>
+                                        </div>
+                                      )}
+                                      {mm.tool?.input && (
+                                        <div className="mt-2">
+                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">input</div>
+                                          <pre className={preClamp}>
+                                            {stringify(mm.tool.input)}
+                                          </pre>
+                                        </div>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {mm.tool?.input && (
+                                        <div className="mt-1">
+                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">input</div>
+                                          <pre className={preClamp}>
+                                            {stringify(mm.tool.input)}
+                                          </pre>
+                                        </div>
+                                      )}
+                                      {mm.tool?.result && (
+                                        <div className="mt-1">
+                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">result</div>
+                                          <pre className={preClamp}>
+                                            {stringify(mm.tool.result)}
+                                          </pre>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
+              );
+            }
+            if (entry.kind === 'systemInit' || entry.kind === 'systemResult') {
+              const m = entry.msg;
+              const ts = m?._creationTime ? new Date(m._creationTime) : undefined;
+              const key = (m?._id as string) || `${idx}-${m?._creationTime || Date.now()}`;
+              return (
+                <div key={key} className="flex flex-col items-center my-2">
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="h-px bg-muted flex-1" />
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] text-muted-foreground bg-muted/30 border-muted/30">
+                      {(() => {
+                        const isInit = m?.type === 'init';
+                        const isError = m?.type === 'error';
+                        const Icon = isInit ? PlayCircle : isError ? AlertCircle : Check;
+                        const label = isInit ? 'Session started' : isError ? 'Conversation error' : 'Conversation completed';
+                        return (
+                          <>
+                            <Icon className="h-3.5 w-3.5" />
+                            <span className="font-medium text-foreground/80">{label}</span>
+                            {ts && (
+                              <span className="text-muted-foreground/70">• {ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                    <div className="h-px bg-muted flex-1" />
+                  </div>
+                  {m?.type === 'result' && m?.raw && (
+                    <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-2">
+                      {(() => {
+                        const usage = (m.raw?.usage || m.raw?.data?.usage || m.raw?.result?.usage) as any;
+                        const inTok = usage?.input_tokens ?? usage?.input ?? usage?.prompt_tokens;
+                        const outTok = usage?.output_tokens ?? usage?.output ?? usage?.completion_tokens;
+                        const dur = m.raw?.duration_ms ?? m.raw?.data?.duration_ms ?? m.raw?.result?.duration_ms;
+                        const turns = m.raw?.num_turns ?? m.raw?.data?.num_turns ?? m.raw?.result?.num_turns;
+                        return (
+                          <>
+                            {(typeof inTok === 'number' || typeof outTok === 'number') && (
+                              <span>tokens: {inTok ?? '-'} / {outTok ?? '-'}</span>
+                            )}
+                            {typeof dur === 'number' && <span>{Math.round(dur / 1000)}s</span>}
+                            {typeof turns === 'number' && <span>{turns} turns</span>}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {entry.kind === 'systemResult' && entry.checkpoint && (
+                    <div className="mt-2 w-full max-w-[720px] rounded border bg-white/60 p-2">
+                      {(() => {
+                        const cp = entry.checkpoint as any;
+                        const sha = (cp?.sha || '').slice(0, 7);
+                        const filesChanged = cp?.stats?.filesChanged;
+                        const additions = cp?.stats?.additions;
+                        const deletions = cp?.stats?.deletions;
+                        return (
+                          <div className="text-[11px]">
+                            <div className="flex items-center gap-2 text-foreground">
+                              <GitCommit className="h-3.5 w-3.5" />
+                              <span className="font-medium">Checkpoint</span>
+                              {sha && (
+                                <code className="bg-gray-100 px-1 py-0.5 rounded font-mono">{sha}</code>
+                              )}
+                            </div>
+                            {cp?.message && (
+                              <div className="mt-1 text-[11px] text-muted-foreground">{cp.message}</div>
+                            )}
+                            {(typeof filesChanged === 'number' || typeof additions === 'number' || typeof deletions === 'number') && (
+                              <div className="mt-1 text-[10px] text-muted-foreground flex items-center gap-3">
+                                {typeof filesChanged === 'number' && <span>{filesChanged} files</span>}
+                                {(typeof additions === 'number' || typeof deletions === 'number') && (
+                                  <span>
+                                    {typeof additions === 'number' && <span className="text-green-600">+{additions}</span>}
+                                    {typeof additions === 'number' && typeof deletions === 'number' && <span> / </span>}
+                                    {typeof deletions === 'number' && <span className="text-red-600">-{deletions}</span>}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            const m = entry.msg;
+            const role = m.role || 'system';
+            const ts = m._creationTime ? new Date(m._creationTime) : undefined;
+            const key = m._id || `${idx}-${m._creationTime || Date.now()}`;
+            const content = m.contentText || (typeof m.raw === 'string' ? m.raw : undefined);
+            const from = role === 'user' ? 'user' : 'assistant';
+            return (
+              <div key={key} className={`flex ${from === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className="max-w-full rounded border bg-background p-2 min-w-0">
+                  <div className="text-sm markdown-content break-words">
+                    {content ? (
+                      <ReactMarkdown 
+                        components={{
+                          code: ({ children, ...props }) => {
+                            return (
+                              <code className="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono break-words" {...props}>
+                                {children}
+                              </code>
+                            );
+                          },
+                          pre: ({ children }) => (
+                            <pre className={preClamp}>
+                              {children}
+                            </pre>
+                          ),
+                          p: ({ children }) => <p className="mb-2 last:mb-0 break-words">{children}</p>,
+                          ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
+                          li: ({ children }) => <li className="mb-1">{children}</li>,
+                          h1: ({ children }) => <h1 className="text-sm font-bold mb-2">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-sm font-bold mb-2">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-sm font-semibold mb-1">{children}</h3>,
+                          blockquote: ({ children }) => <blockquote className="border-l-2 border-gray-300 pl-2 italic">{children}</blockquote>,
+                        }}
+                      >
+                        {content}
+                      </ReactMarkdown>
+                    ) : (
+                      <pre className={preClamp}>{stringify(m.raw)}</pre>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-1">{ts && ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.type && ` • ${m.type}`}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+          <div ref={endRef} />
         </div>
       </ScrollArea>
-      
-      <div className="p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="relative rounded-3xl border bg-muted/30 p-3"
-        >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder={disabled ? 'Initializing project environment...' : 'Ask anything...'}
-            disabled={disabled}
-            className="w-full resize-none bg-transparent px-2 pb-8 pt-2 text-sm placeholder:text-muted-foreground focus:outline-none min-h-[56px] max-h-[120px] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ lineHeight: '1.5' }}
-          rows={2}
-          />
-          
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-end gap-2">
-            {isLoading && (
-              <button
-                type="button"
-                onClick={stopStreaming}
-                className="px-2 h-8 rounded-full text-xs border hover:bg-muted transition-colors"
-                aria-label="Stop streaming"
-              >
-                Stop
-              </button>
-            )}
-            <button
-              type="submit"
-              disabled={disabled || !input.trim() || isLoading}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity cursor-pointer"
-              aria-label="Send message"
-            >
-              {isLoading ? (
-                <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <ArrowUp className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
+      {composer && (
+        <div className="border-t shrink-0">
+          {composer}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,17 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useInitializeProject } from '@/hooks/useInitializeProject';
-import { useProject } from '@/hooks/useProject';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import TerminalWrapper from './terminal-wrapper';
+import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
+import { api, Id } from '@repo/backend';
+import PreviewPanel from './preview-panel';
 import Conversation from './conversation';
+import ChatInput from './chat-input';
+import { cn } from '@/lib/utils';
 
 interface SplitViewProps {
   projectId?: string;
@@ -19,114 +14,144 @@ interface SplitViewProps {
 }
 
 export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
-  const [showTerminal, setShowTerminal] = useState(false);
-  const { initialize, isInitializing, isSuccess, isError, previewUrl } = useInitializeProject();
-  const { project } = useProject(projectId);
+  const activateProject = useMutation(api.projects.activateProject);
+  const project = useQuery(api.projects.getProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
+  const sessions = useQuery(api.sessions.listSessionsByProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
+  const createSession = useMutation(api.sessions.createSession);
+
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const creatingRef = useRef(false);
+  const [isConversationOpen, setIsConversationOpen] = useState(true);
+
+  const previewUrl = project?.sandbox?.preview_url as string | undefined;
 
   useEffect(() => {
-    if (projectId) {
-      initialize(projectId, {
-        onSuccess: (data: any) => onPreviewUrl?.(data?.previewUrl || data?.devServerUrl || null),
-      } as any);
-    }
-  }, [projectId]);
+    if (!projectId) return;
+    activateProject({ projectId: projectId as Id<'projects'> }).catch(() => {});
+  }, [projectId, activateProject]);
 
-  const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = isInitializing ? 'initializing' : isSuccess ? 'ready' : isError ? 'error' : 'idle';
-  const isChatDisabled = useMemo(() => initStatus !== 'ready', [initStatus]);
-  const chatInitStatus = useMemo(() => {
-    if (initStatus === 'initializing') return { state: 'initializing', message: 'Initializing project...' } as const;
-    if (initStatus === 'error') return { state: 'error', message: 'Initialization failed' } as const;
-    return null;
-  }, [initStatus]);
-  
+  const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = previewUrl ? 'ready' : 'initializing';
+
+  // Load detailed session (timeline, todos)
+  const session = useQuery(api.sessions.getSession, sessionId ? { sessionId: sessionId as Id<'sessions'> } : 'skip');
+
+  const timeline = session?.timeline || [];
+  const todos = (session?.todos || []).map((t: any) => ({ id: t.id, text: t.content, status: t.status }));
+
+  // Removed checkpoints UI and logic from SplitView
+
+  // Send handler
+  const [isSending, setIsSending] = useState(false);
+  const createAndRun = useMutation(api.sessions.createMessageAndRunAgent);
+  const handleSend = async (text: string) => {
+    if (!text.trim() || !projectId || !sessionId || isSending) return;
+    setIsSending(true);
+    try {
+      await createAndRun({
+        projectId: projectId as Id<'projects'>,
+        prompt: text,
+        sessionId: sessionId as Id<'sessions'>,
+      });
+    } catch (e) {
+      // noop
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Ensure there is a session for this project
+  useEffect(() => {
+    if (!projectId) return;
+    if (Array.isArray(sessions) && sessions.length > 0) {
+      const first = (sessions[0]?._id as string) || undefined;
+      if (first && first !== sessionId) setSessionId(first);
+      return;
+    }
+    if (Array.isArray(sessions) && sessions.length === 0 && !creatingRef.current) {
+      creatingRef.current = true;
+      createSession({ projectId: projectId as Id<'projects'> })
+        .then((id) => setSessionId(id as unknown as string))
+        .catch(() => {})
+        .finally(() => { creatingRef.current = false; });
+    }
+  }, [projectId, sessions, createSession, sessionId]);
 
   return (
-    <div className="h-screen w-full bg-background">
-      <ResizablePanelGroup
-        direction="horizontal"
-        className="h-full rounded-lg border"
-      >
-        <ResizablePanel defaultSize={30} minSize={30}>
-          <div className="h-full flex flex-col">
-            <div className="border-b bg-muted/50 px-4 py-2 flex items-center justify-between">
-              <h3 className="text-sm font-medium">Workspace</h3>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="view-switch" className="text-xs text-muted-foreground cursor-pointer">
-                  Terminal
-                </Label>
-                <Switch
-                  id="view-switch"
-                  checked={!showTerminal}
-                  onCheckedChange={(checked) => setShowTerminal(!checked)}
-                  className="data-[state=checked]:bg-primary"
-                />
-                <Label htmlFor="view-switch" className="text-xs text-muted-foreground cursor-pointer">
-                  Chat
-                </Label>
-              </div>
-            </div>
-            
-            {showTerminal ? (
-              <div className="flex-1 overflow-hidden">
-                <TerminalWrapper />
-              </div>
-            ) : (
-              <div className="flex-1 overflow-hidden">
-                <Conversation disabled={isChatDisabled} initStatus={chatInitStatus as any} projectId={projectId} />
-              </div>
-            )}
-          </div>
-        </ResizablePanel>
-        
-        <ResizableHandle withHandle />
-        
-        <ResizablePanel defaultSize={70} minSize={50}>
-          <div className="h-full flex flex-col">
-            <div className="border-b bg-muted px-4 py-2 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h3 className="text-sm font-medium">Preview</h3>
-                {project?.name && (
-                  <span className="text-xs text-muted-foreground">{project.name}</span>
-                )}
-                {(previewUrl || project?.sandbox_metadata?.preview_url) && initStatus === 'ready' && (
-                  <a
-                    className="text-xs underline text-muted-foreground hover:text-foreground"
-                    href={(previewUrl || project?.sandbox_metadata?.preview_url) as string}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open
-                  </a>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {initStatus === 'initializing' && (
-                  <span className="inline-flex items-center gap-2"><span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting...</span>
-                )}
-                {initStatus === 'ready' && 'Live'}
-                {initStatus === 'error' && <span className="text-destructive">Failed</span>}
-              </div>
-            </div>
-            <div className="flex-1 bg-background">
-              {initStatus !== 'ready' ? (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-                    <div className="h-8 w-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                    <span>Preparing preview...</span>
-                  </div>
-                </div>
-              ) : (
-                <iframe
-                  src={previewUrl || project?.sandbox_metadata?.preview_url || 'about:blank'}
-                  className="w-full h-full border-0"
-                  title="Preview"
-                  sandbox="allow-scripts allow-same-origin"
-                />
+    <div className="h-screen w-full bg-background flex flex-col">
+      <div className="flex items-center justify-between p-2 border-b">
+        <div className="text-sm font-medium">Workspace</div>
+        <div className="text-xs text-muted-foreground">
+          {initStatus === 'initializing' ? (
+            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting…</span>
+          ) : 'Ready'}
+        </div>
+      </div>
+      <div className="flex-1 min-h-0">
+        <div className={cn("h-full min-h-0 grid grid-cols-[420px_1fr]")}> 
+        <div className={cn("min-w-0 order-2 flex flex-col h-full bg-background")}> 
+          <div className="flex items-center justify-between p-2 border-b">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium">Preview</h3>
+              {previewUrl && initStatus === 'ready' && (
+                <a
+                  className="text-xs underline text-muted-foreground hover:text-foreground"
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open
+                </a>
               )}
             </div>
+            <div className="text-xs text-muted-foreground">
+              {initStatus === 'initializing' && (
+                <span className="inline-flex items-center gap-2"><span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting...</span>
+              )}
+              {initStatus === 'ready' && 'Live'}
+            </div>
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <div className="flex-1 min-h-0">
+            <PreviewPanel initStatus={initStatus} previewUrl={previewUrl} onPreviewUrl={onPreviewUrl} />
+          </div>
+        </div>
+        <div className="h-full min-h-0 bg-background order-1 flex flex-col">
+          <div className="flex items-center justify-between p-2 border-b">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-medium text-gray-800">Conversation</h3>
+              <span className={cn(
+                "text-xs font-medium",
+                initStatus === 'initializing' ? 'text-blue-500' : 'text-green-500 hidden'
+              )}>
+                {initStatus === 'ready' ? 'Ready' : 'Initializing project'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2" />
+          </div>
+          <div className="flex-1 min-h-0 border-r">
+            <Conversation
+              isOpen={isConversationOpen}
+              setIsOpen={setIsConversationOpen}
+              initStatus={{
+                state: initStatus === 'ready' ? 'ready' : 'initializing',
+                message: initStatus === 'ready' ? 'Ready' : 'Initializing project '
+              }}
+              timeline={timeline}
+              todos={todos}
+              composer={
+                <ChatInput
+                  onSubmit={handleSend}
+                  disabled={initStatus !== 'ready' || isSending || !projectId}
+                  placeholder={initStatus !== 'ready' ? 'Initializing project environment...' : 'Ask anything...'}
+                  todos={todos}
+                  timeline={timeline}
+                  
+                />
+              }
+            />
+          </div>
+        </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authClient } from '@/lib/auth-client';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@repo/backend';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -17,106 +18,50 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Plus, MoreVertical, Code2, Clock, Activity } from 'lucide-react';
-
-interface Project {
-  id: string;
-  name: string;
-  created_at: string;
-  sandbox_id?: string;
-  sandbox_metadata?: any;
-  settings?: any;
-  github?: any;
-}
-
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-  image?: string;
-}
+import { useAuthActions } from '@convex-dev/auth/react';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const user = useQuery(api.auth.loggedInUser, {});
   const [creatingProject, setCreatingProject] = useState(false);
+  const { signOut } = useAuthActions();
 
-  useEffect(() => {
-    checkAuth();
-    fetchProjects();
-  }, []);
-
-  const checkAuth = async () => {
-    const { data, error } = await authClient.getSession();
-    if (error || !data?.user) {
-      router.push('/login');
-      return;
-    }
-    setUser(data.user as User);
-  };
-
-  const fetchProjects = async () => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects`, {
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
-      }
-      
-      const data = await response.json();
-      setProjects(data.projects);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Convex data
+  const projects = useQuery(api.projects.listProjects, {});
+  const createProjectMutation = useMutation(api.projects.createProject);
 
   const createProject = async () => {
-    if (creatingProject) return; // Prevent double-clicks
-    
+    if (creatingProject) return;
     setCreatingProject(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: `Project ${new Date().toLocaleDateString()}`,
-        }),
+      const id = await createProjectMutation({
+        name: `Project ${new Date().toLocaleDateString()}`,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create project');
-      }
-
-      const data = await response.json();
-      router.push(`/project?id=${data.project.id}`);
+      router.push(`/project?id=${id}`);
     } catch (err) {
       console.error('Error creating project:', err);
-      setError('Failed to create project. Please try again.');
       setCreatingProject(false);
     }
   };
 
   const handleSignOut = async () => {
-    await authClient.signOut();
+    await signOut();
     router.push('/login');
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+  const formatDate = (ms: number) => {
+    try {
+      return new Date(ms).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    } catch {
+      return '';
+    }
   };
+
+  const loading = projects === undefined;
 
   if (loading) {
     return (
@@ -165,7 +110,7 @@ export default function DashboardPage() {
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={user?.image} alt={user?.name || user?.email} />
                     <AvatarFallback>
-                      {user?.name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
+                      {user?.name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -222,13 +167,7 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          {error && (
-            <div className="rounded-3xl border border-destructive/50 bg-destructive/10 p-6">
-              <p className="text-destructive text-sm">{error}</p>
-            </div>
-          )}
-
-          {projects.length === 0 && !error ? (
+          {(projects?.length ?? 0) === 0 ? (
             <div className="rounded-3xl border border-dashed border-border/50 bg-muted/30 p-12">
               <div className="flex flex-col items-center justify-center text-center">
                 <Code2 className="h-12 w-12 text-muted-foreground mb-4" />
@@ -257,17 +196,17 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {projects.map((project) => (
+              {projects?.map((project) => (
                 <div
-                  key={project.id}
+                  key={String((project as any)._id)}
                   className="rounded-3xl border border-border/50 bg-muted/30 p-6 hover:bg-muted/50 hover:border-border/70 transition-all cursor-pointer group"
-                  onClick={() => router.push(`/project?id=${project.id}`)}
+                  onClick={() => router.push(`/project?id=${String((project as any)._id)}`)}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="space-y-1">
                       <h4 className="text-base font-medium group-hover:text-foreground transition-colors">{project.name}</h4>
                       <p className="text-sm text-muted-foreground">
-                        Created {formatDate(project.created_at)}
+                        Created {formatDate((project as any)._creationTime)}
                       </p>
                     </div>
                     <DropdownMenu>
@@ -280,7 +219,7 @@ export default function DashboardPage() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/project?id=${project.id}`);
+                            router.push(`/project?id=${String((project as any)._id)}`);
                           }}
                         >
                           Open
@@ -311,7 +250,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-1.5">
                         <Activity className="h-3 w-3" />
                         <span>
-                          {project.sandbox_id ? 'Active' : 'Not initialized'}
+                          {(project as any).sandboxId ? 'Active' : 'Not initialized'}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
