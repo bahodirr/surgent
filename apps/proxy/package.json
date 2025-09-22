@@ -1,0 +1,22 @@
+{
+  "name": "api",
+  "type": "module",
+  "scripts": {
+    "dev": "srvx src/index.ts",
+    "build": "tsc -p .",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "hono": "^4.8.10",
+    "@daytonaio/api-client": "^0.103.0",
+    "@hono/node-server": "^1.19.3",
+    "dotenv": "^17.2.2",
+    "http-proxy": "^1.18.1"
+  },
+  "devDependencies": {
+    "@types/http-proxy": "^1.17.16",
+    "@types/node": "^20.11.17",
+    "srvx": "^0.8.7",
+    "typescript": "^5.8.3"
+  }
+}
