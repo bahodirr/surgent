@@ -4,7 +4,10 @@ import type { Context } from 'hono'
 import * as dotenv from 'dotenv'
 import { Configuration, SandboxApi } from '@daytonaio/api-client'
 import http from 'node:http'
-import { createProxyServer } from 'http-proxy'
+import { createRequire } from 'node:module'
+const require = createRequire(import.meta.url)
+// http-proxy is CommonJS; import via createRequire in ESM
+const { createProxyServer } = require('http-proxy')
 
 dotenv.config({ path: process.env.DOTENV_PATH || undefined })
 

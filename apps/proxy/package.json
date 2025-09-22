@@ -2,7 +2,7 @@
   "name": "proxy",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "bun --hot src/index.ts",
     "build": "tsc -p .",
     "start": "node dist/index.js"
   },
