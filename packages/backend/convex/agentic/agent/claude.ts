@@ -4,6 +4,7 @@ import { AgentType, ClaudeConfig, ClaudeResponse, ClaudeStreamCallbacks, Convers
 
 export class ClaudeAgent extends BaseAgent {
   private anthropicApiKey?: string;
+  private anthropicBaseUrl?: string;
   private model?: string;
   
   // Build the instruction once based on mode
@@ -60,6 +61,9 @@ export class ClaudeAgent extends BaseAgent {
         "Claude agent requires providerApiKey (ANTHROPIC_API_KEY)."
       );
     }
+    if (config.providerBaseUrl) {
+      this.anthropicBaseUrl = config.providerBaseUrl;
+    }
   }
 
   protected getCommandConfig(
@@ -73,7 +77,7 @@ export class ClaudeAgent extends BaseAgent {
       command: `echo "${escapedPrompt}" | claude -p --continue --append-system-prompt "${this.escapePrompt(instruction)}"${
         mode === "ask" ? ' --disallowedTools "Edit" "Replace" "Write"' : ""
       } --output-format stream-json --verbose --model ${
-        this.model || "claude-sonnet-4-20250514"
+        this.model
       } --dangerously-skip-permissions`,
 
       //  TODO: Instead of --dangerously-skip-permissions, please use other config
@@ -91,6 +95,7 @@ export class ClaudeAgent extends BaseAgent {
   protected getEnvironmentVariables(): Record<string, string> {
     return {
       ANTHROPIC_API_KEY: this.anthropicApiKey!,
+      ANTHROPIC_BASE_URL: this.anthropicBaseUrl!,
     };
   }
 

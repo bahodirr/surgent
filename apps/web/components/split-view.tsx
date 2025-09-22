@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api, Id } from '@repo/backend';
 import PreviewPanel from './preview-panel';
 import Conversation from './conversation';
 import ChatInput from './chat-input';
 import { cn } from '@/lib/utils';
+import { parseMessages, ParsedSessionData } from '@/lib/message-parser';
+import { attachCheckpoints } from '@/lib/message-parser';
 
 interface SplitViewProps {
   projectId?: string;
@@ -17,10 +19,8 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const activateProject = useMutation(api.projects.activateProject);
   const project = useQuery(api.projects.getProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
   const sessions = useQuery(api.sessions.listSessionsByProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
-  const createSession = useMutation(api.sessions.createSession);
 
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
-  const creatingRef = useRef(false);
   const [isConversationOpen, setIsConversationOpen] = useState(true);
 
   const previewUrl = project?.sandbox?.preview_url as string | undefined;
@@ -34,11 +34,12 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
 
   // Load detailed session (timeline, todos)
   const session = useQuery(api.sessions.getSession, sessionId ? { sessionId: sessionId as Id<'sessions'> } : 'skip');
+  const messages = useQuery(api.sessions.listMessagesBySession, sessionId ? { sessionId: sessionId as Id<'sessions'>, limit: 200 } : 'skip');
+  const commits = useQuery(api.commits.listBySession, sessionId ? { sessionId: sessionId as Id<'sessions'> } : 'skip');
 
-  const timeline = session?.timeline || [];
-  const todos = (session?.todos || []).map((t: any) => ({ id: t.id, text: t.content, status: t.status }));
-
-  // Removed checkpoints UI and logic from SplitView
+  // Parse messages using the dedicated parser
+  const { timeline, todos } = parseMessages(Array.isArray(messages) ? messages : []);
+  const timelineWithCheckpoints = Array.isArray(commits) ? attachCheckpoints(timeline, commits) : timeline;
 
   // Send handler
   const [isSending, setIsSending] = useState(false);
@@ -59,22 +60,12 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
     }
   };
 
-  // Ensure there is a session for this project
+  // Select the latest session for this project (default session always exists)
   useEffect(() => {
-    if (!projectId) return;
-    if (Array.isArray(sessions) && sessions.length > 0) {
-      const first = (sessions[0]?._id as string) || undefined;
-      if (first && first !== sessionId) setSessionId(first);
-      return;
+    if (sessions?.[0]?._id) {
+      setSessionId(sessions[0]._id as string);
     }
-    if (Array.isArray(sessions) && sessions.length === 0 && !creatingRef.current) {
-      creatingRef.current = true;
-      createSession({ projectId: projectId as Id<'projects'> })
-        .then((id) => setSessionId(id as unknown as string))
-        .catch(() => {})
-        .finally(() => { creatingRef.current = false; });
-    }
-  }, [projectId, sessions, createSession, sessionId]);
+  }, [sessions]);
 
   return (
     <div className="h-screen w-full bg-background flex flex-col">
@@ -135,7 +126,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
                 state: initStatus === 'ready' ? 'ready' : 'initializing',
                 message: initStatus === 'ready' ? 'Ready' : 'Initializing project '
               }}
-              timeline={timeline}
+              timeline={timelineWithCheckpoints}
               todos={todos}
               composer={
                 <ChatInput
@@ -143,7 +134,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
                   disabled={initStatus !== 'ready' || isSending || !projectId}
                   placeholder={initStatus !== 'ready' ? 'Initializing project environment...' : 'Ask anything...'}
                   todos={todos}
-                  timeline={timeline}
+                  timeline={timelineWithCheckpoints}
                   
                 />
               }

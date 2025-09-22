@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from 'convex/react';
-import { api } from '@repo/backend';
+import { api, Id } from '@repo/backend';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -24,11 +24,16 @@ export default function DashboardPage() {
   const router = useRouter();
   const user = useQuery(api.auth.loggedInUser, {});
   const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectId, setNewProjectId] = useState<string | null>(null);
   const { signOut } = useAuthActions();
 
   // Convex data
   const projects = useQuery(api.projects.listProjects, {});
   const createProjectMutation = useMutation(api.projects.createProject);
+  const newProject = useQuery(
+    api.projects.getProject,
+    newProjectId ? { projectId: newProjectId as Id<'projects'> } : 'skip'
+  );
 
   const createProject = async () => {
     if (creatingProject) return;
@@ -37,12 +42,23 @@ export default function DashboardPage() {
       const id = await createProjectMutation({
         name: `Project ${new Date().toLocaleDateString()}`,
       });
-      router.push(`/project?id=${id}`);
+      setNewProjectId(String(id));
     } catch (err) {
       console.error('Error creating project:', err);
       setCreatingProject(false);
     }
   };
+
+  // Redirect only after the project sandbox is initialized
+  useEffect(() => {
+    if (!newProjectId) return;
+    const isReady = (newProject as any)?.sandbox?.isInitialized === true;
+    if (isReady) {
+      router.push(`/project?id=${newProjectId}`);
+      setNewProjectId(null);
+      setCreatingProject(false);
+    }
+  }, [newProjectId, newProject, router]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -99,7 +115,7 @@ export default function DashboardPage() {
       <header className="border-b bg-muted/30">
         <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <h1 className="text-2xl font-medium">Orbit</h1>
+            <h1 className="text-2xl font-medium">Surgent</h1>
             <Badge variant="secondary" className="text-xs rounded-full px-2 py-0.5">Beta</Badge>
           </div>
           
@@ -156,7 +172,7 @@ export default function DashboardPage() {
               {creatingProject ? (
                 <>
                   <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
-                  Creating...
+                  {newProjectId ? 'Initializing…' : 'Creating...'}
                 </>
               ) : (
                 <>
@@ -183,7 +199,7 @@ export default function DashboardPage() {
                   {creatingProject ? (
                     <>
                       <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
-                      Creating...
+                      {newProjectId ? 'Initializing…' : 'Creating...'}
                     </>
                   ) : (
                     <>

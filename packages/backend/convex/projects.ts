@@ -64,8 +64,14 @@ export const createProject = mutation({
       },
     });
 
+    // Create a default session for this new project so the UI always has one
+    await ctx.db.insert('sessions', {
+      projectId: projectId as Id<'projects'>,
+      title: 'New session',
+    });
+
     // Initialize sandbox asynchronously
-    await ctx.scheduler.runAfter(0, internal.actions.agent.initializeProject, {
+    await ctx.scheduler.runAfter(0, internal.agent.initializeProject, {
       projectId: projectId as Id<'projects'>,
     });
 
@@ -119,7 +125,7 @@ export const setSandboxState = internalMutation({
       ...(project.sandbox as any || {}),
       preview_url: args.previewUrl,
       status: 'started',
-      isInitialized: typeof args.isInitialized === 'boolean' ? args.isInitialized : true,
+      isInitialized: args.isInitialized,
     } as any;
 
     await ctx.db.patch(args.projectId as Id<'projects'>, {
@@ -147,7 +153,7 @@ export const wakeSandbox = mutation({
 
     if (!project.sandboxId) throw new Error('Sandbox not found');
 
-    await ctx.scheduler.runAfter(0, internal.actions.agent.resumeProject, {
+    await ctx.scheduler.runAfter(0, internal.agent.resumeProject, {
       projectId: projectId as Id<'projects'>,
       sandboxId: project.sandboxId,
     });
@@ -171,7 +177,7 @@ export const activateProject = mutation({
 
     if (!project.sandboxId) throw new Error('Sandbox not found');
 
-    await ctx.scheduler.runAfter(0, internal.actions.agent.resumeProject, {
+    await ctx.scheduler.runAfter(0, internal.agent.resumeProject, {
       projectId: projectId as Id<'projects'>,
       sandboxId: project.sandboxId,
     });

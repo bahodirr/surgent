@@ -1,12 +1,14 @@
 "use node";
 
-import { internalAction } from "../_generated/server";
+import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { ClaudeAgent } from "../agentic/agent/claude";
-import { createDaytonaProvider } from "../agentic/sandbox/daytona";
-import { api, internal } from "../_generated/api";
-import { Id } from "../_generated/dataModel";
+import { ClaudeAgent } from "./agentic/agent/claude";
+import { BaseAgent } from "./agentic/agent/base";
+import { createDaytonaProvider } from "./agentic/sandbox/daytona";
+import { api, internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import { getOrCreateSandbox } from "./sandbox";
+import { config } from "./config";
 
 // Initialize a project sandbox and persist fields on the project
 export const initializeProject = internalAction({
@@ -61,6 +63,7 @@ export const runAgent = internalAction({
     convexSessionId: v.optional(v.id("sessions")),
     model: v.optional(v.string()),
     mode: v.optional(v.union(v.literal("ask"), v.literal("code"))),
+    
   },
   returns: v.object({
     exitCode: v.number(),
@@ -71,20 +74,24 @@ export const runAgent = internalAction({
   }),
   handler: async (ctx, args) => {
     const provider = createDaytonaProvider({
-      apiKey: process.env.DAYTONA_API_KEY,
-      snapshot: "claude-code-vite-react-shadcn-ts-env:1.0.0",
+      apiKey: config.daytona.apiKey,
+      snapshot: "default-web-env:1.0.0",
     });
 
     console.log("agent is starting", args.sandboxId);
 
-    const agent = new ClaudeAgent({
+    const agent: BaseAgent = new ClaudeAgent({
       provider: "anthropic",
-      providerApiKey: process.env.ANTHROPIC_API_KEY,
-      model: args.model || "claude-sonnet-4-20250514",
+      providerApiKey: config.anthropic.apiKey,
+      providerBaseUrl: config.anthropic.baseUrl,
+      model: args.model || "glm-4.5",
       sandboxProvider: provider,
       sandboxId: args.sandboxId,
       workingDirectory: "/tmp/project",
     });
+
+    console.log("agent is created now",config.anthropic.baseUrl,config.anthropic.apiKey);
+    
 
     if (args.sessionId) {
       try {
@@ -95,33 +102,26 @@ export const runAgent = internalAction({
 
     let finalSessionMessageId: Id<"sessionMessages"> | undefined;
 
+    const handleUpdate = async (message: string) => {
+      try {
+        const parsed = JSON.parse(message);
+        console.log("parsed", parsed);
+        if (parsed.type === "start" && parsed.sandbox_id) return;
+        const insertedId = await ctx.runMutation(internal.sessions.appendMessage, {
+          sessionId: args.convexSessionId!,
+          raw: parsed,
+        });
+        if (parsed?.type === "result") {
+          finalSessionMessageId = insertedId as Id<"sessionMessages">;
+        }
+      } catch {}
+    };
+
     const result = await agent.generateCode(
       args.prompt,
       args.mode || "code",
       undefined,
-      {
-        onUpdate: async (message: string) => {
-          try {
-            // Ignore start messages with sandbox_id
-            const parsed = JSON.parse(message);
-            if (parsed.type === "start" && parsed.sandbox_id) {
-              return;
-            }
-
-            console.log("Chunk is coming", message.length);
-
-            const insertedId = await ctx.runMutation(internal.sessions.appendMessage, {
-              sessionId: args.convexSessionId!,
-              raw: JSON.parse(message),
-            });
-
-            // Capture the id of the final result message
-            if (parsed?.type === "result") {
-              finalSessionMessageId = insertedId as Id<"sessionMessages">;
-            }
-          } catch {}
-        },
-      },
+      { onUpdate: handleUpdate },
       true
     );
 

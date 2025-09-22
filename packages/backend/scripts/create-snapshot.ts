@@ -4,7 +4,7 @@ import { Daytona, Image } from '@daytonaio/sdk';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 
-const SNAPSHOT_NAME = "claude-code-vite-react-shadcn-ts-env:1.0.0";
+const SNAPSHOT_NAME = "default-web-env:1.0.0";
 
 async function createSnapshot(): Promise<void> {
   try {

@@ -86,19 +86,10 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
     return undefined;
   };
   
-  const isSimpleTool = (name?: string) => name === 'Edit' || name === 'Bash';
-  const getEditFilePath = (input: any): string | undefined => {
-    if (!input) return undefined;
-    return input.file_path || input.target_file || input.path || input.target_notebook;
-  };
-  const getBashCommand = (input: any): string | undefined => {
-    if (!input) return undefined;
-    return input.command;
-  };
   // timeline is provided by parent
 
   // Shared classes for large blocks to avoid layout overflow
-  const preClamp = "bg-gray-100 p-2 rounded text-[10px] font-mono overflow-auto max-h-48 whitespace-pre-wrap break-words";
+  const preClamp = "bg-gray-100 p-2 rounded text-[10px] font-mono overflow-auto max-h-48 whitespace-pre-wrap break-words break-all";
 
   if (!isOpen) return null;
 
@@ -125,37 +116,40 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
               const items = entry.items as any[];
               const ts = items[0]?._creationTime ? new Date(items[0]._creationTime) : undefined;
               const key = `tool-group-${idx}-${items.length}`;
+              // default open tool groups
+              const isOpen = openGroups[key] ?? true;
               return (
                 <div key={key} className="flex justify-start">
                   <div className="max-w-full p-2 rounded border bg-background w-full">
                     <button
                       type="button"
                       className="w-full flex items-center justify-between text-left"
-                      onClick={() => setOpenGroups((s) => ({ ...s, [key]: !s[key] }))}
-                      aria-expanded={!!openGroups[key]}
+                      onClick={() => setOpenGroups((s) => ({ ...s, [key]: !(s[key] ?? true) }))}
+                      aria-expanded={isOpen}
                     >
                       <div className="text-[11px] text-muted-foreground flex items-center gap-2">
                         <span className={`inline-flex h-3 w-3 border-2 border-current border-t-transparent rounded-full ${items.some((mm:any)=>!mm.tool?.result && mm.tool?.status!=='error') ? 'animate-spin' : ''}`} />
                         <span className="font-medium text-foreground">{items.length} tool{items.length > 1 ? 's' : ''}</span>
                         {ts && <span>• {ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                       </div>
-                      <ChevronDown size={14} className={cn("text-muted-foreground transition-transform", openGroups[key] && "rotate-180")} />
+                      <ChevronDown size={14} className={cn("text-muted-foreground transition-transform", isOpen && "rotate-180")} />
                     </button>
 
-                    {openGroups[key] && (
+                    {isOpen && (
                       <div className="mt-2 space-y-1">
                         {items.map((mm, j) => {
                           const status = mm.tool?.status as string | undefined;
                           const label = status === 'error' ? 'error' : mm.tool?.result ? 'completed' : mm.tool?.input ? 'running' : 'processing';
                           const itemKey = `${key}-${j}`;
+                          const itemOpen = openToolItems[itemKey] ?? false; // default closed
                           const hint = getToolHint(mm.tool?.input);
                           return (
                             <div key={`tool-${idx}-${j}`} className="rounded border bg-white/60">
                               <button
                                 type="button"
                                 className="w-full flex items-center justify-between px-2 py-1 text-xs"
-                                onClick={() => setOpenToolItems((s) => ({ ...s, [itemKey]: !s[itemKey] }))}
-                                aria-expanded={!!openToolItems[itemKey]}
+                                onClick={() => setOpenToolItems((s) => ({ ...s, [itemKey]: !(s[itemKey] ?? false) }))}
+                                aria-expanded={itemOpen}
                               >
                                 <div className="flex items-center gap-2">
                                   <span
@@ -170,66 +164,25 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
                                   {hint && <span className="text-muted-foreground font-mono">({hint})</span>}
                                   <span className="text-muted-foreground">• {label}</span>
                                 </div>
-                                <ChevronDown size={12} className={cn("text-muted-foreground transition-transform", openToolItems[itemKey] && "rotate-180")} />
+                                <ChevronDown size={12} className={cn("text-muted-foreground transition-transform", itemOpen && "rotate-180")} />
                               </button>
-                              {isSimpleTool(mm.tool?.name) && (
-                                <div className="px-2 pb-1 text-[10px] text-muted-foreground font-mono">
-                                  {mm.tool?.name === 'Edit' && (
-                                    <span>{getEditFilePath(mm.tool?.input) || '-'}</span>
-                                  )}
-                                  {mm.tool?.name === 'Bash' && (
-                                    <span>{getBashCommand(mm.tool?.input) || '-'}</span>
-                                  )}
-                                </div>
-                              )}
-                              {openToolItems[itemKey] && (
+                              {itemOpen && (
                                 <div className="px-2 pb-2 max-h-60 overflow-auto">
-                                  {isSimpleTool(mm.tool?.name) ? (
-                                    <>
-                                      {mm.tool?.name === 'Edit' && (
-                                        <div className="mt-1">
-                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">file</div>
-                                          <code className="bg-gray-100 px-1 py-0.5 rounded text-[10px] font-mono">
-                                            {getEditFilePath(mm.tool?.input) || '-'}
-                                          </code>
-                                        </div>
-                                      )}
-                                      {mm.tool?.name === 'Bash' && (
-                                        <div className="mt-1">
-                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">command</div>
-                                          <code className="bg-gray-100 px-1 py-0.5 rounded text-[10px] font-mono">
-                                            {getBashCommand(mm.tool?.input) || '-'}
-                                          </code>
-                                        </div>
-                                      )}
-                                      {mm.tool?.input && (
-                                        <div className="mt-2">
-                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">input</div>
-                                          <pre className={preClamp}>
-                                            {stringify(mm.tool.input)}
-                                          </pre>
-                                        </div>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <>
-                                      {mm.tool?.input && (
-                                        <div className="mt-1">
-                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">input</div>
-                                          <pre className={preClamp}>
-                                            {stringify(mm.tool.input)}
-                                          </pre>
-                                        </div>
-                                      )}
-                                      {mm.tool?.result && (
-                                        <div className="mt-1">
-                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">result</div>
-                                          <pre className={preClamp}>
-                                            {stringify(mm.tool.result)}
-                                          </pre>
-                                        </div>
-                                      )}
-                                    </>
+                                  {mm.tool?.input && (
+                                    <div className="mt-1">
+                                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">input</div>
+                                      <pre className={preClamp}>
+                                        {stringify(mm.tool.input)}
+                                      </pre>
+                                    </div>
+                                  )}
+                                  {mm.tool?.result && (
+                                    <div className="mt-1">
+                                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">result</div>
+                                      <pre className={preClamp}>
+                                        {stringify(mm.tool.result)}
+                                      </pre>
+                                    </div>
                                   )}
                                 </div>
                               )}
@@ -254,8 +207,9 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
                       {(() => {
                         const isInit = m?.type === 'init';
                         const isError = m?.type === 'error';
+                        const isCompact = entry.kind === 'systemResult' && typeof (m as any)?.contentText === 'string' && /compacted/i.test((m as any).contentText as string);
                         const Icon = isInit ? PlayCircle : isError ? AlertCircle : Check;
-                        const label = isInit ? 'Session started' : isError ? 'Conversation error' : 'Conversation completed';
+                        const label = isInit ? 'Session started' : isError ? 'Conversation error' : isCompact ? 'Compacted' : 'Conversation completed';
                         return (
                           <>
                             <Icon className="h-3.5 w-3.5" />
@@ -269,6 +223,29 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
                     </div>
                     <div className="h-px bg-muted flex-1" />
                   </div>
+                  {entry.kind === 'systemResult' && typeof (m as any)?.contentText === 'string' && (m as any).contentText.trim() && (
+                    <div className="mt-2 w-full max-w-[720px] rounded border bg-white/60 p-2">
+                      {(() => {
+                        const mm: any = m;
+                        const isHook = !!mm?.event?.kind && mm.event.kind === 'hook';
+                        const isCompact = isHook && mm?.event?.name === 'compact';
+                        const tone = mm?.event?.status === 'error' ? 'text-red-600' : 'text-green-700';
+                        return (
+                          <div className="space-y-1">
+                            {isHook && (
+                              <div className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-full text-[10px] border ${isCompact ? 'bg-green-50 border-green-200' : 'bg-muted/30 border-muted/30'}`}>
+                                <span className={`font-medium ${tone}`}>{mm.event.name}</span>
+                                {typeof mm?.event?.status === 'string' && <span className="text-muted-foreground">• {mm.event.status}</span>}
+                              </div>
+                            )}
+                            <div className="text-[11px] text-foreground/80 whitespace-pre-wrap break-words">
+                              {mm.contentText}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                   {m?.type === 'result' && m?.raw && (
                     <div className="mt-2 text-[10px] text-muted-foreground flex items-center gap-2">
                       {(() => {
@@ -338,13 +315,13 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
             return (
               <div key={key} className={`flex ${from === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className="max-w-full rounded border bg-background p-2 min-w-0">
-                  <div className="text-sm markdown-content break-words">
+                  <div className="text-sm markdown-content break-words" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                     {content ? (
                       <ReactMarkdown 
                         components={{
                           code: ({ children, ...props }) => {
                             return (
-                              <code className="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono break-words" {...props}>
+                              <code className="bg-gray-100 px-1 py-0.5 rounded text-xs font-mono break-words break-all" {...props}>
                                 {children}
                               </code>
                             );
@@ -370,7 +347,7 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
                       <pre className={preClamp}>{stringify(m.raw)}</pre>
                     )}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-1">{ts && ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.type && ` • ${m.type}`}</div>
+                  {/* <div className="text-[10px] text-muted-foreground mt-1">{ts && ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.type && ` • ${m.type}`}</div> */}
                 </div>
               </div>
             );

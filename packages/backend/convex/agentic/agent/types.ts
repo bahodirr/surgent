@@ -126,6 +126,18 @@ export interface CodexConfig {
   model?: string;
   sandboxId?: string;
   workingDirectory?: string;
+  // // Codex CLI feature flags
+  // sandboxPolicy?: "read-only" | "workspace-write" | "danger-full-access";
+  // approvalPolicy?: "untrusted" | "on-failure" | "on-request" | "never";
+  // fullAuto?: boolean; // convenience for --full-auto
+  // dangerouslyBypassApprovalsAndSandbox?: boolean;
+  // profile?: string; // -p, --profile
+  // images?: string[]; // -i, --image <FILE>...
+  // search?: boolean; // --search
+  // oss?: boolean; // --oss (use local OSS provider)
+  // useCdOption?: boolean; // pass --cd to Codex (redundant with sandbox cd)
+  // cdDirectory?: string; // override directory passed to --cd
+  // configOverrides?: Record<string, unknown>; // -c key=value overrides
 }
 
 export interface CodexResponse {
@@ -143,6 +155,7 @@ export interface CodexResponse {
 export interface ClaudeConfig {
   providerApiKey?: string; // Optional - can use OAuth token instead
   oauthToken?: string; // OAuth token from CLAUDE_CODE_OAUTH_TOKEN
+  providerBaseUrl?: string; // Optional - can use OAuth token instead
   provider?: ModelProvider;
   githubToken?: string;
   repoUrl?: string; // org/repo, e.g. "octocat/hello-world"

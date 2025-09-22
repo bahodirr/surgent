@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Check, ChevronDown, MessageCircle } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Brain, Wrench, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { computeStatus } from "@/lib/message-parser";
 
 type TodoItem = { 
   id: string; 
@@ -37,37 +38,18 @@ export default function ChatInput({
 }: ChatInputProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState("");
-  const [todosCollapsed, setTodosCollapsed] = useState(false);
+  const [todosCollapsed, setTodosCollapsed] = useState(true);
 
   const isEmpty = !value.trim();
   const isSubmitDisabled = disabled || isEmpty;
 
-  // Calculate status from timeline
-  const status = (() => {
-    if (!timeline?.length) return undefined;
-    const last: any = timeline[timeline.length - 1];
-    if (last?.kind === 'toolGroup') {
-      const items = last.items || [];
-      const total = items.length;
-      const done = items.filter((mm: any) => mm?.tool?.result || mm?.tool?.status === 'completed' || mm?.tool?.status === 'error').length;
-      return { label: done < total ? 'Running tools' : 'Tools finished', summary: total ? `${done}/${total} done` : undefined, isActive: done < total };
-    }
-    if (last?.kind === 'systemResult') {
-      const m = last.msg;
-      const usage = (m?.raw?.usage || m?.raw?.data?.usage || m?.raw?.result?.usage) as any;
-      const inTok = usage?.input_tokens ?? usage?.input ?? usage?.prompt_tokens;
-      const outTok = usage?.output_tokens ?? usage?.output ?? usage?.completion_tokens;
-      const turns = m?.raw?.num_turns ?? m?.raw?.data?.num_turns ?? m?.raw?.result?.num_turns;
-      const bits: string[] = [];
-      if (typeof turns === 'number') bits.push(`${turns} turns`);
-      if (typeof inTok === 'number' || typeof outTok === 'number') bits.push(`tok ${inTok ?? '-'} / ${outTok ?? '-'}`);
-      return { label: 'Completed', summary: bits.join(' • ') || undefined, isActive: false };
-    }
-    if (last?.kind === 'message' && last.msg?.role === 'user') {
-      return { label: 'Thinking…', isActive: true };
-    }
-    return undefined;
-  })();
+  const status = computeStatus(timeline as any);
+  const currentTodo = (todos ?? [])
+    .slice()
+    .reverse()
+    .find((t) => t.status === 'in_progress');
+  const totalTodos = todos?.length ?? 0;
+  const completedTodos = (todos ?? []).filter((t) => t.status === 'completed').length;
 
   const handleInput = useCallback(() => {
     setValue(editorRef.current?.innerText || "");
@@ -92,9 +74,7 @@ export default function ChatInput({
   }, [handleSubmit]);
 
   useEffect(() => {
-    if (todos?.length) {
-      setTodosCollapsed(false);
-    }
+    // No auto-expansion behavior; intentionally left empty
   }, [todos]);
 
   return (
@@ -105,7 +85,9 @@ export default function ChatInput({
             {todos?.length ? (
               <div className="mx-3 w-[calc(100%-24px)] rounded-t-[12px] border border-black/10 border-b-0 bg-white/75 backdrop-blur-md">
                 <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-600 flex items-center justify-between">
-                  <span>todos</span>
+                  <span>
+                    todos {totalTodos > 0 ? `(${completedTodos}/${totalTodos})` : ''}
+                  </span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -117,17 +99,23 @@ export default function ChatInput({
                     <ChevronDown size={16} className={cn("transition-transform", todosCollapsed && "rotate-180")} />
                   </Button>
                 </div>
-                {!todosCollapsed && (
+                {todosCollapsed ? (
+                  currentTodo ? (
+                    <div className="px-3 pb-2 text-sm text-gray-800 break-words">
+                      {currentTodo.text}
+                    </div>
+                  ) : null
+                ) : (
                   <ul className="max-h-40 overflow-auto px-3 pb-2 space-y-1">
-                    {todos?.map((todo) => (
-                      <li key={todo.id} className="flex items-start gap-2 text-sm text-gray-800 break-words">
+                    {todos.map((todo, idx) => (
+                      <li key={todo.id || `${todo.text}-${idx}`} className="flex items-start gap-2 text-sm text-gray-800 break-words">
                         <span className={cn(
                           "mt-[2px] h-3 w-3 inline-flex items-center justify-center rounded-full border",
                           todo.status === 'completed' ? "border-green-500 bg-green-500" : "border-gray-300 bg-white"
                         )}>
                           {todo.status === 'completed' && <Check size={10} className="text-white" />}
                         </span>
-                        <span className={cn(todo.status === 'completed' && "line-through text-gray-500")}>
+                        <span className={cn(todo.status === 'completed' && "line-through text-gray-500")}> 
                           {todo.text}
                         </span>
                       </li>
@@ -140,21 +128,44 @@ export default function ChatInput({
             {status && (
               <div className="mx-3 w-[calc(100%-24px)] border border-b-0 border-black/10 bg-white/75 backdrop-blur-md">
                 <div className="px-3 py-1 text-[12px] flex items-center gap-2 text-gray-800">
-                  {status.isActive && (
-                    <span className="inline-flex h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  {(() => {
+                    const Icon = status.name === 'thinking' ? Brain : status.name === 'running' ? Wrench : CheckCircle;
+                    const tone = status.name === 'done' ? 'text-green-600' : 'text-gray-700';
+                    return (
+                      <span className="inline-flex items-center gap-1">
+                        <Icon size={14} className={cn(tone, status.isActive && "animate-pulse")} />
+                      </span>
+                    );
+                  })()}
+                  <span className={cn(
+                    "font-medium",
+                    status.isActive && "bg-gradient-to-r from-gray-500 via-gray-300 to-gray-500 bg-[length:200%_100%] bg-clip-text text-transparent animate-pulse"
                   )}
-                  <span className="font-medium">{status.label}</span>
-                  {status.summary && (
-                    <span className="text-gray-600">• {status.summary.slice(0, 40)}</span>
-                  )}
+                  >
+                    {(() => {
+                      if (status.name === 'thinking') return 'Thinking...';
+                      if (status.name === 'running') {
+                        const counts = status.progress ? ` (${status.progress.done}/${status.progress.total})` : '';
+                        const name = status.activeToolName ? ` ${status.activeToolName}` : '';
+                        return `Running${name}${counts}`;
+                      }
+                      if (status.name === 'done') {
+                        const counts = status.progress ? ` (${status.progress.done}/${status.progress.total})` : '';
+                        return `Completed${counts}`;
+                      }
+                      return status.label;
+                    })()}
+                  </span>
                 </div>
               </div>
             )}
 
+          {/* Composer */}
+
             <div className="relative w-full border border-black/10 bg-white/60 shadow-lg backdrop-blur-md rounded-[12px]">
               <div
                 ref={editorRef}
-                className="p-3 pr-12 max-h-[258px] min-h-[50px] text-gray-900 w-full overflow-y-auto outline-none text-[16px] selection:bg-black/10"
+                className="p-3 pr-3 max-h-[300px] min-h-[80px] text-gray-900 w-full overflow-y-auto outline-none text-[16px] selection:bg-black/10"
                 contentEditable={!disabled}
                 role="textbox"
                 aria-multiline="true"
@@ -168,28 +179,26 @@ export default function ChatInput({
                   {placeholder}
                 </div>
               )}
+
+              {/* Footer: Agent + Send */}
+              <div className="flex items-center justify-between gap-2 border-t border-black/10 bg-white/60 px-2 py-1.5 rounded-b-[12px]">
+              <div className="flex items-center gap-2" />
+                <Button
+                  id="bg-composer-submit-btn"
+                  type="button"
+                  disabled={isSubmitDisabled}
+                  onClick={handleSubmit}
+                  variant="default"
+                  size="icon"
+                  className={[
+                    "h-7 w-7 rounded-full bg-gray-900 text-white hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-500",
+                  ].join(" ")}
+                  aria-label="Send message"
+                >
+                  <ArrowUp width={14} height={14} />
+                </Button>
+              </div>
             </div>
-
-            {/* Conversation toggle button */}
-            
-
-            <Button
-              id="bg-composer-submit-btn"
-              type="button"
-              disabled={isSubmitDisabled}
-              onClick={handleSubmit}
-              variant="default"
-              size="icon"
-              className={[
-                "h-4 min-h-4 w-4 min-w-4 rounded-full outline outline-gray-300 hover:scale-105 hover:bg-white hover:opacity-100 hover:outline-white bg-gray-300 transition-all duration-100 absolute bottom-4 right-3",
-                isSubmitDisabled
-                  ? "cursor-default bg-gray-300"
-                  : "cursor-pointer opacity-100",
-              ].join(" ")}
-              aria-label="Send message"
-            >
-              <ArrowUp width={14} height={14} className={isSubmitDisabled ? "text-[#616163]" : "text-[#0a0a0a]"} />
-            </Button>
           </div>
         </div>
       </div>

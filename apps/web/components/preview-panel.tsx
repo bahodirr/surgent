@@ -60,6 +60,7 @@ export default function PreviewPanel({ initStatus, previewUrl, onPreviewUrl }: P
             </WebPreviewNavigation>
             <WebPreviewBody className="w-full h-full border-0" />
           </WebPreview>
+
         )}
       </div>
       {/* Composer is now rendered by Conversation in SplitView */}

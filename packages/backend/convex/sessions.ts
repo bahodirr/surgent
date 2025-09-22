@@ -3,7 +3,6 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { normalizeAgentMessage, type NormalizedMessage } from "./agentic/agent/adapter";
 
 export type TodoItem = {
   id: string;
@@ -11,7 +10,7 @@ export type TodoItem = {
   status: "pending" | "in_progress" | "completed";
 };
 
-export type GetSessionResult = (Doc<"sessions"> & { timeline: any[]; todos?: TodoItem[] }) | null;
+export type GetSessionResult = Doc<"sessions"> | null;
 
 export const appendMessage = internalMutation({
   args: {
@@ -60,11 +59,6 @@ export const appendMessage = internalMutation({
 
       const currentStats = session.stats || [];
       await ctx.db.patch(args.sessionId, { stats: [...currentStats, stat] });
-
-      // Also embed messageId into the stored raw to simplify lookups later
-      await ctx.db.patch(insertedId as Id<"sessionMessages">, {
-        raw: { ...raw, systemMessageId: insertedId },
-      });
     }
     return insertedId as Id<"sessionMessages">;
   },
@@ -132,7 +126,7 @@ export const createMessageAndRunAgent = mutation({
       raw: prompt,
     });
 
-    await ctx.scheduler.runAfter(0, internal.actions.agent.runAgent, {
+    await ctx.scheduler.runAfter(0, internal.agent.runAgent, {
       sandboxId: project.sandboxId,
       projectId: projectId as Id<"projects">,
       prompt,
@@ -159,113 +153,34 @@ export const getSession = query({
     if (!project) return null;
     if ((project.userId as Id<"users">) !== (userId as Id<"users">))
       return null;
+    return session as any;
+  },
+});
 
-    // Load commits for this session
-    const commits = await ctx.db
-      .query("commits")
-      .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
-      .order("desc")
-      .collect();
-      
-    const commitByMessageId: Record<string, Doc<"commits">> = {};
-    commits.forEach(commit => {
-      if (commit.messageId) {
-        commitByMessageId[commit.messageId] = commit;
-      }
-    });
+export const listMessagesBySession = query({
+  args: {
+    sessionId: v.id("sessions"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { sessionId, limit }): Promise<Doc<"sessionMessages">[]> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
 
-    // Load and normalize messages (last 100)
-    const messages = await ctx.db
+    const session = await ctx.db.get(sessionId as Id<"sessions">);
+    if (!session) return [];
+
+    const project = await ctx.db.get(session.projectId as Id<"projects">);
+    if (!project) return [];
+    if ((project.userId as Id<"users">) !== (userId as Id<"users">)) return [];
+
+    const l = Math.min(Math.max((limit ?? 200), 1), 1000);
+    const msgs = await ctx.db
       .query("sessionMessages")
       .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
       .order("desc")
-      .take(100);
-    
-    // Reverse to get chronological order
-    messages.reverse();
-
-    let normalized: NormalizedMessage[] = messages.flatMap((m) => {
-      const raw = m.raw;
-      if (typeof raw === "string") {
-        return [{ role: "user", type: "message", contentText: raw, raw }];
-      }
-      return normalizeAgentMessage("claude", raw);
-    });
-
-    // Merge tool_result into tool_use messages (two-pass for reliability)
-    const toolUseById: Record<string, NormalizedMessage> = {};
-    const toRemove = new Set<number>();
-    
-    normalized.forEach((nm, i) => {
-      if (nm.type === "tool" && nm.tool?.id) {
-        toolUseById[nm.tool.id] = nm;
-      } else if (nm.type === "tool_result" && nm.tool?.id) {
-        const toolUse = toolUseById[nm.tool.id];
-        if (toolUse?.tool) {
-          toolUse.tool.result = nm.tool.result;
-          toolUse.tool.status = nm.tool.status;
-          toRemove.add(i);
-        }
-      }
-    });
-    
-    normalized = normalized.filter((_, i) => !toRemove.has(i));
-
-    // Build grouped timeline: message → toolGroup → message ...
-    const timeline: any[] = [];
-    for (let i = 0; i < normalized.length; ) {
-      const nm = normalized[i];
-      if (!nm) {
-        i++;
-        continue;
-      }
-      // System events: init and result/error with stats
-      if (nm.role === "system" && (nm.type === "init")) {
-        timeline.push({ kind: "systemInit", msg: nm });
-        i++;
-        continue;
-      }
-
-      // Group consecutive tool messages
-      if (nm.type === "tool" || nm.type === "tool_result") {
-        const items: NormalizedMessage[] = [];
-        while (i < normalized.length) {
-          const cur = normalized[i];
-          if (!cur) {
-            break;
-          }
-          if (cur.type === "tool" || cur.type === "tool_result") {
-            items.push(cur);
-            i++;
-          } else {
-            break;
-          }
-        }
-        if (items.length > 0) timeline.push({ kind: "toolGroup", items });
-        continue;
-      }
-
-      if (nm.role === "system" && (nm.type === "result" || nm.type === "error")) {
-        const msgId = nm.raw?.systemMessageId;
-        const checkpoint = msgId ? commitByMessageId[msgId] : undefined;
-        timeline.push({ kind: "systemResult", msg: nm, checkpoint });
-        i++;
-        continue;
-      }
-      
-      timeline.push({ kind: "message", msg: nm });
-      i++;
-    }
-
-    // Find latest TodoWrite todos
-    const latestTodos = normalized
-      .slice(-5)
-      .reverse()
-      .find(nm => nm.role === "assistant" && nm.tool?.name === "TodoWrite")
-      ?.tool?.input?.todos?.map((t: any) => ({ id: t.id, content: t.content, status: t.status })) || [];
-    
-    return { ...session, timeline, todos: latestTodos } as any;
-    // messages: normalized, 
+      .take(l);
+    msgs.reverse();
+    return msgs as Doc<"sessionMessages">[];
   },
 });
 

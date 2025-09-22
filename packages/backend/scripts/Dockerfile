@@ -1,6 +1,6 @@
 FROM node:22.17.0
 
-# Install Claude Code and PM2 globally
+# Install Claude Code, Codex CLI, and PM2 globally
 RUN npm install -g @anthropic-ai/claude-code pm2
 
 # Configure global git identity for non-interactive commits
@@ -30,6 +30,9 @@ WORKDIR /workspace
 
 # Environment variable for Anthropic API key (will be set at runtime)
 ENV ANTHROPIC_API_KEY=""
+ENV ANTHROPIC_BASE_URL=""
+
+ENV OPENAI_API_KEY=""
 
 USER agent
 ENTRYPOINT ["/usr/local/bin/init-project.sh"]

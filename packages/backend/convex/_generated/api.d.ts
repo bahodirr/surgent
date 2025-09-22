@@ -13,9 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import type * as actions_agent from "../actions/agent.js";
-import type * as actions_sandbox from "../actions/sandbox.js";
-import type * as agentic_agent_adapter from "../agentic/agent/adapter.js";
+import type * as agent from "../agent.js";
 import type * as agentic_agent_base from "../agentic/agent/base.js";
 import type * as agentic_agent_claude from "../agentic/agent/claude.js";
 import type * as agentic_agent_types from "../agentic/agent/types.js";
@@ -26,8 +24,10 @@ import type * as agentic_constants_providers from "../agentic/constants/provider
 import type * as agentic_sandbox_daytona from "../agentic/sandbox/daytona.js";
 import type * as auth from "../auth.js";
 import type * as commits from "../commits.js";
+import type * as config from "../config.js";
 import type * as http from "../http.js";
 import type * as projects from "../projects.js";
+import type * as sandbox from "../sandbox.js";
 import type * as sessions from "../sessions.js";
 
 /**
@@ -39,9 +39,7 @@ import type * as sessions from "../sessions.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  "actions/agent": typeof actions_agent;
-  "actions/sandbox": typeof actions_sandbox;
-  "agentic/agent/adapter": typeof agentic_agent_adapter;
+  agent: typeof agent;
   "agentic/agent/base": typeof agentic_agent_base;
   "agentic/agent/claude": typeof agentic_agent_claude;
   "agentic/agent/types": typeof agentic_agent_types;
@@ -52,8 +50,10 @@ declare const fullApi: ApiFromModules<{
   "agentic/sandbox/daytona": typeof agentic_sandbox_daytona;
   auth: typeof auth;
   commits: typeof commits;
+  config: typeof config;
   http: typeof http;
   projects: typeof projects;
+  sandbox: typeof sandbox;
   sessions: typeof sessions;
 }>;
 export declare const api: FilterApi<
