@@ -15,6 +15,7 @@
         "@daytonaio/api-client": "^0.103.0",
         "@hono/node-server": "^1.19.3",
         "dotenv": "^17.2.2",
+        "hono": "^4.8.10",
         "http-proxy": "^1.18.1",
       },
       "devDependencies": {
