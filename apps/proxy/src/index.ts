@@ -9,19 +9,14 @@ const require = createRequire(import.meta.url)
 // http-proxy is CommonJS; import via createRequire in ESM
 const { createProxyServer } = require('http-proxy')
 
-dotenv.config({ path: process.env.DOTENV_PATH || undefined })
+dotenv.config()
 
 const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY
-const DAYTONA_API_URL = process.env.DAYTONA_API_URL
 const PORT = Number(process.env.PORT || 1234)
 const DEFAULT_SANDBOX_PORT = Number(process.env.DEFAULT_SANDBOX_PORT || 3000)
 
 if (!DAYTONA_API_KEY) {
   throw new Error('DAYTONA_API_KEY is not set')
-}
-
-if (!DAYTONA_API_URL) {
-  throw new Error('DAYTONA_API_URL is not set')
 }
 
 const sandboxApi = new SandboxApi(
