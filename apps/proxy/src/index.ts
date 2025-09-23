@@ -125,11 +125,12 @@ app.all('*', async (c: Context) => {
       method: c.req.method,
       headers: new Headers(c.req.raw.headers),
       body: ['GET', 'HEAD'].includes(c.req.method) ? undefined : await c.req.raw.clone().arrayBuffer(),
-      redirect: 'manual',
+      redirect: 'follow',
     }
 
     const headers = new Headers(init.headers)
     headers.set('x-daytona-preview-token', preview.token)
+    headers.set('x-daytona-skip-preview-warning', 'true')
     headers.delete('host')
     headers.delete('connection')
     headers.delete('keep-alive')
@@ -176,6 +177,7 @@ server.on('upgrade', async (req, socket, head) => {
     const target = base.toString()
 
     req.headers['x-daytona-preview-token'] = preview.token
+    req.headers['x-daytona-skip-preview-warning'] = 'true' //remove preview warning
 
     wsProxy.ws(req, socket as any, head, { target })
   } catch (e) {
