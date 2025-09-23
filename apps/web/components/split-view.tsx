@@ -9,6 +9,7 @@ import ChatInput from './chat-input';
 import { cn } from '@/lib/utils';
 import { parseMessages, ParsedSessionData } from '@/lib/message-parser';
 import { attachCheckpoints } from '@/lib/message-parser';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface SplitViewProps {
   projectId?: string;
@@ -78,7 +79,8 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
         </div>
       </div>
       <div className="flex-1 min-h-0">
-        <div className={cn("h-full min-h-0 grid grid-cols-[420px_1fr]")}> 
+        {/* Desktop / Tablet: Two-column layout */}
+        <div className={cn("h-full min-h-0 hidden md:grid md:grid-cols-[420px_1fr]")}> 
         <div className={cn("min-w-0 order-2 flex flex-col h-full bg-background")}> 
           <div className="flex items-center justify-between p-2 border-b">
             <div className="flex items-center gap-3">
@@ -141,6 +143,79 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
             />
           </div>
         </div>
+        </div>
+
+        {/* Mobile: Tabbed layout for Conversation and Preview */}
+        <div className="h-full min-h-0 flex flex-col md:hidden">
+          <Tabs defaultValue="chat" className="h-full min-h-0 flex flex-col">
+            <div className="p-2 border-b">
+              <TabsList className="w-full grid grid-cols-2">
+                <TabsTrigger value="chat">Conversation</TabsTrigger>
+                <TabsTrigger value="preview">Preview</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="chat" className="flex-1 min-h-0 flex flex-col">
+              <div className="flex items-center justify-between p-2 border-b">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-sm font-medium text-gray-800">Conversation</h3>
+                  <span className={cn(
+                    "text-xs font-medium",
+                    initStatus === 'initializing' ? 'text-blue-500' : 'text-green-500 hidden'
+                  )}>
+                    {initStatus === 'ready' ? 'Ready' : 'Initializing project'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2" />
+              </div>
+              <div className="flex-1 min-h-0">
+                <Conversation
+                  isOpen={isConversationOpen}
+                  setIsOpen={setIsConversationOpen}
+                  initStatus={{
+                    state: initStatus === 'ready' ? 'ready' : 'initializing',
+                    message: initStatus === 'ready' ? 'Ready' : 'Initializing project '
+                  }}
+                  timeline={timelineWithCheckpoints}
+                  todos={todos}
+                  composer={
+                    <ChatInput
+                      onSubmit={handleSend}
+                      disabled={initStatus !== 'ready' || isSending || !projectId}
+                      placeholder={initStatus !== 'ready' ? 'Initializing project environment...' : 'Ask anything...'}
+                      todos={todos}
+                      timeline={timelineWithCheckpoints}
+                    />
+                  }
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="preview" className="flex-1 min-h-0 flex flex-col">
+              <div className="flex items-center justify-between p-2 border-b">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-sm font-medium">Preview</h3>
+                  {previewUrl && initStatus === 'ready' && (
+                    <a
+                      className="text-xs underline text-muted-foreground hover:text-foreground"
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open
+                    </a>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {initStatus === 'initializing' && (
+                    <span className="inline-flex items-center gap-2"><span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting...</span>
+                  )}
+                  {initStatus === 'ready' && 'Live'}
+                </div>
+              </div>
+              <div className="flex-1 min-h-0">
+                <PreviewPanel initStatus={initStatus} previewUrl={previewUrl} onPreviewUrl={onPreviewUrl} />
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>
