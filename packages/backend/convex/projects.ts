@@ -123,7 +123,6 @@ export const setSandboxState = internalMutation({
 
     const sandbox = {
       ...(project.sandbox as any || {}),
-      preview_url: args.previewUrl,
       status: 'started',
       isInitialized: args.isInitialized,
     } as any;

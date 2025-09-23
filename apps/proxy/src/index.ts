@@ -12,15 +12,28 @@ const { createProxyServer } = require('http-proxy')
 dotenv.config()
 
 const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY
+const DAYTONA_API_URL = process.env.DAYTONA_API_URL
 const PORT = Number(process.env.PORT || 1234)
 const DEFAULT_SANDBOX_PORT = Number(process.env.DEFAULT_SANDBOX_PORT || 3000)
 
 if (!DAYTONA_API_KEY) {
   throw new Error('DAYTONA_API_KEY is not set')
 }
+if (!DAYTONA_API_URL) {
+  throw new Error('DAYTONA_API_URL is not set')
+}
+
+const DEBUG_PROXY = process.env.DEBUG_PROXY === '1' || process.env.DEBUG_PROXY === 'true'
+const debug = (...args: unknown[]) => {
+  if (DEBUG_PROXY) {
+    // eslint-disable-next-line no-console
+    console.log('[proxy]', ...args)
+  }
+}
 
 const sandboxApi = new SandboxApi(
   new Configuration({
+    basePath: DAYTONA_API_URL,
     baseOptions: {
       headers: {
         Authorization: `Bearer ${DAYTONA_API_KEY}`,
@@ -52,28 +65,26 @@ function getSandboxIdAndPortFromHost(host: string) {
   return { sandboxId: subdomain, port: DEFAULT_SANDBOX_PORT, hostname }
 }
 
-type CacheEntry = { url: string; token: string; expiresAt: number }
-const previewCache = new Map<string, CacheEntry>()
-const PREVIEW_TTL_MS = Number(process.env.PREVIEW_CACHE_TTL_MS || 30_000)
-
 async function resolvePreview(hostHeader: string) {
   const { sandboxId, port } = getSandboxIdAndPortFromHost(hostHeader)
-  const cacheKey = `${sandboxId}:${port}`
 
-  const now = Date.now()
-  const cached = previewCache.get(cacheKey)
-  if (cached && cached.expiresAt > now) {
-    return cached
+  try {
+    debug('resolve preview', { sandboxId, port })
+    const resp = await sandboxApi.getPortPreviewUrl(sandboxId, port)
+    const result = {
+      url: resp.data.url,
+      token: resp.data.token as unknown as string,
+    }
+    debug('resolved preview', { sandboxId, port, url: result.url })
+    return result
+  } catch (e: any) {
+    debug('preview resolve failed', {
+      sandboxId,
+      port,
+      error: e?.response?.data || e?.message || String(e),
+    })
+    throw e
   }
-
-  const resp = await sandboxApi.getPortPreviewUrl(sandboxId, port)
-  const entry: CacheEntry = {
-    url: resp.data.url,
-    token: resp.data.token as unknown as string,
-    expiresAt: now + PREVIEW_TTL_MS,
-  }
-  previewCache.set(cacheKey, entry)
-  return entry
 }
 
 function buildTargetUrl(baseUrl: string, path: string, search: string) {
@@ -127,7 +138,9 @@ app.all('*', async (c: Context) => {
     addForwardHeaders(headers, c.req.raw)
     init.headers = headers
 
+    debug('proxy fetch', { targetUrl, method: c.req.method })
     const resp = await fetch(targetUrl, init)
+    debug('proxy response', { status: resp.status, targetUrl })
 
     if (resp.status >= 400) {
       return serveErrorHtml(c)

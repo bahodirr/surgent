@@ -23,7 +23,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [isConversationOpen, setIsConversationOpen] = useState(true);
 
-  const previewUrl = project?.sandbox?.preview_url as string | undefined;
+  const previewUrl = `https://${project?.sandboxId}.${process.env.NEXT_PUBLIC_PROXY_URL}`;
 
   useEffect(() => {
     if (!projectId) return;
