@@ -65,11 +65,29 @@ function getSandboxIdAndPortFromHost(host: string) {
   return { sandboxId: subdomain, port: DEFAULT_SANDBOX_PORT, hostname }
 }
 
+async function ensureSandboxRunning(sandboxId: string) {
+  try {
+    const info = await sandboxApi.getSandbox(sandboxId)
+    const state = String((info.data as any).state || '').toLowerCase()
+    if (state === 'stopped' || state === 'archived') {
+      try {
+        debug('starting sandbox', { sandboxId })
+        await sandboxApi.startSandbox(sandboxId)
+      } catch (e) {
+        debug('startSandbox error (ignored if already running)', String((e as any)?.message || e))
+      }
+    }
+  } catch (e) {
+    debug('getSandbox error (continuing)', String((e as any)?.message || e))
+  }
+}
+
 async function resolvePreview(hostHeader: string) {
   const { sandboxId, port } = getSandboxIdAndPortFromHost(hostHeader)
 
   try {
     debug('resolve preview', { sandboxId, port })
+    await ensureSandboxRunning(sandboxId)
     const resp = await sandboxApi.getPortPreviewUrl(sandboxId, port)
     const result = {
       url: resp.data.url,
