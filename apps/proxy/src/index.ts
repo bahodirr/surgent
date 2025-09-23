@@ -65,19 +65,15 @@ function getSandboxIdAndPortFromHost(host: string) {
   return { sandboxId: subdomain, port: DEFAULT_SANDBOX_PORT, hostname }
 }
 
-type ResolvedPreview = { url: string; token: string; sandboxId: string; port: number }
-
-async function resolvePreview(hostHeader: string): Promise<ResolvedPreview> {
+async function resolvePreview(hostHeader: string) {
   const { sandboxId, port } = getSandboxIdAndPortFromHost(hostHeader)
 
   try {
     debug('resolve preview', { sandboxId, port })
     const resp = await sandboxApi.getPortPreviewUrl(sandboxId, port)
-    const result: ResolvedPreview = {
+    const result = {
       url: resp.data.url,
       token: resp.data.token as unknown as string,
-      sandboxId,
-      port,
     }
     debug('resolved preview', { sandboxId, port, url: result.url })
     return result
@@ -117,7 +113,7 @@ app.all('*', async (c: Context) => {
     const host = c.req.header('host')
     if (!host) throw new Error('Invalid URL. Host is required')
 
-    let preview = await resolvePreview(host)
+    const preview = await resolvePreview(host)
 
     const targetUrl = buildTargetUrl(
       preview.url,
@@ -144,45 +140,8 @@ app.all('*', async (c: Context) => {
     init.headers = headers
 
     debug('proxy fetch', { targetUrl, method: c.req.method })
-    let resp: Response
-    try {
-      resp = await fetch(targetUrl, init)
-    } catch (e) {
-      // Treat network error like upstream not ready
-      resp = new Response(null, { status: 523, statusText: 'Origin Unreachable' })
-    }
+    const resp = await fetch(targetUrl, init)
     debug('proxy response', { status: resp.status, targetUrl })
-
-    if (resp.status >= 500 || resp.status === 404) {
-      // Attempt to start sandbox and retry once with short wait
-      try {
-        debug('upstream not ready, attempting start', { sandboxId: preview.sandboxId })
-        await sandboxApi.startSandbox(preview.sandboxId)
-        const start = Date.now()
-        while (Date.now() - start < 5_000) {
-          await new Promise((r) => setTimeout(r, 1000))
-          preview = await resolvePreview(host)
-          const retryUrl = buildTargetUrl(
-            preview.url,
-            c.req.path,
-            c.req.query() ? `?${new URLSearchParams(c.req.query()).toString()}` : ''
-          )
-          const retryHeaders = new Headers(init.headers)
-          retryHeaders.set('x-daytona-preview-token', preview.token)
-          retryHeaders.set('x-daytona-skip-preview-warning', 'true')
-          addForwardHeaders(retryHeaders, c.req.raw)
-          const retryInit: RequestInit = { ...init, headers: retryHeaders }
-          try {
-            resp = await fetch(retryUrl, retryInit)
-          } catch (e) {
-            resp = new Response(null, { status: 523, statusText: 'Origin Unreachable' })
-          }
-          if (resp.status < 500 && resp.status !== 404) break
-        }
-      } catch (e) {
-        debug('start attempt failed', String(e))
-      }
-    }
 
     if (resp.status >= 400) {
       return serveErrorHtml(c)
@@ -208,11 +167,7 @@ server.on('upgrade', async (req, socket, head) => {
     const host = req.headers.host
     if (!host) throw new Error('Invalid URL. Host is required')
 
-    let preview = await resolvePreview(host)
-    // Pre-start to reduce WS errors
-    try {
-      await sandboxApi.startSandbox(preview.sandboxId)
-    } catch {}
+    const preview = await resolvePreview(host)
     const base = new URL(preview.url)
     base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
     const target = base.toString()
