@@ -1,7 +1,7 @@
 'use client';
 
 import { WebPreview, WebPreviewNavigation, WebPreviewUrl, WebPreviewBody, WebPreviewConsole, WebPreviewNavigationButton } from '@/components/ai-elements/web-preview';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Copy } from 'lucide-react';
 
 interface PreviewPanelProps {
@@ -13,10 +13,40 @@ interface PreviewPanelProps {
 export default function PreviewPanel({ initStatus, previewUrl, onPreviewUrl }: PreviewPanelProps) {
   const [currentUrl, setCurrentUrl] = useState(previewUrl || '');
   const [reloadCount, setReloadCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const webPreviewKey = useMemo(() => `${previewUrl ?? 'empty'}:${reloadCount}`, [previewUrl, reloadCount]);
 
-  const handleReload = useCallback(() => setReloadCount((c) => c + 1), []);
+  const clearProgressTimer = useCallback(() => {
+    if (progressTimerRef.current) {
+      clearTimeout(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }, []);
+
+  const startProgress = useCallback(() => {
+    setIsLoading(true);
+    setProgress(30);
+    clearProgressTimer();
+    // Indeterminate feel: bump once, then wait for onLoad to complete
+    progressTimerRef.current = setTimeout(() => setProgress(70), 400);
+  }, [clearProgressTimer]);
+
+  const finishProgress = useCallback(() => {
+    setProgress(100);
+    clearProgressTimer();
+    setTimeout(() => {
+      setIsLoading(false);
+      setProgress(0);
+    }, 250);
+  }, [clearProgressTimer]);
+
+  const handleReload = useCallback(() => {
+    startProgress();
+    setReloadCount((c) => c + 1);
+  }, [startProgress]);
   const handleCopy = useCallback(() => {
     const url = currentUrl || previewUrl || '';
     if (!url) return;
@@ -27,6 +57,15 @@ export default function PreviewPanel({ initStatus, previewUrl, onPreviewUrl }: P
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
   }, [currentUrl, previewUrl]);
+
+  // Kick off progress when preview becomes ready with a URL (initial load)
+  useEffect(() => {
+    if (initStatus === 'ready' && (previewUrl || currentUrl)) {
+      startProgress();
+    }
+  }, [initStatus]);
+
+  useEffect(() => () => clearProgressTimer(), [clearProgressTimer]);
 
   return (
     <div className="h-full flex flex-col relative">
@@ -43,9 +82,16 @@ export default function PreviewPanel({ initStatus, previewUrl, onPreviewUrl }: P
           <WebPreview
             key={webPreviewKey}
             defaultUrl={previewUrl || ''}
-            onUrlChange={(u) => { setCurrentUrl(u); onPreviewUrl?.(u || null); }}
+            onUrlChange={(u) => { setCurrentUrl(u); onPreviewUrl?.(u || null); startProgress(); }}
             className="h-full border-0"
           >
+            {/* Top loading bar */}
+            <div className="absolute top-0 left-0 right-0 z-10 h-0.5">
+              <div
+                className="h-full bg-primary transition-[width] duration-200 ease-out"
+                style={{ width: isLoading ? `${progress}%` : '0%' }}
+              />
+            </div>
             <WebPreviewNavigation className="border-b p-2">
               <WebPreviewNavigationButton tooltip="Reload" onClick={handleReload}>
                 <RefreshCw className="h-4 w-4" />
@@ -58,12 +104,12 @@ export default function PreviewPanel({ initStatus, previewUrl, onPreviewUrl }: P
               </WebPreviewNavigationButton>
               <WebPreviewUrl placeholder="Enter URL..." />
             </WebPreviewNavigation>
-            <WebPreviewBody className="w-full h-full border-0" />
+            <WebPreviewBody className="w-full h-full border-0" onLoad={finishProgress} />
           </WebPreview>
 
         )}
       </div>
-      {/* Composer is now rendered by Conversation in SplitView */}
+      {/* Composer is now rendered by Conversati on in SplitView */}
     </div>
   );
 }

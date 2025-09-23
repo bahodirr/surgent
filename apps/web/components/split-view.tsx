@@ -7,7 +7,7 @@ import PreviewPanel from './preview-panel';
 import Conversation from './conversation';
 import ChatInput from './chat-input';
 import { cn } from '@/lib/utils';
-import { parseMessages, ParsedSessionData } from '@/lib/message-parser';
+import { parseMessages } from '@/lib/message-parser';
 import { attachCheckpoints } from '@/lib/message-parser';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
@@ -24,17 +24,21 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [isConversationOpen, setIsConversationOpen] = useState(true);
 
-  const previewUrl = `https://${project?.sandboxId}.${process.env.NEXT_PUBLIC_PROXY_URL}`;
+  const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
+  const sandboxId = project?.sandboxId;
+  const hasSession = Boolean(sessionId);
+  const hasSandbox = Boolean(sandboxId && proxyHost);
+  const isReady = hasSession && hasSandbox;
+  const previewUrl = isReady ? `https://${sandboxId}.${proxyHost}` : undefined;
 
   useEffect(() => {
     if (!projectId) return;
     activateProject({ projectId: projectId as Id<'projects'> }).catch(() => {});
   }, [projectId, activateProject]);
 
-  const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = previewUrl ? 'ready' : 'initializing';
+  const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = isReady ? 'ready' : 'initializing';
 
   // Load detailed session (timeline, todos)
-  const session = useQuery(api.sessions.getSession, sessionId ? { sessionId: sessionId as Id<'sessions'> } : 'skip');
   const messages = useQuery(api.sessions.listMessagesBySession, sessionId ? { sessionId: sessionId as Id<'sessions'>, limit: 200 } : 'skip');
   const commits = useQuery(api.commits.listBySession, sessionId ? { sessionId: sessionId as Id<'sessions'> } : 'skip');
 
