@@ -12,12 +12,14 @@ export class ClaudeAgent extends BaseAgent {
     if (mode === "ask") {
       return (
         "Research the repository and answer the user's questions. " +
-        "Do NOT make any changes to any files in the repository."
+        "Do NOT make any changes to any files in the repository. " +
+        "Never run or build the project; linting is allowed to check code only."
       );
     }
     return (
       "Do the necessary changes to the codebase based on the users input.\n" +
-      "Don't ask any follow up questions."
+      "If the user's intent is unclear, ask brief, targeted follow-up questions to clarify before proceeding.\n" +
+      "Never run or build the project. You may run lint commands to check for issues. Application is already running."
     );
   }
 
