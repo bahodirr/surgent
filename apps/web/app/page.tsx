@@ -52,28 +52,28 @@ export default function Index() {
                   Free during beta
                 </span>
               </div>
-              <h1 className="text-5xl md:text-7xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-100">
+              <h1 className="text-4xl sm:text-5xl md:text-7xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-100">
                 The easiest way to run AI agents in the cloud
               </h1>
-              <p className="text-lg md:text-xl text-zinc-500 dark:text-zinc-400 font-light max-w-3xl mx-auto leading-relaxed">
+              <p className="text-base md:text-xl text-zinc-500 dark:text-zinc-400 font-light max-w-3xl mx-auto leading-relaxed">
                 Built for developers who want to ship <span className="text-zinc-800 dark:text-zinc-200 font-medium italic">fast</span>. Agentic development, wherever you are. Fire. Forget. Come back to pull requests.
               </p>
               
               {/* Signup CTA */}
-              <div className="pt-4 flex items-center justify-center gap-3">
+              <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
                 {user ? (
-                  <Button asChild size="lg" className="rounded-full cursor-pointer">
+                  <Button asChild size="lg" className="rounded-full cursor-pointer w-full sm:w-auto">
                     <Link href="/dashboard">Go to dashboard</Link>
                   </Button>
                 ) : (
-                  <Button asChild size="lg" className="rounded-full cursor-pointer">
+                  <Button asChild size="lg" className="rounded-full cursor-pointer w-full sm:w-auto">
                     <Link href="/signup">Sign up to get started</Link>
                   </Button>
                 )}
                 <Button
                   variant="outline"
                   size="lg"
-                  className="rounded-full"
+                  className="rounded-full w-full sm:w-auto"
                   onClick={() => {
                     const el = document.getElementById('features');
                     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -84,7 +84,7 @@ export default function Index() {
               </div>
 
               {/* Supported agents */}
-              <div className="mt-4 flex items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                 <span className="font-medium">Supported agents:</span>
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 text-zinc-700 dark:text-zinc-300">
                   <img alt="Claude Logo" src="/claude-logo.svg" className="inline-block h-4 w-4" />
