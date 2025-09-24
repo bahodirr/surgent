@@ -15,6 +15,8 @@ const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY
 const DAYTONA_API_URL = process.env.DAYTONA_API_URL
 const PORT = Number(process.env.PORT || 1234)
 const DEFAULT_SANDBOX_PORT = Number(process.env.DEFAULT_SANDBOX_PORT || 3000)
+const WARMUP_TIMEOUT_MS = 5000
+const WARMUP_RETRY_DELAY_MS = 250
 
 if (!DAYTONA_API_KEY) {
   throw new Error('DAYTONA_API_KEY is not set')
@@ -122,6 +124,38 @@ function addForwardHeaders(headers: Headers, original: Request) {
   headers.set('x-forwarded-for', remoteAddr)
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function fetchWithWarmup(url: string, init: RequestInit) {
+  const deadline = Date.now() + WARMUP_TIMEOUT_MS
+
+  while (true) {
+    try {
+      const resp = await fetch(url, init)
+      const shouldRetry = resp.status === 404 || resp.status >= 500
+      if (!shouldRetry || Date.now() >= deadline) {
+        return resp
+      }
+      const body = resp.body as any
+      if (body?.cancel) {
+        try {
+          await body.cancel()
+        } catch {
+          // ignore cancellation errors
+        }
+      }
+    } catch (error) {
+      if (Date.now() >= deadline) {
+        throw error
+      }
+    }
+
+    await delay(WARMUP_RETRY_DELAY_MS)
+  }
+}
+
 const app = new Hono()
 
 app.get('/health', (c) => c.json({ ok: true }))
@@ -158,7 +192,7 @@ app.all('*', async (c: Context) => {
     init.headers = headers
 
     debug('proxy fetch', { targetUrl, method: c.req.method })
-    const resp = await fetch(targetUrl, init)
+    const resp = await fetchWithWarmup(targetUrl, init)
     debug('proxy response', { status: resp.status, targetUrl })
 
     if (resp.status >= 400) {
@@ -201,5 +235,3 @@ server.on('upgrade', async (req, socket, head) => {
 
 // eslint-disable-next-line no-console
 console.log(`Proxy server is running on port ${PORT}`)
-
-
