@@ -22,7 +22,6 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const sessions = useQuery(api.sessions.listSessionsByProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
 
   const [sessionId, setSessionId] = useState<Id<'sessions'> | undefined>(undefined);
-  const [isConversationOpen, setIsConversationOpen] = useState(true);
 
   const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
   const sandboxId = project?.sandboxId;
@@ -33,7 +32,6 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
 
   useEffect(() => {
     setSessionId(undefined);
-    setIsConversationOpen(true);
 
     if (!projectId) return;
     activateProject({ projectId: projectId as Id<'projects'> }).catch(() => {});
@@ -165,14 +163,11 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
           {conversationHeader}
           <div className="flex-1 min-h-0 border-r">
             <Conversation
-              isOpen={isConversationOpen}
-              setIsOpen={setIsConversationOpen}
               initStatus={{
                 state: conversationInitState,
                 message: conversationStatusMessage
               }}
               timeline={timelineWithCheckpoints}
-              todos={todos}
               composer={composer}
             />
           </div>
@@ -192,14 +187,11 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
               {conversationHeader}
               <div className="flex-1 min-h-0">
                 <Conversation
-                  isOpen={isConversationOpen}
-                  setIsOpen={setIsConversationOpen}
                   initStatus={{
                     state: conversationInitState,
                     message: conversationStatusMessage
                   }}
                   timeline={timelineWithCheckpoints}
-                  todos={todos}
                   composer={composer}
                 />
               </div>

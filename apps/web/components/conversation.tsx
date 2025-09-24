@@ -5,6 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Check, ChevronDown, PlayCircle, AlertCircle, GitCommit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
+import type { TimelineEntry } from '@/lib/message-parser';
 
 interface InitStatus {
   state: 'initializing' | 'ready' | 'error';
@@ -13,17 +14,12 @@ interface InitStatus {
 
 interface ConversationProps {
   initStatus?: InitStatus | null;
-  timeline?: any[];
-  todos?: any[];
-  onClose?: () => void;
-  isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
+  timeline?: TimelineEntry[];
   composer?: React.ReactNode;
 }
 
-export default function Conversation({ initStatus = null, timeline, todos, isOpen, composer }: ConversationProps) {
+export default function Conversation({ initStatus = null, timeline, composer }: ConversationProps) {
   const endRef = useRef<HTMLDivElement>(null);
-  const [todosCollapsed, setTodosCollapsed] = useState(true);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [openToolItems, setOpenToolItems] = useState<Record<string, boolean>>({});
 
@@ -91,8 +87,6 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
   // Shared classes for large blocks to avoid layout overflow
   const preClamp = "bg-gray-100 p-2 rounded text-[10px] font-mono overflow-auto max-h-48 whitespace-pre-wrap break-words break-all";
 
-  if (!isOpen) return null;
-
   return (
     <div className={cn(
       "min-h-0 flex flex-col bg-background overflow-hidden rounded-none w-full h-full"
@@ -108,10 +102,10 @@ export default function Conversation({ initStatus = null, timeline, todos, isOpe
         )}
       >
         <div className="p-2 space-y-2">
-            {timeline?.length === 0 && (
+            {(!timeline || timeline.length === 0) && (
               <div className="text-xs text-muted-foreground">No messages yet. Ask something to get started.</div>
             )}
-            {timeline?.map((entry: any, idx: number) => {
+            {(timeline ?? []).map((entry: any, idx: number) => {
             if (entry.kind === 'toolGroup') {
               const items = entry.items as any[];
               const ts = items[0]?._creationTime ? new Date(items[0]._creationTime) : undefined;
