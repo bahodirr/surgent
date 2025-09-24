@@ -21,7 +21,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const project = useQuery(api.projects.getProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
   const sessions = useQuery(api.sessions.listSessionsByProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
 
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const [sessionId, setSessionId] = useState<Id<'sessions'> | undefined>(undefined);
   const [isConversationOpen, setIsConversationOpen] = useState(true);
 
   const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
@@ -32,6 +32,9 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const previewUrl = isReady ? `https://${sandboxId}.${proxyHost}` : undefined;
 
   useEffect(() => {
+    setSessionId(undefined);
+    setIsConversationOpen(true);
+
     if (!projectId) return;
     activateProject({ projectId: projectId as Id<'projects'> }).catch(() => {});
   }, [projectId, activateProject]);
@@ -39,8 +42,8 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = isReady ? 'ready' : 'initializing';
 
   // Load detailed session (timeline, todos)
-  const messages = useQuery(api.sessions.listMessagesBySession, sessionId ? { sessionId: sessionId as Id<'sessions'>, limit: 200 } : 'skip');
-  const commits = useQuery(api.commits.listBySession, sessionId ? { sessionId: sessionId as Id<'sessions'> } : 'skip');
+  const messages = useQuery(api.sessions.listMessagesBySession, sessionId ? { sessionId, limit: 200 } : 'skip');
+  const commits = useQuery(api.commits.listBySession, sessionId ? { sessionId } : 'skip');
 
   // Parse messages using the dedicated parser
   const { timeline, todos } = parseMessages(Array.isArray(messages) ? messages : []);
@@ -56,7 +59,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
       await createAndRun({
         projectId: projectId as Id<'projects'>,
         prompt: text,
-        sessionId: sessionId as Id<'sessions'>,
+        sessionId,
       });
     } catch (e) {
       // noop
@@ -67,83 +70,110 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
 
   // Select the latest session for this project (default session always exists)
   useEffect(() => {
-    if (sessions?.[0]?._id) {
-      setSessionId(sessions[0]._id as string);
+    if (!sessions?.length) return;
+
+    if (!sessionId) {
+      setSessionId(sessions[0]!._id as Id<'sessions'>);
+      return;
     }
-  }, [sessions]);
+
+    const currentSessionStillExists = sessions.some((session) => session._id === sessionId);
+    if (!currentSessionStillExists) {
+      setSessionId(sessions[0]!._id as Id<'sessions'>);
+    }
+  }, [sessions, sessionId]);
+
+  useEffect(() => {
+    if (!onPreviewUrl) return;
+    onPreviewUrl(previewUrl ?? null);
+  }, [previewUrl, onPreviewUrl]);
+
+  const isProjectSelected = Boolean(projectId);
+  const spinner = (
+    <span className="inline-flex items-center gap-2">
+      <span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting...
+    </span>
+  );
+
+  const workspaceStatus = !isProjectSelected ? 'Select a project' : initStatus === 'initializing' ? spinner : 'Ready';
+  const previewStatus = !isProjectSelected ? 'Select a project' : initStatus === 'initializing' ? spinner : 'Live';
+  const conversationStatusMessage = !isProjectSelected ? 'Select a project to start' : initStatus === 'ready' ? 'Ready' : 'Initializing project';
+  const conversationInitState = initStatus === 'ready' ? 'ready' : 'initializing';
+  const shouldShowConversationBadge = !isProjectSelected || initStatus === 'initializing';
+
+  const conversationBadgeClass = cn(
+    'text-xs font-medium',
+    !isProjectSelected ? 'text-muted-foreground' : initStatus === 'initializing' ? 'text-blue-500' : 'text-green-500',
+    { hidden: !shouldShowConversationBadge }
+  );
+
+  const conversationHeader = (
+    <div className="flex items-center justify-between p-2 border-b">
+      <div className="flex items-center gap-3">
+        <h3 className="text-sm font-medium text-gray-800">Conversation</h3>
+        <span className={conversationBadgeClass}>{conversationStatusMessage}</span>
+      </div>
+      <div className="flex items-center gap-2" />
+    </div>
+  );
+
+  const previewHeader = (
+    <div className="flex items-center justify-between p-2 border-b">
+      <div className="flex items-center gap-3">
+        <h3 className="text-sm font-medium">Preview</h3>
+        {previewUrl && initStatus === 'ready' && (
+          <a
+            className="text-xs underline text-muted-foreground hover:text-foreground"
+            href={previewUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open
+          </a>
+        )}
+      </div>
+      <div className="text-xs text-muted-foreground">{previewStatus}</div>
+    </div>
+  );
+
+  const composer = (
+    <ChatInput
+      onSubmit={handleSend}
+      disabled={initStatus !== 'ready' || isSending || !isProjectSelected}
+      placeholder={!isProjectSelected ? 'Select a project to start' : initStatus !== 'ready' ? 'Initializing project environment...' : 'Ask anything...'}
+      todos={todos}
+      timeline={timelineWithCheckpoints}
+    />
+  );
 
   return (
     <div className="h-screen w-full bg-background flex flex-col">
       <div className="flex items-center justify-between p-2 border-b">
         <div className="text-sm font-medium">Workspace</div>
-        <div className="text-xs text-muted-foreground">
-          {initStatus === 'initializing' ? (
-            <span className="inline-flex items-center gap-2"><span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting…</span>
-          ) : 'Ready'}
-        </div>
+        <div className="text-xs text-muted-foreground">{workspaceStatus}</div>
       </div>
       <div className="flex-1 min-h-0">
         {/* Desktop / Tablet: Two-column layout */}
         <div className={cn("h-full min-h-0 hidden md:grid md:grid-cols-[420px_1fr]")}> 
         <div className={cn("min-w-0 order-2 flex flex-col h-full bg-background")}> 
-          <div className="flex items-center justify-between p-2 border-b">
-            <div className="flex items-center gap-3">
-              <h3 className="text-sm font-medium">Preview</h3>
-              {previewUrl && initStatus === 'ready' && (
-                <a
-                  className="text-xs underline text-muted-foreground hover:text-foreground"
-                  href={previewUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open
-                </a>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {initStatus === 'initializing' && (
-                <span className="inline-flex items-center gap-2"><span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting...</span>
-              )}
-              {initStatus === 'ready' && 'Live'}
-            </div>
-          </div>
+          {previewHeader}
           <div className="flex-1 min-h-0">
             <PreviewPanel initStatus={initStatus} previewUrl={previewUrl} onPreviewUrl={onPreviewUrl} />
           </div>
         </div>
         <div className="h-full min-h-0 bg-background order-1 flex flex-col">
-          <div className="flex items-center justify-between p-2 border-b">
-            <div className="flex items-center gap-3">
-              <h3 className="text-sm font-medium text-gray-800">Conversation</h3>
-              <span className={cn(
-                "text-xs font-medium",
-                initStatus === 'initializing' ? 'text-blue-500' : 'text-green-500 hidden'
-              )}>
-                {initStatus === 'ready' ? 'Ready' : 'Initializing project'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2" />
-          </div>
+          {conversationHeader}
           <div className="flex-1 min-h-0 border-r">
             <Conversation
               isOpen={isConversationOpen}
               setIsOpen={setIsConversationOpen}
               initStatus={{
-                state: initStatus === 'ready' ? 'ready' : 'initializing',
-                message: initStatus === 'ready' ? 'Ready' : 'Initializing project '
+                state: conversationInitState,
+                message: conversationStatusMessage
               }}
               timeline={timelineWithCheckpoints}
               todos={todos}
-              composer={
-                <ChatInput
-                  onSubmit={handleSend}
-                  disabled={initStatus !== 'ready' || isSending || !projectId}
-                  placeholder={initStatus !== 'ready' ? 'Initializing project environment...' : 'Ask anything...'}
-                  todos={todos}
-                  timeline={timelineWithCheckpoints}
-                  
-                />
-              }
+              composer={composer}
             />
           </div>
         </div>
@@ -159,62 +189,23 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
               </TabsList>
             </div>
             <TabsContent value="chat" className="flex-1 min-h-0 flex flex-col">
-              <div className="flex items-center justify-between p-2 border-b">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-medium text-gray-800">Conversation</h3>
-                  <span className={cn(
-                    "text-xs font-medium",
-                    initStatus === 'initializing' ? 'text-blue-500' : 'text-green-500 hidden'
-                  )}>
-                    {initStatus === 'ready' ? 'Ready' : 'Initializing project'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2" />
-              </div>
+              {conversationHeader}
               <div className="flex-1 min-h-0">
                 <Conversation
                   isOpen={isConversationOpen}
                   setIsOpen={setIsConversationOpen}
                   initStatus={{
-                    state: initStatus === 'ready' ? 'ready' : 'initializing',
-                    message: initStatus === 'ready' ? 'Ready' : 'Initializing project '
+                    state: conversationInitState,
+                    message: conversationStatusMessage
                   }}
                   timeline={timelineWithCheckpoints}
                   todos={todos}
-                  composer={
-                    <ChatInput
-                      onSubmit={handleSend}
-                      disabled={initStatus !== 'ready' || isSending || !projectId}
-                      placeholder={initStatus !== 'ready' ? 'Initializing project environment...' : 'Ask anything...'}
-                      todos={todos}
-                      timeline={timelineWithCheckpoints}
-                    />
-                  }
+                  composer={composer}
                 />
               </div>
             </TabsContent>
             <TabsContent value="preview" className="flex-1 min-h-0 flex flex-col">
-              <div className="flex items-center justify-between p-2 border-b">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-medium">Preview</h3>
-                  {previewUrl && initStatus === 'ready' && (
-                    <a
-                      className="text-xs underline text-muted-foreground hover:text-foreground"
-                      href={previewUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open
-                    </a>
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {initStatus === 'initializing' && (
-                    <span className="inline-flex items-center gap-2"><span className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Starting...</span>
-                  )}
-                  {initStatus === 'ready' && 'Live'}
-                </div>
-              </div>
+              {previewHeader}
               <div className="flex-1 min-h-0">
                 <PreviewPanel initStatus={initStatus} previewUrl={previewUrl} onPreviewUrl={onPreviewUrl} />
               </div>
