@@ -34,6 +34,25 @@ export async function getOrCreateSandbox(args: {
     sandbox = await provider.create(envVars, undefined, workingDirectory);
   }
 
+  // Ensure the sandbox runs indefinitely based on Daytona docs
+  try {
+    // Disable auto-stop to run indefinitely
+    // Also stretch archive interval to max and disable auto-delete as a safeguard
+    // Note: These methods are available on the Daytona SDK Sandbox instance
+    // and are no-ops if already configured accordingly.
+    // We cast to any to call SDK-specific helpers.
+    const sdkSandbox: any = (sandbox as any).sandbox ?? (sandbox as any);
+    if (sdkSandbox?.setAutostopInterval) {
+      await sdkSandbox.setAutostopInterval(0);
+    }
+    if (sdkSandbox?.setAutoArchiveInterval) {
+      await sdkSandbox.setAutoArchiveInterval(0);
+    }
+    if (sdkSandbox?.setAutoDeleteInterval) {
+      await sdkSandbox.setAutoDeleteInterval(-1);
+    }
+  } catch {}
+
   const previewUrl = await sandbox.getHost(port);
   return { sandboxId: sandbox.sandboxId, previewUrl } as const;
 }

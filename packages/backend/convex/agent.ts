@@ -9,6 +9,7 @@ import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { getOrCreateSandbox } from "./sandbox";
 import { config } from "./config";
+import { Daytona } from "@daytonaio/sdk";
 
 // Initialize a project sandbox and persist fields on the project
 export const initializeProject = internalAction({
@@ -148,5 +149,24 @@ export const runAgent = internalAction({
       stderr: result.stderr,
       sandboxId: result.sandboxId,
     } as const;
+  },
+});
+
+// Configure an existing sandbox to run indefinitely (disable auto-stop)
+export const setRunIndefinitely = internalAction({
+  args: { sandboxId: v.string() },
+  returns: v.object({ sandboxId: v.string() }),
+  handler: async (_ctx, args) => {
+    const daytona = new Daytona({
+      apiKey: config.daytona.apiKey,
+      apiUrl: config.daytona.serverUrl || "https://app.daytona.io/api",
+    });
+
+    const sandbox = await daytona.get(args.sandboxId);
+
+    // Disable auto-stop; optionally harden archive/delete settings
+    await sandbox.setAutostopInterval(0);
+
+    return { sandboxId: args.sandboxId } as const;
   },
 });

@@ -185,3 +185,49 @@ export const activateProject = mutation({
   },
 });
 
+// Public: Set the project's sandbox to run indefinitely (schedules internal action)
+export const setProjectSandboxRunIndefinitely = mutation({
+  args: { projectId: v.id('projects') },
+  handler: async (ctx, { projectId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error('Unauthenticated');
+
+    const project = await ctx.db.get(projectId as Id<'projects'>);
+    if (!project) throw new Error('Project not found');
+    if ((project.userId as Id<'users'>) !== (userId as Id<'users'>)) {
+      throw new Error('Forbidden');
+    }
+    if (!project.sandboxId) throw new Error('Sandbox not found');
+
+    await ctx.scheduler.runAfter(0, internal.agent.setRunIndefinitely, {
+      sandboxId: project.sandboxId,
+    });
+
+    // Mark project sandbox as deployed=true
+    await ctx.runMutation(internal.projects.setSandboxDeployed, {
+      projectId: projectId as Id<'projects'>,
+      deployed: true,
+    });
+
+    return { scheduled: true } as const;
+  },
+});
+
+// Internal: set sandbox.deployed flag on project
+export const setSandboxDeployed = internalMutation({
+  args: { projectId: v.id('projects'), deployed: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, { projectId, deployed }) => {
+    const project = await ctx.db.get(projectId as Id<'projects'>);
+    if (!project) throw new Error('Project not found');
+
+    const sandbox = {
+      ...(project.sandbox as any || {}),
+      deployed,
+    } as any;
+
+    await ctx.db.patch(projectId as Id<'projects'>, { sandbox });
+    return null;
+  },
+});
+
