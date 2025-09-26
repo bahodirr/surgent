@@ -9,7 +9,7 @@ export interface ParsedMessage {
   };
   tool?: {
     name?: string;
-    id?: string;
+    id?: string | number;
     input?: any;
     result?: any;
     status?: 'completed' | 'error';
@@ -38,6 +38,36 @@ export interface ParsedSessionData {
   todos: TodoItem[];
 }
 
+type MessageRecord = {
+  raw: unknown;
+  _id?: string;
+  _creationTime: number;
+};
+
+type SdkContentPart =
+  | { type: 'text'; text?: string }
+  | { type: 'tool_use'; id?: string | number; name?: string; input?: unknown }
+  | { type: 'tool_result'; tool_use_id?: string | number; content?: unknown; is_error?: boolean };
+
+type SdkMessagePayload = {
+  type?: string;
+  subtype?: string;
+  message?: { content?: SdkContentPart[] | string };
+  content?: SdkContentPart[] | string;
+  parent_tool_use_id?: string;
+  usage?: unknown;
+  total_cost_usd?: number;
+  num_turns?: number;
+  data?: { usage?: unknown; total_cost_usd?: number; cost_usd?: number; num_turns?: number };
+  cost_usd?: number;
+  result?: {
+    usage?: unknown;
+    total_cost_usd?: number;
+    num_turns?: number;
+    cost_usd?: number;
+  };
+};
+
 export function parseMessages(messages: any[]): ParsedSessionData {
   if (!Array.isArray(messages) || messages.length === 0) {
     return { timeline: [], todos: [] };
@@ -45,57 +75,137 @@ export function parseMessages(messages: any[]): ParsedSessionData {
 
   const timeline: TimelineEntry[] = [];
 
-  for (const message of messages) {
-    const raw = message.raw;
+  for (const message of messages as MessageRecord[]) {
+    const raw = message?.raw;
 
     if (typeof raw === 'string') {
-      // User message
-      timeline.push(createUserMessage(message, raw));
+      appendTimelineEntries(timeline, createUserMessage(message, raw));
       continue;
     }
 
-    const type = raw?.type;
-    const subtype = raw?.subtype;
+    const payload = raw as SdkMessagePayload | undefined;
+    const type = payload?.type;
+    const subtype = payload?.subtype;
 
     if (type === 'system') {
       if (subtype === 'init') {
-        timeline.push(createSystemInitMessage(message, raw));
-      } else if (subtype === 'compact_boundary') {
-        continue; // Skip compact boundaries
+        appendTimelineEntries(timeline, createSystemInitMessage(message, payload));
       }
       continue;
     }
 
     if (type === 'result') {
-      timeline.push(createSystemResultMessage(message, raw, subtype));
+      appendTimelineEntries(timeline, createSystemResultMessage(message, payload, subtype));
       continue;
     }
 
-    // Handle SDK message types (SDKAssistantMessage, SDKUserMessage)
     if (type === 'assistant' || type === 'user') {
-      const timelineEntries = parseSDKMessage(message, raw, type);
-      timeline.push(...timelineEntries);
+      appendTimelineEntries(timeline, parseSDKMessage(message, payload, type));
       continue;
     }
 
-    // Handle legacy message format (backward compatibility)
     if (type === 'message') {
-      const timelineEntries = parseLegacyMessage(message, raw);
-      timeline.push(...timelineEntries);
+      appendTimelineEntries(timeline, parseLegacyMessage(message, payload));
       continue;
     }
 
-    // Handle unknown message types
-    timeline.push(createUnknownMessage(message, raw));
+    appendTimelineEntries(timeline, createUnknownMessage(message, payload));
   }
 
-  // Extract todos from latest TodoWrite tool
   const latestTodos = extractLatestTodos(timeline);
 
-  // Post-process: merge adjacent tool groups and combine tool_use/result
-  const mergedTimeline = mergeToolGroups(timeline);
+  return { timeline, todos: latestTodos };
+}
 
-  return { timeline: mergedTimeline, todos: latestTodos };
+function appendTimelineEntries(target: TimelineEntry[], entries?: TimelineEntry | TimelineEntry[]): void {
+  if (!entries) return;
+  const list = Array.isArray(entries) ? entries : [entries];
+
+  for (const entry of list) {
+    if (!entry) continue;
+
+    if (entry.kind === 'toolGroup') {
+      const incoming = entry.items?.map(normalizeToolItem) ?? [];
+      if (incoming.length === 0) continue;
+
+      const last = target[target.length - 1];
+      if (last?.kind === 'toolGroup') {
+        last.items = mergeToolItems(last.items ?? [], incoming);
+      } else {
+        target.push({ kind: 'toolGroup', items: incoming });
+      }
+      continue;
+    }
+
+    target.push(entry);
+  }
+}
+
+function normalizeToolItem(item: ParsedMessage): ParsedMessage {
+  const tool = { ...(item.tool ?? {}) };
+  return {
+    ...item,
+    type: 'tool',
+    tool,
+  };
+}
+
+function mergeToolItems(existing: ParsedMessage[], incoming: ParsedMessage[]): ParsedMessage[] {
+  if (existing.length === 0) return incoming.map(normalizeToolItem);
+
+  const merged = existing.map(normalizeToolItem);
+
+  for (const next of incoming.map(normalizeToolItem)) {
+    const toolId = next.tool?.id;
+    if (toolId === undefined || toolId === null) {
+      merged.push(next);
+      continue;
+    }
+
+    const index = merged.findIndex((candidate) => candidate.tool?.id === toolId);
+    if (index === -1) {
+      merged.push(next);
+      continue;
+    }
+
+    const existing = merged[index];
+    if (!existing) {
+      merged.push(next);
+      continue;
+    }
+
+    merged[index] = mergeToolItem(existing, next);
+  }
+
+  return merged;
+}
+
+function mergeToolItem(base: ParsedMessage, incoming: ParsedMessage): ParsedMessage {
+  const baseTool = base.tool ?? {};
+  const incomingTool = incoming.tool ?? {};
+
+  const mergedTool = {
+    ...baseTool,
+    id: incomingTool.id ?? baseTool.id,
+    name: baseTool.name ?? incomingTool.name,
+    input: baseTool.input ?? incomingTool.input,
+    result: incomingTool.result ?? baseTool.result,
+    status: incomingTool.status ?? baseTool.status,
+    parentId: incomingTool.parentId ?? baseTool.parentId,
+  };
+
+  return {
+    ...base,
+    type: 'tool',
+    raw: incomingTool.result !== undefined ? incoming.raw : base.raw,
+    tool: mergedTool,
+    _creationTime: Math.min(base._creationTime, incoming._creationTime),
+    _id: base._id ?? incoming._id,
+  };
+}
+
+function buildStableToolId(messageId: string | undefined, key: string): string {
+  return `${messageId ?? 'no-message-id'}:tool:${key}`;
 }
 
 // Helper to attach commit checkpoints returned from backend to systemResult entries
@@ -123,7 +233,7 @@ export function attachCheckpoints(timeline: TimelineEntry[], commits: any[]): Ti
   });
 }
 
-function createUserMessage(message: any, raw: string): TimelineEntry {
+function createUserMessage(message: MessageRecord, raw: string): TimelineEntry {
   return {
     kind: 'message',
     msg: {
@@ -137,7 +247,7 @@ function createUserMessage(message: any, raw: string): TimelineEntry {
   };
 }
 
-function createSystemInitMessage(message: any, raw: any): TimelineEntry {
+function createSystemInitMessage(message: MessageRecord, raw: SdkMessagePayload | undefined): TimelineEntry {
   return {
     kind: 'systemInit',
     msg: {
@@ -150,7 +260,11 @@ function createSystemInitMessage(message: any, raw: any): TimelineEntry {
   };
 }
 
-function createSystemResultMessage(message: any, raw: any, subtype: string): TimelineEntry {
+function createSystemResultMessage(
+  message: MessageRecord,
+  raw: SdkMessagePayload | undefined,
+  subtype: string | undefined
+): TimelineEntry {
   return {
     kind: 'systemResult',
     msg: {
@@ -163,8 +277,7 @@ function createSystemResultMessage(message: any, raw: any, subtype: string): Tim
   };
 }
 
-function parseSDKMessage(message: any, raw: any, type: 'assistant' | 'user'): TimelineEntry[] {
-  const role = type;
+function parseSDKMessage(message: MessageRecord, raw: SdkMessagePayload | undefined, role: 'assistant' | 'user'): TimelineEntry[] {
   const messageContent = raw?.message?.content;
 
   if (Array.isArray(messageContent)) {
@@ -210,22 +323,22 @@ function parseSDKMessage(message: any, raw: any, type: 'assistant' | 'user'): Ti
   }];
 }
 
-function parseLegacyMessage(message: any, raw: any): TimelineEntry[] {
-  const content = raw?.content || [];
+function parseLegacyMessage(message: MessageRecord, raw: SdkMessagePayload | undefined): TimelineEntry[] {
+  const content = Array.isArray(raw?.content) ? raw?.content : [];
   return parseContentMessage('assistant', content, message, raw);
 }
 
 function parseContentMessage(
   defaultRole: ParsedMessage['role'],
-  content: any[],
-  message: any,
-  raw: any
+  content: SdkContentPart[],
+  message: MessageRecord,
+  raw: SdkMessagePayload | undefined
 ): TimelineEntry[] {
   const timelineEntries: TimelineEntry[] = [];
 
-  const textParts = content.filter((part: any) => part?.type === 'text' && part?.text);
-  const toolUses = content.filter((part: any) => part?.type === 'tool_use');
-  const toolResults = content.filter((part: any) => part?.type === 'tool_result');
+  const textParts = content.filter((part): part is Extract<SdkContentPart, { type: 'text' }> => part?.type === 'text' && !!part?.text);
+  const toolUses = content.filter((part): part is Extract<SdkContentPart, { type: 'tool_use' }> => part?.type === 'tool_use');
+  const toolResults = content.filter((part): part is Extract<SdkContentPart, { type: 'tool_result' }> => part?.type === 'tool_result');
 
   // Add text messages
   for (const part of textParts) {
@@ -254,60 +367,80 @@ function parseContentMessage(
 }
 
 function createToolItems(
-  toolUses: any[],
-  toolResults: any[],
-  raw: any,
+  toolUses: Extract<SdkContentPart, { type: 'tool_use' }>[],
+  toolResults: Extract<SdkContentPart, { type: 'tool_result' }>[],
+  raw: SdkMessagePayload | undefined,
   creationTime: number,
   messageId?: string
 ): ParsedMessage[] {
-  const toolItems: ParsedMessage[] = [];
+  if (toolUses.length === 0 && toolResults.length === 0) return [];
 
-  // Add tool uses
-  for (let i = 0; i < toolUses.length; i++) {
-    const part = toolUses[i];
-    const toolUseId = (typeof part.id === 'string' ? part.id : String(part.id ?? i));
-    const stableId = `${messageId ?? 'no-message-id'}:tool_use:${toolUseId}`;
+  const byKey = new Map<string, ParsedMessage>();
+  const order: string[] = [];
+  const parentId = typeof raw?.parent_tool_use_id === 'string' ? raw.parent_tool_use_id : undefined;
 
-    toolItems.push({
+  const ensureItem = (key: string): ParsedMessage => {
+    const existing = byKey.get(key);
+    if (existing) return existing;
+
+    const entry: ParsedMessage = normalizeToolItem({
       role: 'assistant',
       type: 'tool',
-      tool: {
-        name: part.name,
-        id: part.id,
-        input: part.input,
-        parentId: raw.parent_tool_use_id
-      },
+      tool: parentId !== undefined ? { parentId } : {},
       raw,
-      _id: stableId,
-      _creationTime: creationTime
+      _id: buildStableToolId(messageId, key),
+      _creationTime: creationTime,
     });
-  }
 
-  // Add tool results
-  for (let i = 0; i < toolResults.length; i++) {
-    const part = toolResults[i];
-    const linkId = (typeof part.tool_use_id === 'string' ? part.tool_use_id : String(part.tool_use_id ?? i));
-    const stableId = `${messageId ?? 'no-message-id'}:tool_result:${linkId}`;
+    byKey.set(key, entry);
+    order.push(key);
+    return entry;
+  };
 
-    toolItems.push({
-      role: 'assistant',
-      type: 'tool_result',
-      tool: {
-        id: part.tool_use_id,
-        result: part.content,
-        status: part.is_error ? 'error' : 'completed',
-        parentId: raw.parent_tool_use_id
-      },
-      raw,
-      _id: stableId,
-      _creationTime: creationTime
-    });
-  }
+  const makeKey = (value: unknown, index: number, prefix: string): { key: string; id?: string | number } => {
+    if (value === undefined || value === null || value === '') {
+      return { key: `${prefix}-${index}` };
+    }
+    if (typeof value === 'string' || typeof value === 'number') {
+      return { key: String(value), id: value };
+    }
+    return { key: String(value) };
+  };
 
-  return toolItems;
+  toolUses.forEach((part, index) => {
+    const { key, id } = makeKey(part.id, index, 'use');
+    const item = ensureItem(key);
+    const tool = { ...(item.tool ?? {}) };
+
+    if (id !== undefined) tool.id = id;
+    if (part.name !== undefined) tool.name = part.name;
+    if (part.input !== undefined) tool.input = part.input;
+    if (parentId !== undefined) tool.parentId = parentId;
+
+    item.tool = tool;
+  });
+
+  toolResults.forEach((part, index) => {
+    const { key, id } = makeKey(part.tool_use_id, index, 'result');
+    const item = ensureItem(key);
+    const tool = { ...(item.tool ?? {}) };
+
+    if (id !== undefined) tool.id = id;
+    if (part.content !== undefined) tool.result = part.content;
+    if (typeof part.is_error === 'boolean') {
+      tool.status = part.is_error ? 'error' : 'completed';
+    }
+    if (parentId !== undefined && tool.parentId === undefined) {
+      tool.parentId = parentId;
+    }
+
+    item.tool = tool;
+  });
+
+  return order.map((key) => normalizeToolItem(byKey.get(key)!));
 }
 
-function createUnknownMessage(message: any, raw: any): TimelineEntry {
+function createUnknownMessage(message: MessageRecord, raw: unknown): TimelineEntry {
   return {
     kind: 'message',
     msg: {
@@ -340,76 +473,6 @@ function extractLatestTodos(timeline: TimelineEntry[]): TodoItem[] {
 }
 
 // Merge adjacent toolGroup entries and combine tool_use with matching tool_result
-function mergeToolGroups(timeline: TimelineEntry[]): TimelineEntry[] {
-  const output: TimelineEntry[] = [];
-
-  // First pass: merge adjacent toolGroup entries
-  for (const entry of timeline) {
-    if (entry.kind !== 'toolGroup') {
-      output.push(entry);
-      continue;
-    }
-
-    const last = output[output.length - 1];
-    if (last && last.kind === 'toolGroup') {
-      if (!last.items) last.items = [];
-      if (entry.items?.length) last.items.push(...entry.items);
-    } else {
-      output.push({ kind: 'toolGroup', items: [...(entry.items || [])] });
-    }
-  }
-
-  // Second pass: within each toolGroup, merge items by tool.id
-  for (const entry of output) {
-    if (entry.kind !== 'toolGroup' || !entry.items?.length) continue;
-
-    const mergedById: Map<string, ParsedMessage> = new Map();
-    const order: string[] = [];
-
-    for (const it of entry.items) {
-      const toolId = (it.tool?.id as string | undefined) || `no-id-${order.length}`;
-      if (!mergedById.has(toolId)) {
-        order.push(toolId);
-        mergedById.set(toolId, {
-          role: 'assistant',
-          type: 'tool',
-          tool: {
-            name: it.tool?.name,
-            id: it.tool?.id,
-            input: it.tool?.input,
-            result: it.tool?.result,
-            status: it.tool?.status,
-            parentId: it.tool?.parentId,
-          },
-          raw: it.raw,
-          _creationTime: it._creationTime,
-        } as ParsedMessage);
-        continue;
-      }
-
-      const merged = mergedById.get(toolId)!;
-      // Prefer to keep name/input from tool_use, and result/status from tool_result
-      merged.tool = merged.tool || {};
-      if (it.type === 'tool') {
-        if (it.tool?.name) merged.tool.name = it.tool.name;
-        if (it.tool?.input !== undefined) merged.tool.input = it.tool.input;
-        if (it.tool?.parentId) merged.tool.parentId = it.tool.parentId;
-      }
-      if (it.type === 'tool_result') {
-        if (it.tool?.result !== undefined) merged.tool.result = it.tool.result;
-        if (it.tool?.status) merged.tool.status = it.tool.status;
-        if (it.tool?.parentId) merged.tool.parentId = it.tool.parentId;
-      }
-      // Update creation time to earliest
-      merged._creationTime = Math.min(merged._creationTime, it._creationTime);
-    }
-
-    entry.items = order.map((id) => mergedById.get(id)!);
-  }
-
-  return output;
-}
-
 // Helper to get min _creationTime for an entry
 function getEntryTime(entry: TimelineEntry): number {
   if (entry.kind === 'toolGroup' && entry.items?.length) {

@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api, Id } from '@repo/backend';
 import PreviewPanel from './preview-panel';
+import { Button } from '@/components/ui/button';
 import Conversation from './conversation';
 import ChatInput from './chat-input';
 import { cn } from '@/lib/utils';
 import { parseMessages } from '@/lib/message-parser';
 import { attachCheckpoints } from '@/lib/message-parser';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ExternalLink, Rocket } from 'lucide-react';
 
 interface SplitViewProps {
   projectId?: string;
@@ -20,6 +22,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const activateProject = useMutation(api.projects.activateProject);
   const project = useQuery(api.projects.getProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
   const sessions = useQuery(api.sessions.listSessionsByProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
+  const setRunIndefinitely = useMutation(api.projects.setProjectSandboxRunIndefinitely);
 
   const [sessionId, setSessionId] = useState<Id<'sessions'> | undefined>(undefined);
 
@@ -29,6 +32,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const hasSandbox = Boolean(sandboxId && proxyHost);
   const isReady = hasSession && hasSandbox;
   const previewUrl = isReady ? `https://${sandboxId}.${proxyHost}` : undefined;
+  const isDeployed = project?.sandbox?.deployed || false;
 
   useEffect(() => {
     setSessionId(undefined);
@@ -49,6 +53,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
 
   // Send handler
   const [isSending, setIsSending] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
   const createAndRun = useMutation(api.sessions.createMessageAndRunAgent);
   const handleSend = async (text: string) => {
     if (!text.trim() || !projectId || !sessionId || isSending) return;
@@ -105,32 +110,51 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
     { hidden: !shouldShowConversationBadge }
   );
 
-  const conversationHeader = (
-    <div className="flex items-center justify-between p-2 border-b">
-      <div className="flex items-center gap-3">
-        <h3 className="text-sm font-medium text-gray-800">Conversation</h3>
-        <span className={conversationBadgeClass}>{conversationStatusMessage}</span>
-      </div>
-      <div className="flex items-center gap-2" />
-    </div>
-  );
-
   const previewHeader = (
     <div className="flex items-center justify-between p-2 border-b">
       <div className="flex items-center gap-3">
         <h3 className="text-sm font-medium">Preview</h3>
-        {previewUrl && initStatus === 'ready' && (
-          <a
-            className="text-xs underline text-muted-foreground hover:text-foreground"
-            href={previewUrl}
-            target="_blank"
-            rel="noreferrer"
+        
+      </div>
+      <div className="flex items-center gap-3">
+        {isDeployed ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs">Deployed</span>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="cursor-pointer"
+              disabled={!previewUrl}
+              onClick={() => {
+                if (!previewUrl) return;
+                window.open(previewUrl, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              <ExternalLink className="h-4 w-4" /> Open
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            className="cursor-pointer"
+            disabled={!projectId || isDeploying}
+            onClick={async () => {
+              if (!projectId || isDeploying) return;
+              setIsDeploying(true);
+              try {
+                await setRunIndefinitely({ projectId: projectId as Id<'projects'> });
+              } catch {}
+              setIsDeploying(false);
+            }}
           >
-            Open
-          </a>
+            {isDeploying ? 'Deploying…' : (
+              <span className="inline-flex items-center gap-1">
+                <Rocket className="h-4 w-4" /> Deploy
+              </span>
+            )}
+          </Button>
         )}
       </div>
-      <div className="text-xs text-muted-foreground">{previewStatus}</div>
     </div>
   );
 
@@ -160,7 +184,6 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
           </div>
         </div>
         <div className="h-full min-h-0 bg-background order-1 flex flex-col">
-          {conversationHeader}
           <div className="flex-1 min-h-0 border-r">
             <Conversation
               initStatus={{
@@ -184,7 +207,6 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
               </TabsList>
             </div>
             <TabsContent value="chat" className="flex-1 min-h-0 flex flex-col">
-              {conversationHeader}
               <div className="flex-1 min-h-0">
                 <Conversation
                   initStatus={{

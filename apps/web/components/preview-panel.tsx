@@ -58,6 +58,7 @@ export default function PreviewPanel({ initStatus, previewUrl, onPreviewUrl }: P
     window.open(url, '_blank', 'noopener,noreferrer');
   }, [currentUrl, previewUrl]);
 
+
   // Kick off progress when preview becomes ready with a URL (initial load)
   useEffect(() => {
     if (initStatus === 'ready' && (previewUrl || currentUrl)) {
