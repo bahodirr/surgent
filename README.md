@@ -1,134 +1,111 @@
-# Turborepo starter
+# Surgent
 
-This Turborepo starter is maintained by the Turborepo core team.
+Surgent is an agentic development workspace that pairs Claude Code with Daytona sandboxes. This monorepo contains everything needed to run the UI, Convex backend, and preview proxy locally or in production.
 
-## Using this example
+## Tech Stack
+- Next.js 15, React 19, Tailwind CSS 4 for the front-end (`apps/web`).
+- Convex 1.x with `@convex-dev/auth` for data, auth, and scheduled actions (`packages/backend`).
+- Daytona API (`@daytonaio/sdk`) plus a Bun + Hono + `http-proxy` preview gateway (`apps/proxy`).
+- Turborepo 2.5 orchestrating builds; Bun 1.2.20 as the package manager/runtime.
+- TypeScript 5.9 everywhere with ESLint 9 and Prettier 3 for linting and formatting.
 
-Run the following command:
+## Features
+- Chat-first project view that logs timeline updates, todos, and session output in real time.
+- Daytona-backed sandbox control: create, resume, or deploy environments with a single mutation.
+- Live browser preview piped through the Bun/Hono proxy; preview tokens and warm-up are handled for you.
+- Drop in credentials for Anthropic Claude, OpenAI, and Google OAuth to enable providers instantly.
 
-```sh
-npx create-turbo@latest
+## Monorepo Layout
+| Path | Description |
+| --- | --- |
+| `apps/web` | Next.js dashboard, chat surface, and preview UI. |
+| `apps/proxy` | Bun + Hono service that forwards sandbox previews and websockets. |
+| `packages/backend` | Convex functions, auth config, and agent orchestration helpers. |
+| `packages/typescript-config` | Shared TypeScript presets consumed by all workspaces. |
+
+## Setup
+### Requirements
+- Node.js 18+
+- Bun 1.2.20 (`packageManager` pin)
+- Convex CLI (`npm i -g convex`) and a Convex project/URL
+- Daytona API credentials with access to the `default-web-env:1.0.0` snapshot
+- API keys for Anthropic and/or OpenAI, plus Google OAuth client credentials
+
+### Install
+```bash
+git clone https://github.com/<your-org>/surgent.git
+cd surgent
+bun install
 ```
 
-## What's inside?
+### Environment Variables
+Create these files (or export the same variables in your shell) before running anything:
 
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+`./.env`
+```dotenv
+DAYTONA_API_KEY=your-daytona-key
+DAYTONA_API_URL=https://app.daytona.io/api
+PORT=1234
+DEFAULT_SANDBOX_PORT=3000
+DEBUG_PROXY=0
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+`packages/backend/.env.local`
+```dotenv
+DAYTONA_API_KEY=your-daytona-key
+DAYTONA_SERVER_URL=https://app.daytona.io/api
+ANTHROPIC_API_KEY=your-anthropic-key
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+OPENAI_API_KEY=your-openai-key
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+CONVEX_SITE_URL=https://<your-convex-deployment>.convex.site
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
+`apps/web/.env.local`
+```dotenv
+NEXT_PUBLIC_CONVEX_URL=https://<your-convex-deployment>.convex.site
+NEXT_PUBLIC_PROXY_URL=localhost:1234
 ```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+Run `bun run --filter @repo/backend setup` once to ensure `convex dev` can reach your Convex deployment and to confirm the site URL.
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+### Model Providers
+- **Claude Code (Anthropic)** — Set `ANTHROPIC_BASE_URL=https://api.anthropic.com` and provide an `ANTHROPIC_API_KEY` created from the Anthropic console. Pass `model: "claude-3.5-sonnet"` (or any Claude Code variant) when triggering the agent if you want to override the default.
+- **GLM-4.5** — The backend defaults to `glm-4.5` when an Anthropic-compatible endpoint is supplied. Use `ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic` and copy the API token from your https://docs.z.ai/scenario-example/develop-tools/claude. Store that value in `ANTHROPIC_API_KEY`.
+
+## Development
+```bash
+bun run dev
 ```
+This starts `convex dev`, `next dev --port 3000`, and the Bun proxy on port 1234. Visit http://localhost:3000 to sign in, create a project, and view the live preview served from `https://<sandbox-id>.localhost:1234`.
 
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+Individual dev servers:
+```bash
+bun run --filter @repo/backend dev   # Convex backend
+bun run --filter web dev             # Next.js app
+bun run --filter proxy dev           # Preview proxy
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
+## Production
+```bash
+bun run lint
+bun run check-types
+bun run build
 ```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
+- Deploy Convex with `bun run --filter @repo/backend deploy`.
+- Build the proxy via `bun run --filter proxy build` and start with `bun run --filter proxy start`.
+- Run `next build` output (`apps/web/.next`) behind your hosting provider of choice.
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
+## Scripts
+| Command | Description |
+| --- | --- |
+| `bun run dev` | Run all dev tasks through Turborepo. |
+| `bun run lint` | Lint the repo with ESLint. |
+| `bun run check-types` | Project-wide type checking. |
+| `bun run build` | Build all workspaces for production. |
+| `bun run format` | Format `.ts`, `.tsx`, and `.md` files with Prettier. |
+| `bun run --filter @repo/backend setup` | Block until `convex dev` can reach the deployment. |
+| `bun run --filter @repo/backend create-snapshot` | Create a Daytona snapshot (requires credentials). |
 
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+## Contributing
+Open an issue or pull request with your proposed change. Please run `bun run lint` and `bun run check-types` before submitting.
