@@ -186,7 +186,7 @@ export default function Index() {
               <p className="text-xs text-zinc-400 dark:text-zinc-600">© {new Date().getFullYear()} Surgent. All rights reserved.</p>
               <div className="flex items-center gap-2">
                 <a
-                  href="https://github.com"
+                  href="https://github.com/bahodirr/surgent"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="GitHub"
@@ -195,7 +195,7 @@ export default function Index() {
                   <Github className="h-4 w-4" />
                 </a>
                 <a
-                  href="https://twitter.com"
+                  href="https://twitter.com/benrov_"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Twitter"
