@@ -1,0 +1,12 @@
+[
+    "wrangler.jsonc",
+    "wrangler.toml",
+    "package.json",
+    ".redacted_files.json",
+    ".donttouch_files.json",
+    ".important_files.json",
+    "worker/index.ts",
+    "src/lib/errorReporter.ts",
+    "src/components/ErrorBoundary.tsx",
+    "src/components/RouteErrorBoundary.tsx"
+]
