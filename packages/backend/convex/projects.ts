@@ -213,6 +213,27 @@ export const setProjectSandboxRunIndefinitely = mutation({
   },
 });
 
+export const deployProject = mutation({
+  args: { projectId: v.id('projects') },
+  handler: async (ctx, { projectId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error('Unauthenticated');
+
+    const project = await ctx.db.get(projectId as Id<'projects'>);
+    if (!project) throw new Error('Project not found');
+    if ((project.userId as Id<'users'>) !== (userId as Id<'users'>)) {
+      throw new Error('Forbidden');
+    }
+    if (!project.sandboxId) throw new Error('Sandbox not found');
+
+    await ctx.scheduler.runAfter(0, internal.agent.deployProject, {
+      projectId: projectId as Id<'projects'>,
+    });
+
+    return { scheduled: true } as const;
+  },
+});
+
 // Internal: set sandbox.deployed flag on project
 export const setSandboxDeployed = internalMutation({
   args: { projectId: v.id('projects'), deployed: v.boolean() },
@@ -230,4 +251,3 @@ export const setSandboxDeployed = internalMutation({
     return null;
   },
 });
-

@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "vite-dev-server",
-      script: "npm",
+      script: "bun",
       args: "run dev -- --host 0.0.0.0 --port 3000",
       cwd: "/tmp/project",
       instances: 1,

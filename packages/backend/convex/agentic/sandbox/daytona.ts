@@ -34,6 +34,7 @@ export interface SandboxInstance {
   kill(): Promise<void>;
   pause(): Promise<void>;
   getHost(port: number): Promise<string>;
+  fs: Sandbox['fs'];
 }
 
 export interface SandboxProvider {
@@ -53,6 +54,8 @@ export interface DaytonaConfig {
   snapshot?: string;
   serverUrl?: string;
   target?: string;
+  networkAllowList?: string;
+  networkBlockAll?: boolean;
 }
 
 // Helper function to get Docker image based on agent type
@@ -79,6 +82,10 @@ class DaytonaSandboxInstance implements SandboxInstance {
     public sandboxId: string,
     private envs?: Record<string, string> // Store environment variables
   ) {}
+
+  get fs(): Sandbox['fs'] {
+    return this.sandbox.fs;
+  }
 
   get commands(): SandboxCommands {
     return {
@@ -212,23 +219,27 @@ export class DaytonaSandboxProvider implements SandboxProvider {
         ...(envs || {}),
         // Do not override HOME to workingDirectory — prevents tools from writing app files
       } as Record<string, string>;
-      // Create workspace with specified image or default snapshot and environment variables
+
+      const baseParams: Record<string, unknown> = {
+        envVars: mergedEnvs,
+        public: true,
+        autoStopInterval: 15,
+      };
+
+      if (this.config.networkAllowList) {
+        baseParams.networkAllowList = this.config.networkAllowList;
+      }
+
       let sandbox: Sandbox;
       if (this.config.image) {
         params = {
           image,
-          envVars: mergedEnvs,
-          user: "agent",
-          public: true,
-          autoStopInterval: 15,
+          ...baseParams,
         } as any;
       } else {
         params = {
           snapshot: this.config.snapshot ?? "claude-code-env:1.0.0",
-          envVars: mergedEnvs,
-          user: "agent",
-          public: true,
-          autoStopInterval: 15,
+          ...baseParams,
         } as any;
       }
       sandbox = await daytona.create(params);

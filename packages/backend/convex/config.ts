@@ -11,6 +11,8 @@ export const config = {
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
   },
+  cloudflare: {
+    deployUrl: process.env.CLOUDFLARE_DEPLOY_URL,
+  },
 } as const;
-
 

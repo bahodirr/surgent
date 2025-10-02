@@ -21,7 +21,7 @@ if [ ! -d "/tmp/project/.git" ]; then
   git commit --allow-empty -m "Initial commit"
 fi
 
-# Start dev server via PM2 if not running (already running as 'agent')
+# Start dev server via PM2 if not running
 if ! pm2 describe vite-dev-server >/dev/null 2>&1; then
   cd /tmp/project
   pm2 start /workspace/ecosystem.config.cjs || true

@@ -19,7 +19,8 @@
     "@fal-ai/client": "^1.6.2",
     "@google/genai": "^1.14.0",
     "ai": "^5.0.19",
-    "convex": "^1.25.4",
+    "convex": "^1.27.3",
+    "strip-json-comments": "^5.0.1",
     "zod": "^4.0.17"
   },
   "exports": {
