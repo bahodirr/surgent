@@ -32,6 +32,7 @@ const notesSchema = {
     name: v.string(),
     github: v.optional(v.any()),
     settings: v.optional(v.any()),
+    deployment: v.optional(v.any()),
     sandboxId: v.optional(v.string()),
     sandbox: v.optional(v.any()),
     metadata: v.optional(v.any()),

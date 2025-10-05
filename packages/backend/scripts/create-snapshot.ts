@@ -4,7 +4,7 @@ import { Daytona, Image } from '@daytonaio/sdk';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 
-const SNAPSHOT_NAME = "default-web-env:1.0.0";
+const SNAPSHOT_NAME = "cloudflare-web-env:1.0.5";
 
 async function createSnapshot(): Promise<void> {
   try {
@@ -22,7 +22,7 @@ async function createSnapshot(): Promise<void> {
 
     console.log(`Creating snapshot from Dockerfile...`);
     const dockerfilePath = resolve(__dirname, './Dockerfile');
-    const image = await Image.fromDockerfile(dockerfilePath);
+    const image = Image.fromDockerfile(dockerfilePath);
 
     await daytona.snapshot.create({
       name: SNAPSHOT_NAME,

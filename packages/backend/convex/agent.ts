@@ -20,8 +20,8 @@ export const initializeProject = internalAction({
   args: { projectId: v.id("projects") },
   returns: v.object({ sandboxId: v.string(), previewUrl: v.string() }),
   handler: async (ctx, args) => {
-    // Load project via public query
-    const project: any = await ctx.runQuery(api.projects.getProject, {
+    // Load project via internal query to bypass user auth in internal action
+    const project: any = await ctx.runQuery(internal.projects.getProjectInternal, {
       projectId: args.projectId,
     });
 
@@ -67,8 +67,8 @@ export const runAgent = internalAction({
     sessionId: v.optional(v.string()),
     convexSessionId: v.optional(v.id("sessions")),
     model: v.optional(v.string()),
+    template: v.optional(v.string()),
     mode: v.optional(v.union(v.literal("ask"), v.literal("code"))),
-    
   },
   returns: v.object({
     exitCode: v.number(),
@@ -80,7 +80,7 @@ export const runAgent = internalAction({
   handler: async (ctx, args) => {
     const provider = createDaytonaProvider({
       apiKey: config.daytona.apiKey,
-      snapshot: "default-web-env:1.0.0",
+      snapshot: args.template || "cloudflare-web-env:1.0.5",
     });
 
     console.log("agent is starting", args.sandboxId);
@@ -89,7 +89,7 @@ export const runAgent = internalAction({
       provider: "anthropic",
       providerApiKey: config.anthropic.apiKey,
       providerBaseUrl: config.anthropic.baseUrl,
-      model: args.model || "glm-4.5",
+      model: args.model || "glm-4.6",
       sandboxProvider: provider,
       sandboxId: args.sandboxId,
       workingDirectory: "/tmp/project",
@@ -157,16 +157,13 @@ export const runAgent = internalAction({
 });
 
 export const deployProject = internalAction({
-  args: { projectId: v.id("projects") },
+  args: { projectId: v.id("projects"), deployName: v.optional(v.string()) },
   returns: v.null(),
-  handler: async (ctx, { projectId }) => {
-    const project = await ctx.runQuery(api.projects.getProject, {
-      projectId: projectId as Id<'projects'>,
-    });
-    if (!project) {
-      throw new Error('Project not found');
-    }
-    if (!project.sandboxId) {
+  handler: async (ctx, { projectId, deployName }) => {
+    console.log("deploying project", projectId);
+    const project = await ctx.runQuery(internal.projects.getProjectInternal, { projectId: projectId });
+    
+    if (!project?.sandboxId) {
       throw new Error('Project sandbox is not initialized');
     }
 
@@ -180,23 +177,47 @@ export const deployProject = internalAction({
       snapshot: 'default-web-env:1.0.0',
     });
 
+    await ctx.runMutation(internal.projects.setDeployment, {
+      projectId: projectId as Id<'projects'>,
+      status: 'starting',
+      name: deployName ? sanitizeScriptName(deployName) : undefined,
+    });
+
     const sandbox = await provider.resume(project.sandboxId);
     const workingDir = '/tmp/project';
-
+    console.log("building project", workingDir);
+    await ctx.runMutation(internal.projects.setDeployment, {
+      projectId: projectId as Id<'projects'>,
+      status: 'building',
+    });
     const buildResult = await sandbox.commands.run(
       `cd ${workingDir} && bun run build`,
       { timeoutMs: 180_000 },
-    );
+    );  
+    console.log("buildResult", buildResult);
     if (buildResult.exitCode !== 0) {
       const output = buildResult.stderr || buildResult.stdout || 'Unknown build error';
+      await ctx.runMutation(internal.projects.setDeployment, {
+        projectId: projectId as Id<'projects'>,
+        status: 'build_failed',
+      });
       throw new Error(`Sandbox build failed: ${output}`);
     }
 
-    const wranglerBuffer = await sandbox.fs.downloadFile(`${workingDir}/wrangler.jsonc`);
-    const workerBuffer = await sandbox.fs.downloadFile(`${workingDir}/dist/index.js`);
+    const wranglerDownloaded = await downloadFirstExistingFile(sandbox, [
+      `${workingDir}/dist/vite_reference/wrangler.json`,
+      `${workingDir}/wrangler.jsonc`,
+      `${workingDir}/wrangler.json`,
+    ]);
+    console.log("wranglerPath", wranglerDownloaded.path);
+    const workerDownloaded = await downloadFirstExistingFile(sandbox, [
+      `${workingDir}/dist/vite_reference/index.js`,
+      `${workingDir}/dist/index.js`,
+    ]);
+    console.log("workerPath", workerDownloaded.path);
 
-    const wranglerConfig = wranglerBuffer.toString('utf8');
-    const workerContent = workerBuffer.toString('utf8');
+    const wranglerConfig = wranglerDownloaded.buffer.toString('utf8');
+    const workerContent = workerDownloaded.buffer.toString('utf8');
 
     let assetsManifest: Record<string, { hash: string; size: number }> | undefined;
     let files: Array<{ path: string; base64: string }> | undefined;
@@ -214,8 +235,16 @@ export const deployProject = internalAction({
 
     let compatibilityFlags: string[] | undefined;
     let assetsConfig: unknown;
+    let wranglerConfigOut = wranglerConfig;
     try {
       const parsed = JSON.parse(stripJsonComments(wranglerConfig));
+      if (deployName && typeof deployName === 'string') {
+        const sanitized = sanitizeScriptName(deployName);
+        if (sanitized) {
+          parsed.name = sanitized;
+        }
+      }
+      wranglerConfigOut = JSON.stringify(parsed);
       if (Array.isArray(parsed?.compatibility_flags)) {
         compatibilityFlags = parsed.compatibility_flags;
       }
@@ -227,13 +256,18 @@ export const deployProject = internalAction({
     }
 
     const payload = {
-      wranglerConfig,
+      wranglerConfig: wranglerConfigOut,
       workerContent,
       assetsManifest,
       files,
       compatibilityFlags,
       assetsConfig,
     };
+
+    await ctx.runMutation(internal.projects.setDeployment, {
+      projectId: projectId as Id<'projects'>,
+      status: 'uploading',
+    });
 
     const response = await fetch(config.cloudflare.deployUrl, {
       method: 'POST',
@@ -243,14 +277,23 @@ export const deployProject = internalAction({
 
     if (!response.ok) {
       const text = await response.text();
+      await ctx.runMutation(internal.projects.setDeployment, {
+        projectId: projectId as Id<'projects'>,
+        status: 'deploy_failed',
+      });
       throw new Error(`Cloudflare deployment failed: ${response.status} ${text}`);
     }
 
     await ctx.runMutation(internal.projects.setSandboxDeployed, {
       projectId: projectId as Id<'projects'>,
       deployed: true,
+      deployName: deployName ? sanitizeScriptName(deployName) : undefined,
     });
-
+    await ctx.runMutation(internal.projects.setDeployment, {
+      projectId: projectId as Id<'projects'>,
+      status: 'deployed',
+    });
+    console.log("project deployed", projectId);
     return null;
   },
 });
@@ -320,6 +363,35 @@ function stripTrailingSlash(input: string): string {
     return input.slice(0, -1);
   }
   return input;
+}
+
+// Try a list of candidate paths and return the first that exists with its contents
+async function downloadFirstExistingFile(
+  sandbox: SandboxInstance,
+  candidatePaths: string[],
+): Promise<{ path: string; buffer: Buffer }> {
+  for (const p of candidatePaths) {
+    try {
+      const info = await sandbox.fs.getFileDetails(p);
+      if (!isDirectory(info)) {
+        const buffer = await sandbox.fs.downloadFile(p);
+        return { path: p, buffer } as { path: string; buffer: Buffer };
+      }
+    } catch {
+      // ignore and try next path
+    }
+  }
+  throw new Error(
+    `Required file not found. Tried: ${candidatePaths.join(', ')}`,
+  );
+}
+
+function sanitizeScriptName(input: string): string {
+  const lower = input.toLowerCase();
+  const replaced = lower.replace(/[^a-z0-9-]+/g, '-');
+  const collapsed = replaced.replace(/-+/g, '-');
+  const trimmed = collapsed.replace(/^-+|-+$/g, '');
+  return trimmed.slice(0, 63);
 }
 
 // Configure an existing sandbox to run indefinitely (disable auto-stop)

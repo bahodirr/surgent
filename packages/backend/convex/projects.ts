@@ -1,4 +1,4 @@
-import { query, mutation, internalMutation } from './_generated/server';
+import { query, mutation, internalMutation, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
@@ -35,6 +35,15 @@ export const getProject = query({
     if ((project.userId as Id<'users'>) !== (userId as Id<'users'>)) return null;
 
     return project as Doc<'projects'>;
+  },
+});
+
+// Internal-only: fetch a project by id without auth checks (for internal actions)
+export const getProjectInternal = internalQuery({
+  args: { projectId: v.id('projects') },
+  handler: async (ctx, { projectId }) => {
+    const project = await ctx.db.get(projectId as Id<'projects'>);
+    return (project as Doc<'projects'>) ?? null;
   },
 });
 
@@ -214,8 +223,8 @@ export const setProjectSandboxRunIndefinitely = mutation({
 });
 
 export const deployProject = mutation({
-  args: { projectId: v.id('projects') },
-  handler: async (ctx, { projectId }) => {
+  args: { projectId: v.id('projects'), deployName: v.optional(v.string()) },
+  handler: async (ctx, { projectId, deployName }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error('Unauthenticated');
 
@@ -226,28 +235,86 @@ export const deployProject = mutation({
     }
     if (!project.sandboxId) throw new Error('Sandbox not found');
 
+    // Initialize deployment object with queued status and target URL
+    const name = deployName ? sanitizeDeployName(deployName) : undefined;
+    const targetUrl = name ? `https://${name}.surgent.dev` : undefined;
+    await ctx.db.patch(projectId as Id<'projects'>, {
+      deployment: {
+        ...((project as any).deployment || {}),
+        status: 'queued',
+        name,
+        previewUrl: targetUrl,
+      },
+    });
+
     await ctx.scheduler.runAfter(0, internal.agent.deployProject, {
       projectId: projectId as Id<'projects'>,
+      deployName: deployName || undefined,
     });
 
     return { scheduled: true } as const;
   },
 });
 
-// Internal: set sandbox.deployed flag on project
-export const setSandboxDeployed = internalMutation({
-  args: { projectId: v.id('projects'), deployed: v.boolean() },
+// Internal: set or update deployment state object on a project
+export const setDeployment = internalMutation({
+  args: {
+    projectId: v.id('projects'),
+    status: v.string(),
+    name: v.optional(v.string()),
+    previewUrl: v.optional(v.string()),
+  },
   returns: v.null(),
-  handler: async (ctx, { projectId, deployed }) => {
+  handler: async (ctx, { projectId, status, name, previewUrl }) => {
     const project = await ctx.db.get(projectId as Id<'projects'>);
     if (!project) throw new Error('Project not found');
 
-    const sandbox = {
-      ...(project.sandbox as any || {}),
-      deployed,
-    } as any;
+    const deployment = {
+      ...((project as any).deployment || {}),
+      status,
+      name: name ?? (project as any).deployment?.name,
+      previewUrl: previewUrl ?? (project as any).deployment?.previewUrl,
+    };
 
-    await ctx.db.patch(projectId as Id<'projects'>, { sandbox });
+    await ctx.db.patch(projectId as Id<'projects'>, { deployment });
+    return null;
+  },
+});
+
+function sanitizeDeployName(input: string): string {
+  const lower = input.toLowerCase();
+  const replaced = lower.replace(/[^a-z0-9-]+/g, '-');
+  const collapsed = replaced.replace(/-+/g, '-');
+  const trimmed = collapsed.replace(/^-+|-+$/g, '');
+  return trimmed.slice(0, 63);
+}
+
+// Internal: set sandbox.deployed flag on project
+export const setSandboxDeployed = internalMutation({
+  args: { projectId: v.id('projects'), deployed: v.boolean(), deployName: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, { projectId, deployed, deployName }) => {
+    const project = await ctx.db.get(projectId as Id<'projects'>);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    // Update the sandbox.deployed flag
+    const updatedSandbox = {
+      ...(project.sandbox || {}),
+      deployed,
+    };
+
+    // Optionally update the deployName in metadata
+    let patch: any = { sandbox: updatedSandbox };
+    if (deployName) {
+      patch.metadata = {
+        ...(project.metadata || {}),
+        deployName,
+      };
+    }
+
+    await ctx.db.patch(projectId as Id<'projects'>, patch);
     return null;
   },
 });

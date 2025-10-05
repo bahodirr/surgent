@@ -13,13 +13,13 @@ export class ClaudeAgent extends BaseAgent {
       return (
         "Research the repository and answer the user's questions. " +
         "Do NOT make any changes to any files in the repository. " +
-        "Never run or build the project; linting is allowed to check code only."
+        "Never run or build the project; linting is allowed to check code only. Be concise and to the point."
       );
     }
     return (
       "Do the necessary changes to the codebase based on the users input.\n" +
       "If the user's intent is unclear, ask brief, targeted follow-up questions to clarify before proceeding.\n" +
-      "Never run or build the project. You may run lint commands to check for issues. Application is already running."
+      "Never run or build the project. You may run lint commands to check for issues. Application is already running. Don't even tell user how to run the project. Just do what you are told. Be concise and to the point."
     );
   }
 
@@ -80,9 +80,8 @@ export class ClaudeAgent extends BaseAgent {
         mode === "ask" ? ' --disallowedTools "Edit" "Replace" "Write"' : ""
       } --output-format stream-json --verbose --model ${
         this.model
-      } --dangerously-skip-permissions`,
+      } --allowedTools "Bash,Read,Edit,Write,Replace,MultiEdit,Grep,Glob,WebFetch,WebSearch"`,
 
-      //  TODO: Instead of --dangerously-skip-permissions, please use other config
       errorPrefix: "Claude",
       labelName: "claude",
       labelColor: "FF6B35",
