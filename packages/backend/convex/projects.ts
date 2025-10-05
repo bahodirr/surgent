@@ -61,6 +61,15 @@ export const createProject = mutation({
       throw new Error('Unauthenticated');
     }
 
+    // Enforce per-user project limit: max 3 projects
+    const existingProjects = await ctx.db
+      .query('projects')
+      .withIndex('by_user', (q) => q.eq('userId', userId as Id<'users'>))
+      .take(3);
+    if (existingProjects.length >= 3) {
+      throw new Error('Project limit reached: maximum 3 projects per user');
+    }
+
     const projectId = await ctx.db.insert('projects', {
       userId: userId as Id<'users'>,
       name,
