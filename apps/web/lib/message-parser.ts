@@ -278,7 +278,8 @@ function createSystemResultMessage(
 }
 
 function parseSDKMessage(message: MessageRecord, raw: SdkMessagePayload | undefined, role: 'assistant' | 'user'): TimelineEntry[] {
-  const messageContent = raw?.message?.content;
+  // Agent SDK may place content under raw.message.content OR raw.content
+  const messageContent = raw?.message?.content ?? raw?.content;
 
   if (Array.isArray(messageContent)) {
     return parseContentMessage(role, messageContent, message, raw);
@@ -309,13 +310,17 @@ function parseSDKMessage(message: MessageRecord, raw: SdkMessagePayload | undefi
     }
   }
 
-  // No content array, treat as simple text message
+  // No content array, treat as simple text message if string; otherwise stringify
+  const simpleText = typeof messageContent === 'string'
+    ? messageContent
+    : JSON.stringify(raw?.message || raw);
+
   return [{
     kind: 'message',
     msg: {
       role,
       type: 'message',
-      contentText: JSON.stringify(raw?.message || raw),
+      contentText: simpleText,
       raw,
       _id: message._id,
       _creationTime: message._creationTime
@@ -377,6 +382,7 @@ function createToolItems(
 
   const byKey = new Map<string, ParsedMessage>();
   const order: string[] = [];
+  // Agent SDK may propagate parent tool id on root payload
   const parentId = typeof raw?.parent_tool_use_id === 'string' ? raw.parent_tool_use_id : undefined;
 
   const ensureItem = (key: string): ParsedMessage => {
