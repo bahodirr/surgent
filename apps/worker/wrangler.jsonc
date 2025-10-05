@@ -23,31 +23,34 @@
       "remote": true
     }
   ],
-  "containers": [
-    {
-      "class_name": "AppSandboxService",
-      "image": "./SandboxDockerfile",
-      // Altering max_instances value will have no effect. Please use the MAX_SANDBOX_INSTANCES var instead.
-      "max_instances": 2900,
-      // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
-      "instance_type": {
-        "vcpu": 4,
-        "memory_mib": 4096,
-        "disk_mb": 10240
-      },
-      "rollout_step_percentage": 100
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "AppSandboxService",
-        "name": "Sandbox"
-      }
-    ]
-  },
+  // "containers": [
+  //   {
+  //     "class_name": "AppSandboxService",
+  //     "image": "./SandboxDockerfile",
+  //     // Altering max_instances value will have no effect. Please use the MAX_SANDBOX_INSTANCES var instead.
+  //     "max_instances": 2900,
+  //     // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
+  //     "instance_type": {
+  //       "vcpu": 4,
+  //       "memory_mib": 4096,
+  //       "disk_mb": 10240
+  //     },
+  //     "rollout_step_percentage": 100
+  //   }
+  // ],
+  // "durable_objects": {
+  //   "bindings": [
+  //     {
+  //       "class_name": "AppSandboxService",
+  //       "name": "Sandbox"
+  //     }
+  //   ]
+  // },
   "vars": {
     "DISPATCH_NAMESPACE_NAME": "default-surgent-namespace",
-    "CLOUDFLARE_ACCOUNT_ID": "44756fda18d37b7accae2ce6baf0ac6a"
+    "CLOUDFLARE_ACCOUNT_ID": "44756fda18d37b7accae2ce6baf0ac6a",
+    // Daytona preview proxy defaults (do NOT store secrets here)
+    "DAYTONA_API_URL": "https://app.daytona.io/api",
+    "DEFAULT_SANDBOX_PORT": "3000"
   }
 }

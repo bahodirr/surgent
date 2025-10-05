@@ -1,4 +1,5 @@
 import { deployToDispatch, buildDeploymentConfig, parseWranglerConfig } from '../services/deployer/deploy';
+import { Configuration, SandboxApi } from '@daytonaio/api-client';
 import type { AssetManifest, WranglerConfig } from '../services/deployer/types';
 import type { Env } from './env';
 
@@ -26,6 +27,8 @@ interface DeployRequestBody {
 }
 
 const JSON_HEADERS = { 'content-type': 'application/json' } as const;
+const DEFAULT_WARMUP_TIMEOUT_MS = 5000;
+const DEFAULT_WARMUP_RETRY_MS = 250;
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
@@ -37,6 +40,12 @@ export default {
 
 		if (url.pathname === '/deploy' && request.method === 'POST') {
 			return handleDeployRequest(request, env);
+		}
+
+		// Route: preview subdomains -> Daytona preview proxy; else dispatch
+		const subdomain = extractSubdomain(url.hostname);
+		if (subdomain && isPreviewSubdomain(subdomain)) {
+			return handlePreviewProxy(request, env);
 		}
 
 		return handleDispatchRequest(request, env);
@@ -187,4 +196,111 @@ function extractWorkerFromPath(
 	url.pathname = rest.length > 0 ? `/${rest.join('/')}` : '/';
 	const targetRequest = new Request(url.toString(), request);
 	return { workerName, targetRequest };
+}
+
+function isPreviewSubdomain(sub: string): boolean {
+	// Matches: preview-*, or <port>-<sandboxId>
+	if (sub.startsWith('preview-')) return true;
+	const segments = sub.split('-');
+	return segments.length > 1 && /^\d+$/.test(segments[0]);
+}
+
+function getSandboxIdAndPortFromHost(host: string, defaultPort: number) {
+	const parts = host.split(':')[0];
+	const subdomain = parts.split('.')[0];
+	const segments = subdomain.split('-');
+	const first = segments[0];
+	if (/^\d+$/.test(first) && segments.length >= 2) {
+		return { sandboxId: segments.slice(1).join('-'), port: parseInt(first, 10) };
+	}
+	return { sandboxId: subdomain, port: defaultPort };
+}
+
+async function handlePreviewProxy(request: Request, env: Env): Promise<Response> {
+	const url = new URL(request.url);
+	const defaultPort = Number(env.DEFAULT_SANDBOX_PORT || '3000');
+	const { sandboxId, port } = getSandboxIdAndPortFromHost(url.hostname, defaultPort);
+
+	if (!env.DAYTONA_API_URL || !env.DAYTONA_API_KEY) {
+		return new Response('Daytona not configured', { status: 500 });
+	}
+
+	try {
+		const sandboxApi = createDaytonaSandboxApi(env);
+		await ensureSandboxRunning(sandboxApi, sandboxId);
+		const preview = await resolvePreview(sandboxApi, sandboxId, port);
+
+		// Build target and forward headers
+		const target = buildTargetUrl(preview.url, url.pathname, url.search);
+		let proxied = new Request(target, request);
+		const headers = new Headers(proxied.headers);
+		headers.set('x-daytona-preview-token', preview.token);
+		headers.set('x-daytona-skip-preview-warning', 'true');
+		headers.delete('host');
+		proxied = new Request(proxied, { headers });
+
+		// WS pass-through
+		if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+			return await fetch(proxied);
+		}
+
+		// HTTP warmup
+		const warmupMs = DEFAULT_WARMUP_TIMEOUT_MS;
+		const retryMs = DEFAULT_WARMUP_RETRY_MS;
+		return await fetchWithWarmup(target, proxied, warmupMs, retryMs);
+	} catch (e) {
+		return new Response('Upstream unavailable', { status: 502 });
+	}
+}
+
+function createDaytonaSandboxApi(env: Env): SandboxApi {
+    const basePath = env.DAYTONA_API_URL || 'https://app.daytona.io/api';
+    const apiKey = env.DAYTONA_API_KEY || '';
+    return new SandboxApi(new Configuration({
+        basePath,
+        baseOptions: { headers: { Authorization: `Bearer ${apiKey}` } },
+    }));
+}
+
+async function ensureSandboxRunning(sandboxApi: SandboxApi, sandboxId: string): Promise<void> {
+    try {
+        const info = await sandboxApi.getSandbox(sandboxId);
+        const state = String((info.data as any)?.state || '').toLowerCase();
+        if (state === 'stopped' || state === 'archived') {
+            try {
+                await sandboxApi.startSandbox(sandboxId);
+            } catch {
+                // ignore if already running
+            }
+        }
+    } catch {
+        // ignore state fetch errors
+    }
+}
+
+async function resolvePreview(sandboxApi: SandboxApi, sandboxId: string, port: number): Promise<{ url: string; token: string; }> {
+    const resp = await sandboxApi.getPortPreviewUrl(sandboxId, port);
+    return { url: resp.data.url as string, token: resp.data.token as unknown as string };
+}
+
+function buildTargetUrl(baseUrl: string, path: string, search: string) {
+	const u = new URL(baseUrl);
+	const joinedPath = `${u.pathname.replace(/\/$/, '')}${path.startsWith('/') ? '' : '/'}${path}`;
+	u.pathname = joinedPath;
+	u.search = search || '';
+	return u.toString();
+}
+
+async function fetchWithWarmup(targetUrl: string, proxied: Request, timeoutMs: number, retryMs: number): Promise<Response> {
+	const deadline = Date.now() + timeoutMs;
+	while (true) {
+		try {
+			const resp = await fetch(proxied);
+			if (resp.status !== 404 && resp.status < 500) return resp;
+			if (Date.now() >= deadline) return resp;
+		} catch (e) {
+			if (Date.now() >= deadline) throw e;
+		}
+		await new Promise(res => setTimeout(res, retryMs));
+	}
 }
