@@ -1,90 +1,51 @@
-# Welcome to your Convex functions directory!
+# Surgent Convex Backend
 
-Write your Convex functions here.
-See https://docs.convex.dev/functions for more.
+This directory contains the Convex functions that back the Surgent workspace. It wires up auth, project provisioning, Daytona sandbox orchestration, the Claude/AI agent pipeline, and deployment flows that push Cloudflare Workers.
 
-A query function that takes two arguments looks like:
+## Structure
+- `agent.ts` – internal actions that initialize/resume Daytona sandboxes, stream agent output, persist checkpoints, and trigger Cloudflare deployments via the Worker `/deploy` endpoint.
+- `agentic/` – lower-level helpers that wrap `@ai-sdk/*` providers, manage local checkpoints, and adapt the Daytona SDK for sandbox file/command access.
+- `projects.ts` – authenticated queries/mutations for projects, templates, quota checks, and sandbox state persistence.
+- `sessions.ts` & `commits.ts` – timeline storage for agent messages, todos, and git-style checkpoints stored in Convex tables.
+- `auth.ts` / `auth.config.ts` – configuration for `@convex-dev/auth` including Google OAuth handling.
+- `schema.ts` – Convex table definitions, composed with the auth tables.
+- `sandbox.ts` & `config.ts` – Daytona client helpers plus environment lookups for Daytone, model providers, and Cloudflare deploy URLs.
 
-```ts
-// convex/myFunctions.ts
-import { query } from "./_generated/server";
-import { v } from "convex/values";
+## Environment
+`packages/backend/.env.local` must define:
 
-export const myQueryFunction = query({
-  // Validators for arguments.
-  args: {
-    first: v.number(),
-    second: v.string(),
-  },
-
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Read the database as many times as you need here.
-    // See https://docs.convex.dev/database/reading-data.
-    const documents = await ctx.db.query("tablename").collect();
-
-    // Arguments passed from the client are properties of the args object.
-    console.log(args.first, args.second);
-
-    // Write arbitrary JavaScript here: filter, aggregate, build derived data,
-    // remove non-public properties, or create new objects.
-    return documents;
-  },
-});
+```dotenv
+DAYTONA_API_KEY=your-daytona-key
+DAYTONA_SERVER_URL=https://app.daytona.io/api
+ANTHROPIC_API_KEY=your-anthropic-key
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+OPENAI_API_KEY=your-openai-key
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+CONVEX_SITE_URL=https://<your-convex-deployment>.convex.site
+CLOUDFLARE_DEPLOY_URL=https://<your-worker-domain>/deploy
 ```
 
-Using this query function in a React component looks like:
+Model provider variables are optional unless you plan to call that provider. `CLOUDFLARE_DEPLOY_URL` should point at the Cloudflare Worker that receives the deployment payload generated in `agent.ts`.
 
-```ts
-const data = useQuery(api.myFunctions.myQueryFunction, {
-  first: 10,
-  second: "hello",
-});
+## Development Workflow
+- `bun run --filter @repo/backend dev` launches `convex dev` with hot reload.
+- `bun run --filter @repo/backend setup` blocks until the Convex deployment is reachable (useful on first run).
+- `bun run --filter @repo/backend deploy` pushes all Convex functions to production.
+
+## Daytona Snapshot Utility
+The script at `scripts/create-snapshot.ts` can build the `default-env:1.0.0` Daytona snapshot used for new sandboxes. It expects `DAYTONA_API_KEY` in the same `.env.local` file:
+
+```bash
+bun run --filter @repo/backend create-snapshot
 ```
 
-A mutation function looks like:
+## Testing & Linting
+Convex functions participate in the shared repo lint/type-check commands:
 
-```ts
-// convex/myFunctions.ts
-import { mutation } from "./_generated/server";
-import { v } from "convex/values";
-
-export const myMutationFunction = mutation({
-  // Validators for arguments.
-  args: {
-    first: v.string(),
-    second: v.string(),
-  },
-
-  // Function implementation.
-  handler: async (ctx, args) => {
-    // Insert or modify documents in the database here.
-    // Mutations can also read from the database like queries.
-    // See https://docs.convex.dev/database/writing-data.
-    const message = { body: args.first, author: args.second };
-    const id = await ctx.db.insert("messages", message);
-
-    // Optionally, return a value from your mutation.
-    return await ctx.db.get(id);
-  },
-});
+```bash
+bun run --filter @repo/backend lint
+bun run --filter @repo/backend check-types
 ```
 
-Using this mutation function in a React component looks like:
-
-```ts
-const mutation = useMutation(api.myFunctions.myMutationFunction);
-function handleButtonPress() {
-  // fire and forget, the most common way to use mutations
-  mutation({ first: "Hello!", second: "me" });
-  // OR
-  // use the result once the mutation has completed
-  mutation({ first: "Hello!", second: "me" }).then((result) =>
-    console.log(result),
-  );
-}
-```
-
-Use the Convex CLI to push your functions to a deployment. See everything
-the Convex CLI can do by running `npx convex -h` in your project root
-directory. To learn more, launch the docs with `npx convex docs`.
+Refer to the root `README.md` for additional setup notes and the end-to-end development loop.

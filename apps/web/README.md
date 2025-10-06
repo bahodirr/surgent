@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
+# Surgent Web App
 
-## Getting Started
+The `apps/web` workspace hosts the Surgent dashboard built with Next.js 15 (App Router), React 19, Tailwind CSS 4, and the shared UI system in `@/components`. It talks directly to the Convex backend for data and agent actions and renders live Daytona previews supplied by the Cloudflare Worker.
 
-First, run the development server:
+## Environment
+Configure `apps/web/.env.local` before running the app:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```dotenv
+NEXT_PUBLIC_CONVEX_URL=https://<your-convex-deployment>.convex.site
+NEXT_PUBLIC_PROXY_URL=<worker-domain>
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+For local development the worker runs through `wrangler dev`, so `NEXT_PUBLIC_PROXY_URL=localhost:8787` is typically enough. In production point it at the deployed Worker domain (for example `preview.surgent.dev`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Local Development
+- `bun run dev` from the repo root starts the web app alongside the Convex backend and Cloudflare Worker.
+- `bun run --filter web dev` runs `next dev --turbopack` just for this workspace.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load Inter, a custom Google Font.
+The dashboard expects the Convex dev server to be reachable and the Worker to provide preview hosts at `https://3000-<sandboxId>.<worker-domain>`.
 
-## Learn More
+## Scripts
+- `bun run --filter web build` – generate the production bundle (`next build`).
+- `bun run --filter web lint` – lint with ESLint 9.
+- `bun run --filter web check-types` – type-check with `tsc --noEmit`.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Key Integrations
+- Auth and session state come from `@convex-dev/auth`.
+- Project data, agent runs, and deployments call Convex mutations/queries exposed from `@repo/backend`.
+- Preview panes embed the Worker-backed sandbox URLs via the `preview-panel` and `split-view` components.
