@@ -2,6 +2,8 @@
 
 Surgent is an agentic development workspace that pairs Claude Code with Daytona sandboxes. This monorepo contains everything needed to run the UI, Convex backend, and preview proxy locally or in production.
 
+https://github.com/user-attachments/assets/5217c20f-38cd-4e8e-99c3-e9abae52e8a9
+
 ## Tech Stack
 - Next.js 15, React 19, Tailwind CSS 4 for the front-end (`apps/web`).
 - Convex 1.x with `@convex-dev/auth` and `@ai-sdk/*` providers for data, auth, and agent orchestration (`packages/backend`).
