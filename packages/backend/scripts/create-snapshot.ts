@@ -4,7 +4,7 @@ import { Daytona, Image } from '@daytonaio/sdk';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 
-const SNAPSHOT_NAME = "cloudflare-web-env:1.0.5";
+const SNAPSHOT_NAME = "default-env:1.0.0";
 
 async function createSnapshot(): Promise<void> {
   try {
