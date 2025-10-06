@@ -12,7 +12,7 @@ export async function getOrCreateSandbox(args: {
   const provider = createDaytonaProvider({
     apiKey: config.daytona.apiKey,
     serverUrl: config.daytona.serverUrl,
-    snapshot: "cloudflare-web-env:1.0.5",
+    snapshot: "default-env:1.0.0",
   });
 
   const { sandboxId, workingDirectory, port = 3000 } = args;

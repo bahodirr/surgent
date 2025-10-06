@@ -6,6 +6,9 @@ import { useMutation, useQuery } from 'convex/react';
 import { api, Id } from '@repo/backend';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSet, FieldTitle } from '@/components/ui/field';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -23,25 +26,36 @@ export default function DashboardPage() {
   const router = useRouter();
   const user = useQuery(api.auth.loggedInUser, {});
   const [creatingProject, setCreatingProject] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [newProjectId, setNewProjectId] = useState<string | null>(null);
   const { signOut } = useAuthActions();
 
   // Convex data
   const projects = useQuery(api.projects.listProjects, {});
   const createProjectMutation = useMutation(api.projects.createProject);
+  const templates = useQuery(api.projects.listTemplates, {});
   const newProject = useQuery(
     api.projects.getProject,
     newProjectId ? { projectId: newProjectId as Id<'projects'> } : 'skip'
   );
 
-  const createProject = async () => {
+  const openCreateProject = () => {
+    if (creatingProject) return;
+    setShowTemplateModal(true);
+  };
+
+  const confirmCreateProject = async () => {
+    if (!selectedTemplateId) return;
     if (creatingProject) return;
     setCreatingProject(true);
     try {
       const id = await createProjectMutation({
         name: `Project ${new Date().toLocaleDateString()}`,
+        templateId: selectedTemplateId as Id<'templates'>,
       });
       setNewProjectId(String(id));
+      setShowTemplateModal(false);
     } catch (err) {
       console.error('Error creating project:', err);
       setCreatingProject(false);
@@ -164,7 +178,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Your Projects</h3>
             <Button 
-              onClick={createProject} 
+              onClick={openCreateProject} 
               disabled={creatingProject}
               className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
             >
@@ -191,7 +205,7 @@ export default function DashboardPage() {
                   Create your first project to get started
                 </p>
                 <Button 
-                  onClick={createProject} 
+                  onClick={openCreateProject} 
                   disabled={creatingProject}
                   className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                 >
@@ -285,6 +299,53 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Template selection modal */}
+      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose a template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FieldGroup>
+              <FieldSet>
+                {/* <FieldLabel htmlFor="template-select">
+                  Template
+                </FieldLabel> */}
+                <FieldDescription>
+                  Choose a starting environment for your project.
+                </FieldDescription>
+                <RadioGroup
+                  value={selectedTemplateId || undefined}
+                  onValueChange={(v) => setSelectedTemplateId(v)}
+                >
+                  {(templates || []).map((tpl: any) => (
+                    <FieldLabel key={String(tpl._id)} htmlFor={`tpl-${String(tpl._id)}`}>
+                      <Field orientation="horizontal">
+                        <FieldContent>
+                          <FieldTitle>{tpl.name}</FieldTitle>
+                          {tpl.description && (
+                            <FieldDescription>
+                              {tpl.description}
+                            </FieldDescription>
+                          )}
+                        </FieldContent>
+                        <RadioGroupItem value={String(tpl._id)} id={`tpl-${String(tpl._id)}`} />
+                      </Field>
+                    </FieldLabel>
+                  ))}
+                </RadioGroup>
+              </FieldSet>
+            </FieldGroup>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowTemplateModal(false)}>Cancel</Button>
+              <Button onClick={confirmCreateProject} disabled={!selectedTemplateId || creatingProject}>
+                {creatingProject ? 'Creating…' : 'Create project'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

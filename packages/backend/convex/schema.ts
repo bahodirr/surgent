@@ -38,6 +38,18 @@ const notesSchema = {
     metadata: v.optional(v.any()),
   }).index('by_user', ['userId']),
 
+  // Templates table for default repo/init/start definitions
+  templates: defineTable({
+    slug: v.string(), // unique human-readable identifier
+    name: v.string(),
+    description: v.optional(v.string()),
+    repoUrl: v.string(),
+    branch: v.optional(v.string()),
+    initScript: v.optional(v.string()), // newline-separated shell commands
+    startCommand: v.optional(v.string()),
+    metadata: v.optional(v.any()), // port, commands, etc.
+  }).index('by_slug', ['slug']),
+
   // Sessions table for Claude/Projects to avoid conflict with auth sessions
   sessions: defineTable({
     projectId: v.id('projects'),

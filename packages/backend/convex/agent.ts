@@ -17,20 +17,96 @@ import stripJsonComments from "strip-json-comments";
 
 // Initialize a project sandbox and persist fields on the project
 export const initializeProject = internalAction({
-  args: { projectId: v.id("projects") },
-  returns: v.object({ sandboxId: v.string(), previewUrl: v.string() }),
+  args: {
+    projectId: v.id("projects"),
+    template: v.object({
+      _id: v.optional(v.id("templates")),
+      slug: v.optional(v.string()),
+      name: v.string(),
+      description: v.optional(v.string()),
+      repoUrl: v.string(),
+      branch: v.optional(v.string()),
+      initScript: v.optional(v.string()),
+      startCommand: v.optional(v.string()),
+      metadata: v.optional(v.any()),
+    }),
+  },
+  returns: v.object({ sandboxId: v.string(), previewUrl: v.string(), sessionId: v.optional(v.string()), cmdId: v.optional(v.string()) }),
   handler: async (ctx, args) => {
     // Load project via internal query to bypass user auth in internal action
     const project: any = await ctx.runQuery(internal.projects.getProjectInternal, {
       projectId: args.projectId,
     });
 
+    const workingDirectory = localWorkspacePath(args.projectId);
+
     const base = await getOrCreateSandbox({
       sandboxId: project?.sandboxId,
       port: 3000,
-      templatePath: "/workspace/template",
-      workingDirectory: "/tmp/project",
+      workingDirectory,
     });
+
+    // Resolve template values from provided template object only
+    const repoUrl = args.template.repoUrl;
+    const branch = args.template.branch;
+    const initScript = args.template.initScript;
+    const startCommand = args.template.startCommand;
+
+    const provider = createDaytonaProvider({
+      apiKey: config.daytona.apiKey,
+      serverUrl: config.daytona.serverUrl,
+    });
+
+    let sandboxInstance: SandboxInstance | undefined;
+
+    // Clone repo into the sandbox working directory if not already initialized, then run init script
+    try {
+      sandboxInstance = await provider.get(base.sandboxId);
+
+      if (repoUrl) await sandboxInstance.git.clone(repoUrl, workingDirectory, branch || undefined);
+
+      const init = (initScript || "").trim();
+      if (init) {
+        const command = buildBashCommand(workingDirectory, init);
+        const result = await sandboxInstance.commands.run(command, { timeoutMs: 30 * 60 * 1000 });
+        console.log("init result", result);
+      }
+    } catch {
+      // Non-fatal: repo clone/init is optional for initialization
+    }
+    // Optionally start the dev server via Daytona sessions if a startCommand is provided
+    let sessionIdOut: string | undefined;
+    let cmdIdOut: string | undefined;
+    const start = startCommand?.trim();
+    if (start) {
+      const daytona = getDaytonaClient();
+      const sandbox = await daytona.get(base.sandboxId);
+      const sessionId = `${args.projectId}-start-server`;
+      await sandbox.process.createSession(sessionId);
+
+      const exec = await sandbox.process.executeSessionCommand(sessionId, {
+        command: buildBashCommand(workingDirectory, start),
+        runAsync: true,
+      });
+      console.log("start result", exec);
+      sessionIdOut = sessionId;
+      cmdIdOut = exec.cmdId!;
+    }
+
+    // Persist provided repo/init/start in project metadata for later use (e.g., start button)
+    try {
+      await ctx.runMutation(internal.projects.setProjectMetadata, {
+        projectId: args.projectId,
+        metadata: {
+          workingDirectory,
+          templateId: args.template._id,
+          startServerSessionId: sessionIdOut,
+          startServerCmdId: cmdIdOut,
+        },
+      });
+    } catch {
+      // Non-fatal: metadata persistence failure should not block initialization
+    }
 
     await ctx.runMutation(internal.projects.setSandboxState, {
       projectId: args.projectId,
@@ -39,7 +115,7 @@ export const initializeProject = internalAction({
       isInitialized: true,
     });
 
-    return { sandboxId: base.sandboxId, previewUrl: base.previewUrl };
+    return { sandboxId: base.sandboxId, previewUrl: base.previewUrl, sessionId: sessionIdOut, cmdId: cmdIdOut };
   },
 });
 
@@ -48,16 +124,20 @@ export const resumeProject = internalAction({
   args: { projectId: v.id("projects"), sandboxId: v.string() },
   returns: v.object({ sandboxId: v.string(), previewUrl: v.string() }),
   handler: async (ctx, args) => {
+    const workingDirectory = localWorkspacePath(args.projectId);
+
     const base = await getOrCreateSandbox({
       sandboxId: args.sandboxId,
       port: 3000,
-      templatePath: "/workspace/template",
-      workingDirectory: "/tmp/project",
+      workingDirectory,
     });
 
     return { sandboxId: base.sandboxId, previewUrl: base.previewUrl };
   },
 });
+
+// Start the project's dev server using Daytona sessions and return session/cmd IDs
+// (removed) startProject logic is folded into initializeProject
 
 export const runAgent = internalAction({
   args: {
@@ -78,12 +158,12 @@ export const runAgent = internalAction({
     sessionId: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
+    const workingDirectory = localWorkspacePath(args.projectId);
+
     const provider = createDaytonaProvider({
       apiKey: config.daytona.apiKey,
-      snapshot: args.template || "cloudflare-web-env:1.0.5",
+      snapshot: args.template || "default-env:1.0.0",
     });
-
-    console.log("agent is starting", args.sandboxId);
 
     const agent: BaseAgent = new ClaudeAgent({
       provider: "anthropic",
@@ -92,25 +172,22 @@ export const runAgent = internalAction({
       model: args.model || "glm-4.6",
       sandboxProvider: provider,
       sandboxId: args.sandboxId,
-      workingDirectory: "/tmp/project",
+      workingDirectory,
     });
-
-    console.log("agent is created now",config.anthropic.baseUrl,config.anthropic.apiKey);
-    
 
     if (args.sessionId) {
       try {
         await agent.setSession(args.sessionId);
-      } catch {}
+      } catch {
+        // Non-fatal: continue without binding to a previous session
+      }
     }
-    console.log("agent is running");
 
     let finalSessionMessageId: Id<"sessionMessages"> | undefined;
 
     const handleUpdate = async (message: string) => {
       try {
         const parsed = JSON.parse(message);
-        console.log("parsed", parsed);
         if (parsed.type === "start" && parsed.sandbox_id) return;
         const insertedId = await ctx.runMutation(internal.sessions.appendMessage, {
           sessionId: args.convexSessionId!,
@@ -119,7 +196,9 @@ export const runAgent = internalAction({
         if (parsed?.type === "result") {
           finalSessionMessageId = insertedId as Id<"sessionMessages">;
         }
-      } catch {}
+      } catch {
+        // Ignore invalid or non-JSON progress messages
+      }
     };
 
     const result = await agent.generateCode(
@@ -160,7 +239,6 @@ export const deployProject = internalAction({
   args: { projectId: v.id("projects"), deployName: v.optional(v.string()) },
   returns: v.null(),
   handler: async (ctx, { projectId, deployName }) => {
-    console.log("deploying project", projectId);
     const project = await ctx.runQuery(internal.projects.getProjectInternal, { projectId: projectId });
     
     if (!project?.sandboxId) {
@@ -171,6 +249,8 @@ export const deployProject = internalAction({
       throw new Error('CLOUDFLARE_DEPLOY_URL is not configured');
     }
 
+    const normalizedDeployName = deployName ? sanitizeScriptName(deployName) : undefined;
+
     const provider = createDaytonaProvider({
       apiKey: config.daytona.apiKey,
       serverUrl: config.daytona.serverUrl,
@@ -180,12 +260,11 @@ export const deployProject = internalAction({
     await ctx.runMutation(internal.projects.setDeployment, {
       projectId: projectId as Id<'projects'>,
       status: 'starting',
-      name: deployName ? sanitizeScriptName(deployName) : undefined,
+      name: normalizedDeployName,
     });
 
     const sandbox = await provider.resume(project.sandboxId);
-    const workingDir = '/tmp/project';
-    console.log("building project", workingDir);
+    const workingDir = localWorkspacePath(projectId);
     await ctx.runMutation(internal.projects.setDeployment, {
       projectId: projectId as Id<'projects'>,
       status: 'building',
@@ -194,7 +273,6 @@ export const deployProject = internalAction({
       `cd ${workingDir} && bun run build`,
       { timeoutMs: 180_000 },
     );  
-    console.log("buildResult", buildResult);
     if (buildResult.exitCode !== 0) {
       const output = buildResult.stderr || buildResult.stdout || 'Unknown build error';
       await ctx.runMutation(internal.projects.setDeployment, {
@@ -209,12 +287,11 @@ export const deployProject = internalAction({
       `${workingDir}/wrangler.jsonc`,
       `${workingDir}/wrangler.json`,
     ]);
-    console.log("wranglerPath", wranglerDownloaded.path);
     const workerDownloaded = await downloadFirstExistingFile(sandbox, [
       `${workingDir}/dist/vite_reference/index.js`,
       `${workingDir}/dist/index.js`,
     ]);
-    console.log("workerPath", workerDownloaded.path);
+    // workerPath is validated by successful download above
 
     const wranglerConfig = wranglerDownloaded.buffer.toString('utf8');
     const workerContent = workerDownloaded.buffer.toString('utf8');
@@ -238,11 +315,8 @@ export const deployProject = internalAction({
     let wranglerConfigOut = wranglerConfig;
     try {
       const parsed = JSON.parse(stripJsonComments(wranglerConfig));
-      if (deployName && typeof deployName === 'string') {
-        const sanitized = sanitizeScriptName(deployName);
-        if (sanitized) {
-          parsed.name = sanitized;
-        }
+      if (normalizedDeployName) {
+        parsed.name = normalizedDeployName;
       }
       wranglerConfigOut = JSON.stringify(parsed);
       if (Array.isArray(parsed?.compatibility_flags)) {
@@ -287,18 +361,47 @@ export const deployProject = internalAction({
     await ctx.runMutation(internal.projects.setSandboxDeployed, {
       projectId: projectId as Id<'projects'>,
       deployed: true,
-      deployName: deployName ? sanitizeScriptName(deployName) : undefined,
+      deployName: normalizedDeployName,
     });
     await ctx.runMutation(internal.projects.setDeployment, {
       projectId: projectId as Id<'projects'>,
       status: 'deployed',
     });
-    console.log("project deployed", projectId);
     return null;
   },
 });
 
 const posix = path.posix;
+
+function localWorkspacePath(projectId: Id<'projects'>): string {
+  const safeProjectId = String(projectId).replace(/[^a-zA-Z0-9_-]+/g, '-');
+  return posix.join('/tmp', safeProjectId || 'project');
+}
+
+function escapeSingleQuotes(value: string): string {
+  return value.replace(/'/g, "'\"'\"'");
+}
+
+function shellQuote(value: string): string {
+  return `'${escapeSingleQuotes(value)}'`;
+}
+
+function buildBashCommand(workingDirectory: string, script: string): string {
+  const lines = [
+    'set -euo pipefail',
+    `cd ${shellQuote(workingDirectory)}`,
+    script,
+  ].filter(Boolean);
+  const fullScript = lines.join('\n');
+  return `bash -lc '${escapeSingleQuotes(fullScript)}'`;
+}
+
+function getDaytonaClient(): Daytona {
+  return new Daytona({
+    apiKey: config.daytona.apiKey,
+    apiUrl: config.daytona.serverUrl || "https://app.daytona.io/api",
+  });
+}
 
 async function directoryExists(sandbox: SandboxInstance, directory: string): Promise<boolean> {
   try {
@@ -399,10 +502,7 @@ export const setRunIndefinitely = internalAction({
   args: { sandboxId: v.string() },
   returns: v.object({ sandboxId: v.string() }),
   handler: async (_ctx, args) => {
-    const daytona = new Daytona({
-      apiKey: config.daytona.apiKey,
-      apiUrl: config.daytona.serverUrl || "https://app.daytona.io/api",
-    });
+    const daytona = getDaytonaClient();
 
     const sandbox = await daytona.get(args.sandboxId);
 

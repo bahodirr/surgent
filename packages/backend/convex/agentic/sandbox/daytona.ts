@@ -35,6 +35,7 @@ export interface SandboxInstance {
   pause(): Promise<void>;
   getHost(port: number): Promise<string>;
   fs: Sandbox['fs'];
+  git: Sandbox['git'];
 }
 
 export interface SandboxProvider {
@@ -85,6 +86,10 @@ class DaytonaSandboxInstance implements SandboxInstance {
 
   get fs(): Sandbox['fs'] {
     return this.sandbox.fs;
+  }
+
+  get git(): Sandbox['git'] {
+    return this.sandbox.git;
   }
 
   get commands(): SandboxCommands {

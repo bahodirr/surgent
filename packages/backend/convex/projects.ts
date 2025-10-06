@@ -4,6 +4,17 @@ import { v } from 'convex/values';
 import type { Doc, Id } from './_generated/dataModel';
 import { getAuthUserId } from '@convex-dev/auth/server';
 
+// Public: list available templates for project creation
+export const listTemplates = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const templates = await ctx.db.query('templates').collect();
+    return templates as Array<Doc<'templates'>>;
+  },
+});
+
 // List all projects for the authenticated user
 export const listProjects = query({
   args: {},
@@ -54,8 +65,9 @@ export const createProject = mutation({
     github: v.optional(v.any()),
     settings: v.optional(v.any()),
     metadata: v.optional(v.any()),
+    templateId: v.optional(v.id('templates')),
   },
-  handler: async (ctx, { name, github, settings, metadata }) => {
+  handler: async (ctx, { name, github, settings, metadata, templateId }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
       throw new Error('Unauthenticated');
@@ -88,10 +100,28 @@ export const createProject = mutation({
       title: 'New session',
     });
 
+    // Resolve template definition (either provided via templateId or fallback default)
+    let template: any;
+    
+      const tpl = await ctx.db.get(templateId as Id<'templates'>);
+      template = {
+        _id: templateId as Id<'templates'>,
+        slug: tpl!.slug,
+        name: tpl!.name,
+        description: tpl!.description,
+        repoUrl: tpl!.repoUrl,
+        branch: tpl!.branch,
+        initScript: tpl!.initScript,
+        startCommand: tpl!.startCommand,
+        metadata: tpl!.metadata,
+      };
+
     // Initialize sandbox asynchronously
     await ctx.scheduler.runAfter(0, internal.agent.initializeProject, {
       projectId: projectId as Id<'projects'>,
+      template,
     });
+    
 
     return projectId as Id<'projects'>;
   },
@@ -149,6 +179,15 @@ export const setSandboxState = internalMutation({
       sandboxId: args.sandboxId,
       sandbox,
     });
+    return null;
+  },
+});
+
+export const setProjectMetadata = internalMutation({
+  args: { projectId: v.id('projects'), metadata: v.any() },
+  returns: v.null(),
+  handler: async (ctx, { projectId, metadata }) => {
+    await ctx.db.patch(projectId as Id<'projects'>, { metadata });
     return null;
   },
 });
