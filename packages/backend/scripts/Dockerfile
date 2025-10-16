@@ -14,7 +14,7 @@ ENV BUN_INSTALL=/root/.bun
 ENV PATH=$BUN_INSTALL/bin:$PATH
 
 # Install Claude Code and PM2 globally with Bun
-RUN bun add -g @anthropic-ai/claude-code
+RUN bun add -g @anthropic-ai/claude-code pm2
 
 # Configure global git identity for non-interactive commits
 RUN git config --global user.name "Surgent Dev" \

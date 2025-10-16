@@ -4,10 +4,9 @@ Surgent is an agentic development workspace that pairs Claude Code with Daytona 
 
 ## Tech Stack
 - Next.js 15, React 19, Tailwind CSS 4 for the front-end (`apps/web`).
-- Convex 1.x with `@convex-dev/auth` and `@ai-sdk/*` providers for data, auth, and agent orchestration (`packages/backend`).
+- Convex 1.x with `@convex-dev/auth` providers for data, auth, and agent orchestration (`packages/backend`).
 - Daytona sandboxes managed through `@daytonaio/sdk`, fronted by a Cloudflare Worker that proxies previews, dispatches requests, and exposes a `/deploy` webhook (`apps/worker`).
-- Turborepo 2.5 orchestrating builds; Bun 1.2.20 as the package manager/runtime.
-- TypeScript 5.9 everywhere with ESLint 9 and Prettier 3 for linting and formatting.
+- Cloudflare Worker for preview proxying, dispatch routing, and `/deploy` uploads.
 
 ## Features
 - Chat-first project view that logs timeline updates, todos, and session output in real time.
@@ -35,7 +34,7 @@ Surgent is an agentic development workspace that pairs Claude Code with Daytona 
 
 ### Install
 ```bash
-git clone https://github.com/<your-org>/surgent.git
+git clone https://github.com/bahodirr/surgent
 cd surgent
 bun install
 ```
