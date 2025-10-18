@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Check, ChevronDown, Brain, Wrench, CheckCircle } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Brain, Wrench, CheckCircle, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { computeStatus } from "@/lib/message-parser";
@@ -162,7 +162,7 @@ export default function ChatInput({
 
           {/* Composer */}
 
-            <div className="relative w-full border border-black/10 bg-white/60 shadow-lg backdrop-blur-md rounded-[12px]">
+            <div className="relative w-full border border-input bg-white/80 shadow-sm rounded-2xl">
               <div
                 ref={editorRef}
                 className="p-3 pr-3 max-h-[300px] min-h-[80px] text-gray-900 w-full overflow-y-auto outline-none text-[16px] selection:bg-black/10"
@@ -181,8 +181,35 @@ export default function ChatInput({
               )}
 
               {/* Footer: Agent + Send */}
-              <div className="flex items-center justify-between gap-2 border-t border-black/10 bg-white/60 px-2 py-1.5 rounded-b-[12px]">
-              <div className="flex items-center gap-2" />
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-b-2xl">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id="bg-composer-file-input"
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      void files?.length;
+                      // reset so selecting the same file again still triggers change
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full hover:bg-black/5"
+                    onClick={() => {
+                      const el = document.getElementById("bg-composer-file-input") as HTMLInputElement | null;
+                      el?.click();
+                    }}
+                    aria-label="Upload files"
+                    title="Upload files"
+                  >
+                    <Paperclip width={14} height={14} />
+                  </Button>
+                </div>
                 <Button
                   id="bg-composer-submit-btn"
                   type="button"

@@ -25,6 +25,7 @@ import type * as agentic_sandbox_daytona from "../agentic/sandbox/daytona.js";
 import type * as auth from "../auth.js";
 import type * as commits from "../commits.js";
 import type * as config from "../config.js";
+import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as projects from "../projects.js";
 import type * as sandbox from "../sandbox.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   commits: typeof commits;
   config: typeof config;
+  files: typeof files;
   http: typeof http;
   projects: typeof projects;
   sandbox: typeof sandbox;
