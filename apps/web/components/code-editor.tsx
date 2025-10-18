@@ -107,7 +107,7 @@ export default function CodeEditor({
       language={language}
       theme={initialTheme}
       height={height}
-      options={{ minimap: { enabled: false }, fontSize: 16, wordWrap: 'on', readOnly, ...(options || {}) }}
+      options={{ minimap: { enabled: false }, fontSize: 14, wordWrap: 'on', readOnly, ...(options || {}) }}
       onChange={(v) => onChange(v ?? '')}
       loading={<div className="h-full w-full" />}
     />

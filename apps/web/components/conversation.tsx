@@ -53,8 +53,8 @@ export default function Conversation({ projectId }: ConversationProps) {
   const placeholder = !projectId ? "Select a project to start" : !sessionId ? "Preparing session..." : "Ask anything...";
 
   return (
-    <div className="h-full min-h-0 flex flex-col p-6">
-      <div className="mb-2 flex items-center gap-2">
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="mb-2 flex items-center gap-2 px-6 py-2">
         <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Session</span>
         <select
           className="text-sm border rounded px-2 py-1 bg-background"
@@ -69,10 +69,9 @@ export default function Conversation({ projectId }: ConversationProps) {
           ))}
         </select>
       </div>
-
       <ScrollArea className={cn(
-        "flex-1 min-h-0",
-        "[&_[data-slot='scroll-area-scrollbar']]:w-1.5 [data-slot='scroll-area-scrollbar']]:border-0",
+        "flex-1 min-h-0 p-6",
+        "[&_[data-slot='scroll-area-scrollbar']]:w-1.5 [&_[data-slot='scroll-area-scrollbar']]:border-l-0",
         "[&_[data-slot='scroll-area-scrollbar'][data-orientation='horizontal']]:h-1.5"
       )}>
         <div className="p-2 space-y-2">
