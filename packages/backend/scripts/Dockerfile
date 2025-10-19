@@ -1,4 +1,4 @@
-FROM node:latest
+FROM node:lts-slim
 
 # Install system dependencies (git for cloning, ca-certificates for HTTPS, jq for JSON parsing)
 RUN apt-get update && apt-get install -y --no-install-recommends \
