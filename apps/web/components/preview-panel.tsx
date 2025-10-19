@@ -8,8 +8,6 @@ import { api, Id } from '@repo/backend';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import DeployDialog from '@/components/deploy-dialog';
-import EditorView from '@/components/editor-view';
-import { SidebarProvider } from '@/components/ui/sidebar';
  
 interface PreviewPanelProps {
   projectId?: string;
@@ -180,7 +178,6 @@ export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelPr
           <div className="flex items-center gap-3">
             <TabsList className="bg-white border gap-1.5 p-1 rounded-lg">
               <TabsTrigger value="preview" className="cursor-pointer select-none px-5 py-2 rounded-md data-[state=active]:bg-gray-100 data-[state=active]:shadow-none">Preview</TabsTrigger>
-              <TabsTrigger value="editor" className="cursor-pointer select-none px-5 py-2 rounded-md data-[state=active]:bg-gray-100 data-[state=active]:shadow-none">Editor</TabsTrigger>
             </TabsList>
           </div>
           {headerActions}
@@ -226,13 +223,7 @@ export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelPr
           </div>
         </TabsContent>
 
-        <TabsContent value="editor" className="flex-1 min-h-0">
-          {projectId ? (
-            <EditorView projectId={projectId as Id<'projects'>} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground">No project selected</div>
-          )}
-        </TabsContent>
+        
       </Tabs>
 
       <DeployDialog

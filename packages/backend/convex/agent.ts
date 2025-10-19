@@ -74,23 +74,17 @@ export const initializeProject = internalAction({
     } catch {
       // Non-fatal: repo clone/init is optional for initialization
     }
-    // Optionally start the dev server via Daytona sessions if a startCommand is provided
-    let sessionIdOut: string | undefined;
-    let cmdIdOut: string | undefined;
+    // Optionally start the dev server using PM2 directly (no session)
+    let pm2ProcessName: string | undefined;
     const start = startCommand?.trim();
     if (start) {
-      const daytona = getDaytonaClient();
-      const sandbox = await daytona.get(base.sandboxId);
-      const sessionId = `${args.projectId}-start-server`;
-      await sandbox.process.createSession(sessionId);
+      pm2ProcessName = sanitizeScriptName(args.template.name || 'app');
+      const pm2Script = `pm2 start bash --name ${shellQuote(pm2ProcessName)} --cwd ${shellQuote(workingDirectory)} -- -lc ${shellQuote(start)}`;
 
-      const exec = await sandbox.process.executeSessionCommand(sessionId, {
-        command: buildBashCommand(workingDirectory, start),
-        runAsync: true,
-      });
-      console.log("start result", exec);
-      sessionIdOut = sessionId;
-      cmdIdOut = exec.cmdId!;
+      const inst = await provider.get(base.sandboxId)
+      const command = buildBashCommand(workingDirectory, pm2Script);
+      const result = await inst.commands.run(command, { timeoutMs: 5 * 60 * 1000 });
+      console.log('pm2 start result', result);
     }
 
     // Persist provided repo/init/start in project metadata for later use (e.g., start button)
@@ -100,8 +94,7 @@ export const initializeProject = internalAction({
         metadata: {
           workingDirectory,
           templateId: args.template._id,
-          startServerSessionId: sessionIdOut,
-          startServerCmdId: cmdIdOut,
+          processName: pm2ProcessName,
         },
       });
     } catch {
@@ -115,7 +108,7 @@ export const initializeProject = internalAction({
       isInitialized: true,
     });
 
-    return { sandboxId: base.sandboxId, previewUrl: base.previewUrl, sessionId: sessionIdOut, cmdId: cmdIdOut };
+    return { sandboxId: base.sandboxId, previewUrl: base.previewUrl };
   },
 });
 
