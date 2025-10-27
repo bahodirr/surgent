@@ -1,19 +1,13 @@
-// apps/main/wrangler.jsonc
 {
   "name": "surgent",
   "main": "src/index.ts",
   "compatibility_date": "2025-03-07",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
   },
-  "routes": [
-    "*.vybr.dev/*",
-    "*.surgent.dev/*"
-  ],
+  "routes": ["*.vybr.dev/*", "*.surgent.dev/*"],
   "preview_urls": true,
   "workers_dev": true,
   "dispatch_namespaces": [
