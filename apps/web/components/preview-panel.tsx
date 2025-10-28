@@ -8,6 +8,8 @@ import { api, Id } from '@repo/backend';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import DeployDialog from '@/components/deploy-dialog';
+import TerminalWidget from '@/components/terminal/terminal-widget';
+import { useSandbox } from '@/hooks/use-sandbox';
  
 interface PreviewPanelProps {
   projectId?: string;
@@ -15,6 +17,7 @@ interface PreviewPanelProps {
 }
 
 export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelProps) {
+  const setSandboxId = useSandbox((s: { setSandboxId: (id: string | null) => void }) => s.setSandboxId);
   const activateProject = useMutation(api.projects.activateProject);
   const deployProject = useMutation(api.projects.deployProject);
   const project = useQuery(api.projects.getProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
@@ -35,6 +38,15 @@ export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelPr
     if (!onPreviewUrl) return;
     onPreviewUrl(previewUrl ?? null);
   }, [previewUrl, onPreviewUrl]);
+
+  // Push sandboxId to global store for other components (e.g., Conversation)
+  useEffect(() => {
+    if (hasSandbox && typeof sandboxId === 'string') {
+      setSandboxId(sandboxId);
+    } else {
+      setSandboxId(null);
+    }
+  }, [hasSandbox, sandboxId, setSandboxId]);
 
   const [currentUrl, setCurrentUrl] = useState(previewUrl || '');
   const [reloadCount, setReloadCount] = useState(0);
