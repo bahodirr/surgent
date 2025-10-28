@@ -7,7 +7,7 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
-  "routes": ["*.vybr.dev/*", "*.surgent.dev/*"],
+  "routes": ["*.surgent.dev/*"],
   "preview_urls": true,
   "workers_dev": true,
   "dispatch_namespaces": [
@@ -17,29 +17,28 @@
       "remote": true
     }
   ],
-  // "containers": [
-  //   {
-  //     "class_name": "AppSandboxService",
-  //     "image": "./SandboxDockerfile",
-  //     // Altering max_instances value will have no effect. Please use the MAX_SANDBOX_INSTANCES var instead.
-  //     "max_instances": 2900,
-  //     // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
-  //     "instance_type": {
-  //       "vcpu": 4,
-  //       "memory_mib": 4096,
-  //       "disk_mb": 10240
-  //     },
-  //     "rollout_step_percentage": 100
-  //   }
-  // ],
-  // "durable_objects": {
-  //   "bindings": [
-  //     {
-  //       "class_name": "AppSandboxService",
-  //       "name": "Sandbox"
-  //     }
-  //   ]
-  // },
+  "containers": [
+    {
+      "class_name": "Server",
+      "image": "./Dockerfile",
+      "image_build_context": "../../" // for the dockerfile
+      // "max_instances": 2
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "Server",
+        "name": "SERVER"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Server"]
+    }
+  ],
   "vars": {
     "DISPATCH_NAMESPACE_NAME": "default-surgent-namespace",
     "CLOUDFLARE_ACCOUNT_ID": "44756fda18d37b7accae2ce6baf0ac6a",

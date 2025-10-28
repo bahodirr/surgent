@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import { Configuration, SandboxApi } from '@daytonaio/api-client'
-import type { Env } from '../env'
 
 const preview = new Hono<{ Bindings: Env }>()
 

@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import { deployToDispatch, buildDeploymentConfig, parseWranglerConfig } from '../services/deploy'
-import type { Env } from '../env'
 import type { AssetManifest, WranglerConfig } from '../services/deploy'
 
 const deploy = new Hono<{ Bindings: Env }>()

@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import type { Env } from '../env'
 
 const dispatch = new Hono<{ Bindings: Env }>()
 
