@@ -1,5 +1,4 @@
 import './globals.css';
-import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
 import Providers from '@/components/providers';
 import localFont from 'next/font/local';
 
@@ -23,13 +22,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ConvexAuthNextjsServerProvider>
-      <html lang="en">
-        <body className={`antialiased ${geistSans.variable} ${geistMono.variable}`}>
-        
-          <Providers>{children}</Providers>
-        </body>
-      </html>
-    </ConvexAuthNextjsServerProvider>
+    <html lang="en">
+      <body className={`antialiased ${geistSans.variable} ${geistMono.variable}`}>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
   );
 }

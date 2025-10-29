@@ -2,20 +2,43 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useAuthActions } from '@convex-dev/auth/react';
+import { Input } from "@/components/ui/input";
+import { authClient } from "@/lib/auth-client";
 
 export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { signIn } = useAuthActions();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
+  const handleEmailSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+    try {
+      await authClient.signUp.email({
+        email,
+        password,
+        name,
+        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      });
+    } catch (err) {
+      setError("Failed to create account");
+      setIsLoading(false);
+    }
+  };
 
   const handleGoogleSignup = async () => {
+    setIsLoading(true);
+    setError("");
     try {
-      setIsLoading(true);
-      const result = await signIn('google', { redirectTo: `${window.location.origin}/dashboard` });
-      console.log("result", result);
-    } catch (e) {
-      console.error('Google sign-up error', e);
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+      });
+    } catch (err) {
+      setError("Failed to sign up with Google");
       setIsLoading(false);
     }
   };
@@ -40,6 +63,55 @@ export default function SignupPage() {
               </div>
             )}
 
+            {/* Email/Password Form */}
+            <form onSubmit={handleEmailSignup} className="w-full space-y-3">
+              <Input
+                type="text"
+                placeholder="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isLoading}
+                required
+                className="h-12"
+              />
+              <Input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+                className="h-12"
+              />
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                required
+                className="h-12"
+              />
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-12 text-base font-medium"
+              >
+                {isLoading ? "Creating account..." : "Create account"}
+              </Button>
+            </form>
+
+            {/* Divider */}
+            <div className="relative w-full">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            {/* Google OAuth */}
             <Button
               onClick={handleGoogleSignup}
               disabled={isLoading}
@@ -52,21 +124,27 @@ export default function SignupPage() {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
-              {isLoading ? "Signing up..." : "Sign up with Google"}
+              Continue with Google
             </Button>
 
             <div className="prose text-center text-sm text-muted-foreground">
-              By continuing, you agree to our {""}
-              <a href="/terms" className="underline hover:text-foreground transition-colors">Terms of Service</a> {""}
-              and {""}
-              <a href="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</a>
+              By continuing, you agree to our{" "}
+              <a href="/terms" className="underline hover:text-foreground transition-colors">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" className="underline hover:text-foreground transition-colors">
+                Privacy Policy
+              </a>
             </div>
           </div>
         </div>
 
         <div className="prose text-center text-sm text-muted-foreground">
-          Already have an account? {""}
-          <a href="/login" className="text-foreground underline hover:no-underline font-medium">Log in</a>
+          Already have an account?{" "}
+          <a href="/login" className="text-foreground underline hover:no-underline font-medium">
+            Log in
+          </a>
         </div>
       </div>
     </div>

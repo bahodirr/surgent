@@ -2,13 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from 'convex/react';
-import { api, Id } from '@repo/backend';
+import { authClient } from '@/lib/auth-client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldSet, FieldTitle } from '@/components/ui/field';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -20,77 +16,106 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Plus, MoreVertical, Code2, Clock, Activity } from 'lucide-react';
-import { useAuthActions } from '@convex-dev/auth/react';
+
+interface Project {
+  id: string;
+  name: string;
+  created_at: string;
+  sandbox_id?: string;
+  sandbox_metadata?: any;
+  settings?: any;
+  github?: any;
+}
+
+interface User {
+  id: string;
+  email: string;
+  name?: string;
+  image?: string;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
-  const user = useQuery(api.auth.loggedInUser, {});
+  const [user, setUser] = useState<User | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
-  const [newProjectId, setNewProjectId] = useState<string | null>(null);
-  const { signOut } = useAuthActions();
 
-  // Convex data
-  const projects = useQuery(api.projects.listProjects, {});
-  const createProjectMutation = useMutation(api.projects.createProject);
-  const templates = useQuery(api.projects.listTemplates, {});
-  const newProject = useQuery(
-    api.projects.getProject,
-    newProjectId ? { projectId: newProjectId as Id<'projects'> } : 'skip'
-  );
+  useEffect(() => {
+    checkAuth();
+    fetchProjects();
+  }, []);
 
-  const openCreateProject = () => {
-    if (creatingProject) return;
-    setShowTemplateModal(true);
+  const checkAuth = async () => {
+    const { data, error } = await authClient.getSession();
+    if (error || !data?.user) {
+      router.push('/login');
+      return;
+    }
+    setUser(data.user as User);
   };
 
-  const confirmCreateProject = async () => {
-    if (!selectedTemplateId) return;
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects');
+      }
+      
+      const data = await response.json();
+      setProjects(data.projects);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createProject = async () => {
     if (creatingProject) return;
+    
     setCreatingProject(true);
     try {
-      const id = await createProjectMutation({
-        name: `Project ${new Date().toLocaleDateString()}`,
-        templateId: selectedTemplateId as Id<'templates'>,
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: `Project ${new Date().toLocaleDateString()}`,
+        }),
       });
-      setNewProjectId(String(id));
-      setShowTemplateModal(false);
+
+      if (!response.ok) {
+        throw new Error('Failed to create project');
+      }
+
+      const data = await response.json();
+      router.push(`/project?id=${data.project.id}`);
     } catch (err) {
       console.error('Error creating project:', err);
+      setError('Failed to create project. Please try again.');
       setCreatingProject(false);
     }
   };
 
-  // Redirect only after the project sandbox is initialized
-  useEffect(() => {
-    if (!newProjectId) return;
-    const isReady = (newProject as any)?.sandbox?.isInitialized === true;
-    if (isReady) {
-      router.push(`/project?id=${newProjectId}`);
-      setNewProjectId(null);
-      setCreatingProject(false);
-    }
-  }, [newProjectId, newProject, router]);
-
   const handleSignOut = async () => {
-    await signOut();
+    await authClient.signOut();
     router.push('/login');
   };
 
-  const formatDate = (ms: number) => {
-    try {
-      return new Date(ms).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    } catch {
-      return '';
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
-
-  const loading = projects === undefined;
 
   if (loading) {
     return (
@@ -139,7 +164,7 @@ export default function DashboardPage() {
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={user?.image} alt={user?.name || user?.email} />
                     <AvatarFallback>
-                      {user?.name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase()}
+                      {user?.name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -178,14 +203,14 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Your Projects</h3>
             <Button 
-              onClick={openCreateProject} 
+              onClick={createProject} 
               disabled={creatingProject}
               className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
             >
               {creatingProject ? (
                 <>
                   <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
-                  {newProjectId ? 'Initializing…' : 'Creating...'}
+                  Creating...
                 </>
               ) : (
                 <>
@@ -196,7 +221,13 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          {(projects?.length ?? 0) === 0 ? (
+          {error && (
+            <div className="rounded-3xl border border-destructive/50 bg-destructive/10 p-6">
+              <p className="text-destructive text-sm">{error}</p>
+            </div>
+          )}
+
+          {projects.length === 0 && !error ? (
             <div className="rounded-3xl border border-dashed border-border/50 bg-muted/30 p-12">
               <div className="flex flex-col items-center justify-center text-center">
                 <Code2 className="h-12 w-12 text-muted-foreground mb-4" />
@@ -205,14 +236,14 @@ export default function DashboardPage() {
                   Create your first project to get started
                 </p>
                 <Button 
-                  onClick={openCreateProject} 
+                  onClick={createProject} 
                   disabled={creatingProject}
                   className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                 >
                   {creatingProject ? (
                     <>
                       <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
-                      {newProjectId ? 'Initializing…' : 'Creating...'}
+                      Creating...
                     </>
                   ) : (
                     <>
@@ -225,17 +256,17 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {projects?.map((project) => (
+              {projects.map((project) => (
                 <div
-                  key={String((project as any)._id)}
+                  key={project.id}
                   className="rounded-3xl border border-border/50 bg-muted/30 p-6 hover:bg-muted/50 hover:border-border/70 transition-all cursor-pointer group"
-                  onClick={() => router.push(`/project?id=${String((project as any)._id)}`)}
+                  onClick={() => router.push(`/project?id=${project.id}`)}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="space-y-1">
                       <h4 className="text-base font-medium group-hover:text-foreground transition-colors">{project.name}</h4>
                       <p className="text-sm text-muted-foreground">
-                        Created {formatDate((project as any)._creationTime)}
+                        Created {formatDate(project.created_at)}
                       </p>
                     </div>
                     <DropdownMenu>
@@ -248,7 +279,7 @@ export default function DashboardPage() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/project?id=${String((project as any)._id)}`);
+                            router.push(`/project?id=${project.id}`);
                           }}
                         >
                           Open
@@ -279,7 +310,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-1.5">
                         <Activity className="h-3 w-3" />
                         <span>
-                          {(project as any).sandboxId ? 'Active' : 'Not initialized'}
+                          {project.sandbox_id ? 'Active' : 'Not initialized'}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -299,53 +330,6 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
-
-      {/* Template selection modal */}
-      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Choose a template</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <FieldGroup>
-              <FieldSet>
-                {/* <FieldLabel htmlFor="template-select">
-                  Template
-                </FieldLabel> */}
-                <FieldDescription>
-                  Choose a starting environment for your project.
-                </FieldDescription>
-                <RadioGroup
-                  value={selectedTemplateId || undefined}
-                  onValueChange={(v) => setSelectedTemplateId(v)}
-                >
-                  {(templates || []).map((tpl: any) => (
-                    <FieldLabel key={String(tpl._id)} htmlFor={`tpl-${String(tpl._id)}`}>
-                      <Field orientation="horizontal">
-                        <FieldContent>
-                          <FieldTitle>{tpl.name}</FieldTitle>
-                          {tpl.description && (
-                            <FieldDescription>
-                              {tpl.description}
-                            </FieldDescription>
-                          )}
-                        </FieldContent>
-                        <RadioGroupItem value={String(tpl._id)} id={`tpl-${String(tpl._id)}`} />
-                      </Field>
-                    </FieldLabel>
-                  ))}
-                </RadioGroup>
-              </FieldSet>
-            </FieldGroup>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowTemplateModal(false)}>Cancel</Button>
-              <Button onClick={confirmCreateProject} disabled={!selectedTemplateId || creatingProject}>
-                {creatingProject ? 'Creating…' : 'Create project'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

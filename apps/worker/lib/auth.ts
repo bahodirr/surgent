@@ -7,8 +7,6 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [
     process.env.CLIENT_ORIGIN || "http://localhost:3000",
-    "http://localhost:3000",
-    "http://localhost:3001",
   ],
   plugins: [],
   database: {

@@ -26,8 +26,8 @@
     "pg": "^8.16.3"
   },
   "scripts": {
-    "dev": "wrangler dev",
-    "start": "wrangler dev --verbose",
+    "dev": "wrangler dev --port 4000",
+    "start": "wrangler dev --verbose --port 4000",
     "deploy": "wrangler deploy",
     "generate-types": "wrangler types",
     "db:migrate": "bun migrate.ts",

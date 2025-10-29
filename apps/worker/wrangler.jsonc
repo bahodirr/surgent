@@ -1,7 +1,7 @@
 {
   "name": "surgent",
   "main": "src/index.ts",
-  "compatibility_date": "2025-03-07",
+  "compatibility_date": "2025-10-21",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
