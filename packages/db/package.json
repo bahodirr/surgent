@@ -1,0 +1,23 @@
+{
+  "name": "@repo/db",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "db:migrate": "bun ./src/migrate.ts",
+    "db:rollback": "bun ./src/migrate.ts down"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "kysely": "^0.28.8",
+    "kysely-neon": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "private": true
+}
