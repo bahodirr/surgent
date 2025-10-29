@@ -1,6 +1,5 @@
 import { betterAuth } from "better-auth";
-import { neon } from '@neondatabase/serverless';
-import { NeonDialect } from 'kysely-neon';
+import { dialect } from '@repo/db';
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
@@ -10,9 +9,7 @@ export const auth = betterAuth({
   ],
   plugins: [],
   database: {
-    dialect: new NeonDialect({
-      neon: neon(process.env.DATABASE_URL!),
-    }),
+    dialect: dialect,
     type: "postgres",
   },
   

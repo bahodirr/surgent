@@ -17,6 +17,7 @@
     "@daytonaio/sdk": "^0.108.0",
     "@neondatabase/serverless": "^1.0.2",
     "@types/pg": "^8.15.6",
+    "@repo/db": "*",
     "better-auth": "^1.3.33",
     "cloudflare": "^5.1.0",
     "hono": "^4.10.3",
@@ -29,9 +30,6 @@
     "dev": "wrangler dev --port 4000",
     "start": "wrangler dev --verbose --port 4000",
     "deploy": "wrangler deploy",
-    "generate-types": "wrangler types",
-    "db:migrate": "bun migrate.ts",
-    "db:rollback": "bun migrate.ts down",
-    "db:geneate": "bun generate-types.ts"
+    "generate-types": "wrangler types"
   }
 }
