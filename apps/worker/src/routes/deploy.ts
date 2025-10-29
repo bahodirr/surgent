@@ -1,8 +1,10 @@
 import { Hono } from 'hono'
 import { deployToDispatch, buildDeploymentConfig, parseWranglerConfig } from '../services/deploy'
 import type { AssetManifest, WranglerConfig } from '../services/deploy'
+import { requireAuth } from '../middleware/auth'
+import type { AppContext } from '@/types/application'
 
-const deploy = new Hono<{ Bindings: Env }>()
+const deploy = new Hono<AppContext>()
 
 interface DeployRequest {
   wranglerConfig: string | WranglerConfig
@@ -14,8 +16,12 @@ interface DeployRequest {
   assetsConfig?: WranglerConfig['assets']
 }
 
-deploy.post('/', async (c) => {
+// Protect deploy endpoint with authentication
+deploy.post('/', requireAuth, async (c) => {
   try {
+    const user = c.get('user')
+    console.log(`Deployment requested by user: ${user?.email}`)
+
     const body = await c.req.json<DeployRequest>()
 
     const accountId = c.env.CLOUDFLARE_ACCOUNT_ID

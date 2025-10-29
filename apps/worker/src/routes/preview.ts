@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { Configuration, SandboxApi } from '@daytonaio/api-client'
+import type { AppContext } from '@/types/application'
 
-const preview = new Hono<{ Bindings: Env }>()
+const preview = new Hono<AppContext>()
 
 function getSandboxIdAndPort(host: string, defaultPort: number) {
   const subdomain = host.split(':')[0].split('.')[0]

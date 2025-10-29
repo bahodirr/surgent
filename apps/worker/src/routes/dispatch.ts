@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
+import type { AppContext } from '@/types/application'
 
-const dispatch = new Hono<{ Bindings: Env }>()
+const dispatch = new Hono<AppContext>()
 
 function extractSubdomain(hostname: string): string | null {
   const parts = hostname.split('.')
