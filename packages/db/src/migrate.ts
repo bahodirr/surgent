@@ -44,3 +44,5 @@ export async function runMigrations() {
   await db.destroy()
   console.log('🎉 Migration completed successfully')
 }
+
+runMigrations()

@@ -16,5 +16,5 @@ export async function requireAuth(
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
-  await next()
+  return next()
 }

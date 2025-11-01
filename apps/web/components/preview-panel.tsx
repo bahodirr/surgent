@@ -3,50 +3,31 @@
 import { WebPreview, WebPreviewNavigation, WebPreviewUrl, WebPreviewBody, WebPreviewNavigationButton } from '@/components/ai-elements/web-preview';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Copy, Rocket } from 'lucide-react';
-import { useMutation, useQuery } from 'convex/react';
-import { api, Id } from '@repo/backend';
+import { useDeployProject } from '@/queries/projects';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import DeployDialog from '@/components/deploy-dialog';
-import TerminalWidget from '@/components/terminal/terminal-widget';
-import { useSandbox } from '@/hooks/use-sandbox';
  
 interface PreviewPanelProps {
   projectId?: string;
+  project?: any;
   onPreviewUrl?: (url: string | null) => void;
 }
 
-export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelProps) {
-  const setSandboxId = useSandbox((s: { setSandboxId: (id: string | null) => void }) => s.setSandboxId);
-  const activateProject = useMutation(api.projects.activateProject);
-  const deployProject = useMutation(api.projects.deployProject);
-  const project = useQuery(api.projects.getProject, projectId ? { projectId: projectId as Id<'projects'> } : 'skip');
+export default function PreviewPanel({ projectId, project, onPreviewUrl }: PreviewPanelProps) {
+  const deployProject = useDeployProject();
 
   const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
-  const sandboxId = project?.sandboxId;
+  const sandboxId = (project as any)?.sandbox?.id;
   const hasSandbox = Boolean(sandboxId && proxyHost);
   const isReady = hasSandbox;
   const previewUrl = isReady ? `https://3000-${sandboxId}.${proxyHost}` : undefined;
   const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = isReady ? 'ready' : 'initializing';
 
   useEffect(() => {
-    if (!projectId) return;
-    activateProject({ projectId: projectId as Id<'projects'> }).catch(() => {});
-  }, [projectId, activateProject]);
-
-  useEffect(() => {
     if (!onPreviewUrl) return;
     onPreviewUrl(previewUrl ?? null);
   }, [previewUrl, onPreviewUrl]);
-
-  // Push sandboxId to global store for other components (e.g., Conversation)
-  useEffect(() => {
-    if (hasSandbox && typeof sandboxId === 'string') {
-      setSandboxId(sandboxId);
-    } else {
-      setSandboxId(null);
-    }
-  }, [hasSandbox, sandboxId, setSandboxId]);
 
   const [currentUrl, setCurrentUrl] = useState(previewUrl || '');
   const [reloadCount, setReloadCount] = useState(0);
@@ -102,7 +83,7 @@ export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelPr
     if (!projectId || isDeploying) return;
     setIsDeploying(true);
     try {
-      await deployProject({ projectId: projectId as Id<'projects'>, deployName: sanitizedName });
+      await deployProject.mutateAsync({ id: projectId, deployName: sanitizedName });
       setIsDialogOpen(false);
     } catch {}
     setIsDeploying(false);
@@ -211,13 +192,8 @@ export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelPr
                 onUrlChange={(u) => { setCurrentUrl(u); onPreviewUrl?.(u || null); startProgress(); }}
                 className="h-full border-0"
               >
-                <div className="absolute bottom-0 left-0 right-0 z-10 h-0.5">
-                  <div
-                    className="h-full bg-primary transition-[width] duration-200 ease-out"
-                    style={{ width: isLoading ? `${progress}%` : '0%' }}
-                  />
-                </div>
-                <WebPreviewNavigation className="border-b p-2">
+                
+                <WebPreviewNavigation className="border-b p-2 relative">
                   <WebPreviewNavigationButton tooltip="Reload" onClick={handleReload}>
                     <RefreshCw className="h-4 w-4" />
                   </WebPreviewNavigationButton>
@@ -228,11 +204,18 @@ export default function PreviewPanel({ projectId, onPreviewUrl }: PreviewPanelPr
                     <ExternalLink className="h-4 w-4" />
                   </WebPreviewNavigationButton>
                   <WebPreviewUrl placeholder="Enter URL..." />
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5">
+                    <div
+                      className="h-full bg-primary transition-[width] duration-200 ease-out"
+                      style={{ width: isLoading ? `${progress}%` : '0%' }}
+                    />
+                  </div>
                 </WebPreviewNavigation>
                 <WebPreviewBody className="w-full h-full border-0" onLoad={finishProgress} />
               </WebPreview>
             )}
           </div>
+          
         </TabsContent>
 
         

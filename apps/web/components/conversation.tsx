@@ -17,7 +17,6 @@ export default function Conversation({ projectId }: ConversationProps) {
   const [isSending, setIsSending] = useState(false);
   const sandboxId = useSandbox((s: { sandboxId?: string | null }) => s.sandboxId || undefined);
 
-  console.log("sandboxId", sandboxId);
 
   const handleSend = async (text: string) => {
     if (!text.trim() || isSending) return;

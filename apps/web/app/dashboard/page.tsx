@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Toaster, toast } from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,16 +17,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Plus, MoreVertical, Code2, Clock, Activity } from 'lucide-react';
+import { useProjectsQuery, useCreateProject } from '@/queries/projects';
+import type { Project } from '@/types/project';
 
-interface Project {
-  id: string;
-  name: string;
-  created_at: string;
-  sandbox_id?: string;
-  sandbox_metadata?: any;
-  settings?: any;
-  github?: any;
-}
+// Project type moved to '@/types/project'
 
 interface User {
   id: string;
@@ -37,14 +32,11 @@ interface User {
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [creatingProject, setCreatingProject] = useState(false);
+  const { data: projects = [], isLoading, error: queryError } = useProjectsQuery();
+  const create = useCreateProject();
 
   useEffect(() => {
     checkAuth();
-    fetchProjects();
   }, []);
 
   const checkAuth = async () => {
@@ -56,52 +48,14 @@ export default function DashboardPage() {
     setUser(data.user as User);
   };
 
-  const fetchProjects = async () => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects`, {
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch projects');
+  const createProject = () => {
+    create.mutate(
+      { name: `Project ${new Date().toLocaleDateString()}`, githubUrl: 'https://github.com/bahodirr/worker-vite-react-template' },
+      {
+        onSuccess: ({ id }) => router.push(`/project?id=${id}`),
+        onError: () => toast.error('Failed to create project. Please try again.'),
       }
-      
-      const data = await response.json();
-      setProjects(data.projects);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createProject = async () => {
-    if (creatingProject) return;
-    
-    setCreatingProject(true);
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/projects`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: `Project ${new Date().toLocaleDateString()}`,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create project');
-      }
-
-      const data = await response.json();
-      router.push(`/project?id=${data.project.id}`);
-    } catch (err) {
-      console.error('Error creating project:', err);
-      setError('Failed to create project. Please try again.');
-      setCreatingProject(false);
-    }
+    );
   };
 
   const handleSignOut = async () => {
@@ -117,7 +71,7 @@ export default function DashboardPage() {
     });
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <div className="border-b bg-muted/30 px-8 py-4">
@@ -143,6 +97,7 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+        <Toaster position="top-right" />
       </div>
     );
   }
@@ -204,10 +159,10 @@ export default function DashboardPage() {
             <h3 className="text-lg font-medium">Your Projects</h3>
             <Button 
               onClick={createProject} 
-              disabled={creatingProject}
+              disabled={create.isPending}
               className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
             >
-              {creatingProject ? (
+              {create.isPending ? (
                 <>
                   <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
                   Creating...
@@ -221,13 +176,9 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          {error && (
-            <div className="rounded-3xl border border-destructive/50 bg-destructive/10 p-6">
-              <p className="text-destructive text-sm">{error}</p>
-            </div>
-          )}
+          {/* error toasts are shown via react-hot-toast */}
 
-          {projects.length === 0 && !error ? (
+          {projects.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-border/50 bg-muted/30 p-12">
               <div className="flex flex-col items-center justify-center text-center">
                 <Code2 className="h-12 w-12 text-muted-foreground mb-4" />
@@ -237,10 +188,10 @@ export default function DashboardPage() {
                 </p>
                 <Button 
                   onClick={createProject} 
-                  disabled={creatingProject}
+                  disabled={create.isPending}
                   className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
                 >
-                  {creatingProject ? (
+                  {create.isPending ? (
                     <>
                       <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
                       Creating...
@@ -256,7 +207,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {projects.map((project) => (
+                  {projects.map((project: Project) => (
                 <div
                   key={project.id}
                   className="rounded-3xl border border-border/50 bg-muted/30 p-6 hover:bg-muted/50 hover:border-border/70 transition-all cursor-pointer group"
@@ -266,7 +217,7 @@ export default function DashboardPage() {
                     <div className="space-y-1">
                       <h4 className="text-base font-medium group-hover:text-foreground transition-colors">{project.name}</h4>
                       <p className="text-sm text-muted-foreground">
-                        Created {formatDate(project.created_at)}
+                        Created {formatDate(project.createdAt)}
                       </p>
                     </div>
                     <DropdownMenu>
@@ -310,7 +261,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-1.5">
                         <Activity className="h-3 w-3" />
                         <span>
-                          {project.sandbox_id ? 'Active' : 'Not initialized'}
+                          {project.sandbox?.id ? 'Active' : 'Not initialized'}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -330,6 +281,7 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+      <Toaster position="top-right" />
     </div>
   );
 }

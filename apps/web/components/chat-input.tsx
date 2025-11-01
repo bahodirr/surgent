@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Check, ChevronDown, Brain, Wrench, CheckCircle, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { computeStatus } from "@/lib/message-parser";
 
 type TodoItem = { 
   id: string; 
@@ -43,7 +42,6 @@ export default function ChatInput({
   const isEmpty = !value.trim();
   const isSubmitDisabled = disabled || isEmpty;
 
-  const status = computeStatus(timeline as any);
   const currentTodo = (todos ?? [])
     .slice()
     .reverse()
@@ -73,9 +71,7 @@ export default function ChatInput({
     }
   }, [handleSubmit]);
 
-  useEffect(() => {
-    // No auto-expansion behavior; intentionally left empty
-  }, [todos]);
+  
 
   return (
     <div className={cn("w-full", className)}>
@@ -124,41 +120,6 @@ export default function ChatInput({
                 )}
               </div>
             ) : null}
-
-            {status && (
-              <div className="mx-3 w-[calc(100%-24px)] border border-b-0 border-black/10 bg-white/75 backdrop-blur-md">
-                <div className="px-3 py-1 text-[12px] flex items-center gap-2 text-gray-800">
-                  {(() => {
-                    const Icon = status.name === 'thinking' ? Brain : status.name === 'running' ? Wrench : CheckCircle;
-                    const tone = status.name === 'done' ? 'text-green-600' : 'text-gray-700';
-                    return (
-                      <span className="inline-flex items-center gap-1">
-                        <Icon size={14} className={cn(tone, status.isActive && "animate-pulse")} />
-                      </span>
-                    );
-                  })()}
-                  <span className={cn(
-                    "font-medium",
-                    status.isActive && "bg-gradient-to-r from-gray-500 via-gray-300 to-gray-500 bg-[length:200%_100%] bg-clip-text text-transparent animate-pulse"
-                  )}
-                  >
-                    {(() => {
-                      if (status.name === 'thinking') return 'Thinking...';
-                      if (status.name === 'running') {
-                        const counts = status.progress ? ` (${status.progress.done}/${status.progress.total})` : '';
-                        const name = status.activeToolName ? ` ${status.activeToolName}` : '';
-                        return `Running${name}${counts}`;
-                      }
-                      if (status.name === 'done') {
-                        const counts = status.progress ? ` (${status.progress.done}/${status.progress.total})` : '';
-                        return `Completed${counts}`;
-                      }
-                      return status.label;
-                    })()}
-                  </span>
-                </div>
-              </div>
-            )}
 
           {/* Composer */}
 

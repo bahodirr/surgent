@@ -1,10 +1,10 @@
-import { Kysely } from 'kysely'
+import { Kysely, sql } from 'kysely'
 
 export async function up(db: Kysely<any>): Promise<void> {
   // Create project table
   await db.schema
     .createTable('project')
-    .addColumn('id', 'text', (col) => col.primaryKey())
+    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
     .addColumn('userId', 'text', (col) => col.notNull().references('user.id'))
     .addColumn('name', 'text', (col) => col.notNull())
     .addColumn('github', 'jsonb')
@@ -26,8 +26,8 @@ export async function up(db: Kysely<any>): Promise<void> {
   // Create project_session table (separate from auth "session")
   await db.schema
     .createTable('chats')
-    .addColumn('id', 'text', (col) => col.primaryKey())
-    .addColumn('projectId', 'text', (col) => col.notNull().references('project.id'))
+    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
+    .addColumn('projectId', 'uuid', (col) => col.notNull().references('project.id'))
     .addColumn('agentSessionId', 'text')
     .addColumn('title', 'text')
     .addColumn('metadata', 'jsonb')

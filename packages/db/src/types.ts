@@ -55,25 +55,25 @@ export interface VerificationTable {
 
 
 export interface ProjectTable {
-  id: string
+  id: string | null
   userId: string
   name: string
-  github: unknown | null
-  settings: unknown | null
-  deployment: unknown | null
-  sandbox: unknown | null
-  metadata: unknown | null
+  github: any | null
+  settings: any | null
+  deployment: any | null
+  sandbox: any | null
+  metadata: any | null
   createdAt: Date
   updatedAt: Date
 }
 
 export interface ChatsTable {
-  id: string
+  id: string | null
   projectId: string
   agentSessionId: string | null
   title: string | null
-  metadata: unknown | null
-  stats: unknown | null
+  metadata: any | null
+  stats: any | null
   createdAt: Date
   updatedAt: Date
 }

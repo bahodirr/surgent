@@ -1,40 +1,42 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import deploy from './routes/deploy'
-import preview from './routes/preview'
-import dispatch from './routes/dispatch'
 import { getContainer } from '@cloudflare/containers'
-import { auth } from '../lib/auth'
+import projects from './routes/projects'
+import preview from './routes/preview'
+import agent from './routes/agent'
+import dispatch from './routes/dispatch'
+import { auth } from './lib/auth'
 import type { AppContext } from '@/types/application'
+import { requireAuth } from './middleware/auth'
 export { Server } from './containers/Server'
 
 const app = new Hono<AppContext>({
   getPath: (req) => {
     const url = new URL(req.url)
-    const subdomain = url.hostname.split('.')[0]
-    // Do not remap server container routes even on preview subdomains
-    if (url.pathname.startsWith('/server')) {
-      return url.pathname
-    }
+    const path = url.pathname
+    const [subdomain] = url.hostname.split('.')
+
+    // Never rewrite server container routes
+    if (path.startsWith('/server')) return path
+
     if (subdomain && isPreviewSubdomain(subdomain)) {
-      return `/preview${url.pathname}`
+      return `/preview${path}`
     }
-    return url.pathname
+    return path
   },
 })
 
-// CORS middleware for auth routes
+// CORS for Better Auth endpoints
 app.use(
-  '/api/auth/*',
+  '/*',
   cors({
-    origin: (origin) => {
-      // Allow configured trusted origins
+    origin: (origin, c) => {
       const trustedOrigins = [
-        process.env.CLIENT_ORIGIN || 'http://localhost:3000',
+        c.env.CLIENT_ORIGIN ,
         'http://localhost:3000',
         'http://localhost:3001',
       ]
-      return trustedOrigins.includes(origin) ? origin : trustedOrigins[0]
+      return origin && trustedOrigins.includes(origin) ? origin : trustedOrigins[0]
     },
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['POST', 'GET', 'OPTIONS'],
@@ -45,9 +47,7 @@ app.use(
 )
 
 // Better Auth handler
-app.on(['POST', 'GET'], '/api/auth/*', (c) => {
-  return auth.handler(c.req.raw)
-})
+app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))
 
 // Session middleware - adds user and session to context
 app.use('*', async (c, next) => {
@@ -56,54 +56,44 @@ app.use('*', async (c, next) => {
   if (!session) {
     c.set('user', null)
     c.set('session', null)
-    await next()
-    return
+    return next()
   }
 
   c.set('user', session.user)
   c.set('session', session.session)
-  await next()
+  return next()
 })
 
-app.get('/health', (c) => {
-  console.log('health check')
-  return c.text('ok')
-})
+app.get('/health', (c) => c.text('ok'))
 
 // Example session endpoint
 app.get('/api/session', (c) => {
-  const session = c.get('session')
   const user = c.get('user')
-
-  if (!user) {
-    return c.json({ error: 'Unauthorized' }, 401)
-  }
-
-  return c.json({
-    session,
-    user,
-  })
+  const session = c.get('session')
+  if (!user) return c.json({ error: 'Unauthorized' }, 401)
+  return c.json({ session, user })
 })
 
-app.route('/deploy', deploy)
+app.route('/api/projects', projects)
+app.route('/api/agent', agent)
 app.route('/preview', preview)
 
 
-app.all('/server/*', async (c) => {
+// Forward to Server durable object
+app.all('/server/*', requireAuth, async (c) => {
   const container = getContainer(c.env.SERVER)
   if (!container) return c.text('Server not found', 500)
 
   const url = new URL(c.req.url)
   url.pathname = url.pathname.replace(/^\/server/, '')
-  
   return container.fetch(new Request(url, c.req.raw))
 })
 app.route('/', dispatch)
 
 function isPreviewSubdomain(sub: string): boolean {
   if (sub.startsWith('preview-')) return true
-  const segments = sub.split('-')
-  return segments.length > 1 && /^\d+$/.test(segments[0])
+  const [maybeNumeric] = sub.split('-')
+  return /^\d+$/.test(maybeNumeric)
 }
 
 export default app

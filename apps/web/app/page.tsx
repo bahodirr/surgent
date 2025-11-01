@@ -1,12 +1,20 @@
 "use client";
+import { useEffect, useState } from 'react';
 import { UserPlus, MessageSquare, Rocket, Github, Twitter } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { useQuery } from 'convex/react';
-import { api } from '@repo/backend';
+import { authClient } from '@/lib/auth-client';
 
 export default function Index() {
-  const user = useQuery(api.auth.loggedInUser, {});
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await authClient.getSession();
+      setIsLoggedIn(!!data?.user);
+    };
+    load();
+  }, []);
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 relative overflow-hidden">
@@ -30,7 +38,7 @@ export default function Index() {
             <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
               <span className="text-lg font-bold tracking-tight">Surgent</span>
             </div>
-            {user ? (
+            {isLoggedIn ? (
               <Button asChild variant="outline" size="sm" className="rounded-full shrink-0 cursor-pointer">
                 <Link href="/dashboard">Go to dashboard</Link>
               </Button>
@@ -61,7 +69,7 @@ export default function Index() {
               
               {/* Signup CTA */}
               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-                {user ? (
+                {isLoggedIn ? (
                   <Button asChild size="lg" className="rounded-full cursor-pointer w-full sm:w-auto">
                     <Link href="/dashboard">Go to dashboard</Link>
                   </Button>

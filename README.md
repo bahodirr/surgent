@@ -29,7 +29,7 @@ Surgent is an agentic development workspace that pairs Claude Code with Daytona 
 - Bun 1.2.20 (`packageManager` pin)
 - Convex CLI (`npm i -g convex`) and a Convex project/URL
 - Wrangler CLI 4.x (`bunx wrangler` or `npm i -g wrangler`) for the Cloudflare Worker
-- Daytona API credentials with access to the `default-web-env:1.0.0` snapshot
+- Daytona API credentials with access to the `default-env:1.0.0` snapshot
 - API keys for Anthropic and/or OpenAI, plus Google OAuth client credentials
 
 ### Install

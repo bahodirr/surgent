@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect, useRef } from 'react';
 import Conversation from './conversation';
 import PreviewPanel from './preview-panel';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useActivateProject, useProjectQuery } from '@/queries/projects';
+import { useSandbox } from '@/hooks/use-sandbox';
 
 interface SplitViewProps {
   projectId?: string;
@@ -11,6 +14,26 @@ interface SplitViewProps {
 }
 
 export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
+  const { mutate: activateProject } = useActivateProject();
+  const { data: project } = useProjectQuery(projectId);
+  const setSandboxId = useSandbox((state: any) => state.setSandboxId);
+  const lastActivatedId = useRef<string | undefined>(undefined);
+
+  // Activate project sandbox on mount
+  useEffect(() => {
+    if (!projectId) return;
+    if (lastActivatedId.current === projectId) return;
+
+    lastActivatedId.current = projectId;
+    activateProject({ id: projectId });
+  }, [projectId, activateProject]);
+
+  // Set sandbox ID when project data loads
+  useEffect(() => {
+    const sandboxId = (project as any)?.sandbox?.id;
+    setSandboxId(sandboxId || null);
+  }, [project, setSandboxId]);
+
   return (
     <div className="h-screen w-full bg-background flex flex-col">
       <div className="flex-1 min-h-0">
@@ -22,7 +45,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
             <ResizableHandle className="shadow-2xl" />
             <ResizablePanel defaultSize={60} minSize={30}>
               <div className="h-full bg-background">
-                <PreviewPanel projectId={projectId} onPreviewUrl={onPreviewUrl} />
+                <PreviewPanel projectId={projectId} project={project} onPreviewUrl={onPreviewUrl} />
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -44,7 +67,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
             <TabsContent value="preview" className="flex-1 min-h-0 flex flex-col">
               <div className="flex-1 min-h-0 px-3 pb-3">
                 <div className="h-full min-h-0 overflow-hidden rounded-xl border bg-background">
-                  <PreviewPanel projectId={projectId} onPreviewUrl={onPreviewUrl} />
+                  <PreviewPanel projectId={projectId} project={project} onPreviewUrl={onPreviewUrl} />
                 </div>
               </div>
             </TabsContent>
