@@ -7,7 +7,7 @@ import { getSessionCookie } from "better-auth/cookies";
 // critical pages or actions.
 export async function middleware(request: NextRequest) {
   // Skip auth check for public routes
-  if (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup") {
+  if (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup") {
     return NextResponse.next();
   }
 

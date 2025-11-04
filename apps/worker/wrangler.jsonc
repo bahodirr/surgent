@@ -21,7 +21,8 @@
     {
       "class_name": "Server",
       "image": "./Dockerfile",
-      "image_build_context": "../../" // for the dockerfile
+      "image_build_context": "../../", // for the dockerfile
+      "instance_type":"standard-2"
       // "max_instances": 2
     }
   ],
