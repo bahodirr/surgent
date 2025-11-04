@@ -1,6 +1,6 @@
 "use client";
 
-import { WebPreview, WebPreviewNavigation, WebPreviewUrl, WebPreviewBody, WebPreviewNavigationButton } from '@/components/ai-elements/web-preview';
+import { WebPreview, WebPreviewNavigation, WebPreviewUrl, WebPreviewBody, WebPreviewNavigationButton } from '@/components/agent/web-preview';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Copy, Rocket } from 'lucide-react';
 import { useDeployProject } from '@/queries/projects';

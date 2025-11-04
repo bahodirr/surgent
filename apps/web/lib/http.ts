@@ -7,4 +7,4 @@ export const http = ky.create({
   retry: { limit: 2 },
 })
 
-
+export const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL

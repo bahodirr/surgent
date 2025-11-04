@@ -1,86 +1,196 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import ChatInput from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
+import useAgentStream from "@/lib/use-agent-stream";
+import { AgentThread } from "@/components/agent/agent-thread";
+import { useSessionsQuery, useCreateSession, useSendMessage } from "@/queries/chats";
+import SessionDiffDialog from "@/components/diff/session-diff-dialog";
 
 interface ConversationProps {
   projectId?: string;
+  sessionId?: string;
 }
 
-export default function Conversation({ projectId }: ConversationProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<'chat' | 'agent'>('agent');
-  const [isSending, setIsSending] = useState(false);
+export default function Conversation({ projectId, sessionId }: ConversationProps) {
+  const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLElement | null>(null);
+  const shouldStickRef = useRef(true);
+  const [activeTab, setActiveTab] = useState<'chat' | 'agent'>('chat');
+  const [mode, setMode] = useState<'plan' | 'build'>('build');
+  const [diffOpen, setDiffOpen] = useState(false);
   const sandboxId = useSandbox((s: { sandboxId?: string | null }) => s.sandboxId || undefined);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(sessionId);
+
+  const { messages, parts: partsByMessage, session: currentSession, lastAt } = useAgentStream({ projectId, sessionId: selectedSessionId });
+  const { data: sessions = [], isLoading: isLoadingSessions } = useSessionsQuery(projectId);
+  const createSession = useCreateSession(projectId);
+  const sendMessage = useSendMessage(projectId);
+
+  const isWorking = useMemo(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant") return false;
+    if (last.time?.completed) return false;
+    if (Date.now() - (lastAt || 0) > 15000) return false;
+    return true;
+  }, [messages, lastAt]);
+
+  const handleCreateSession = () => {
+    createSession.mutate(undefined, {
+      onSuccess: () => router.push(`/project?id=${projectId}`),
+    });
+  };
+
+  const handleSessionChange = (newSessionId: string) => {
+    setSelectedSessionId(newSessionId);
+  };
+
+  useEffect(() => {
+    setSelectedSessionId(sessionId);
+  }, [sessionId]);
+  
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const viewport = root.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (!viewport) return;
+    viewportRef.current = viewport;
+    const onScroll = () => {
+      shouldStickRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
+    };
+    viewport.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => viewport.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!shouldStickRef.current || !viewportRef.current) return;
+    viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages.length]);
 
 
-  const handleSend = async (text: string) => {
-    if (!text.trim() || isSending) return;
-    setIsSending(true);
-    try {
-      console.debug("send:", { text, projectId });
-    } finally {
-    setIsSending(false);
-    }
+  const handleSend = (text: string) => {
+    if (!selectedSessionId || !text.trim()) return;
+    sendMessage.mutate({ sessionId: selectedSessionId, text: text.trim(), agent: mode });
   };
 
   const placeholder = activeTab === 'chat' ? "Ask anything..." : "Agent actions coming soon";
 
   return (
-    <div className="h-full min-h-0 flex flex-col">
-      <div className="px-6 pt-3 pb-2">
-        <div className="inline-flex items-center gap-1 rounded-2xl border border-gray-200 bg-white/70 p-1 backdrop-blur">
-          <button
-            type="button"
-            className={cn(
-              "px-3.5 py-1.5 text-[13px] rounded-full cursor-pointer select-none transition-colors min-w-[68px]",
-              activeTab === 'chat' ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"
-            )}
-            onClick={() => setActiveTab('chat')}
-          >
-            Chat
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "px-3.5 py-1.5 text-[13px] rounded-full cursor-pointer select-none transition-colors min-w-[68px]",
-              activeTab === 'agent' ? "bg-gray-900 text-white" : "text-gray-700 hover:bg-gray-100"
-            )}
-            onClick={() => setActiveTab('agent')}
-          >
-            Agent
-          </button>
+    <>
+    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'agent')} className="h-full flex flex-col">
+      {/* Header with session selector */}
+      <div className="border-b px-6 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+            <Select value={selectedSessionId} onValueChange={handleSessionChange} disabled={isLoadingSessions}>
+              <SelectTrigger className="h-8 w-[200px] text-xs">
+                <SelectValue placeholder="Select session" />
+              </SelectTrigger>
+              <SelectContent>
+                {sessions.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className="text-xs">
+                    {s.title || 'Untitled session'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleCreateSession}
+              disabled={createSession.isPending}
+              className="h-8 text-xs"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </Button>
+            <div className="flex items-center gap-2">
+              {isWorking && (
+                <div className="flex items-center gap-1 text-xs text-foreground/60">
+                  <div className="h-1.5 w-1.5 rounded-full bg-foreground/40" />
+                  <span>Working</span>
+                </div>
+              )}
+              {currentSession?.summary?.diffs && currentSession.summary.diffs.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs rounded-full px-3"
+                  onClick={() => setDiffOpen(true)}
+                >
+                  Diff
+                </Button>
+              )}
+            </div>
+          </div>
+          <TabsList className="h-8">
+            <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
+            <TabsTrigger value="agent" className="text-xs">Terminal</TabsTrigger>
+          </TabsList>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 px-5 pb-3 relative">
-        <div className={activeTab === 'chat' ? 'block h-full' : 'hidden'}>
-          <ScrollArea className={cn(
-            "h-full",
-            "[&_[data-slot='scroll-area-scrollbar']]:w-1.5 [&_[data-slot='scroll-area-scrollbar']]:border-l-0",
-            "[&_[data-slot='scroll-area-scrollbar'][data-orientation='horizontal']]:h-1.5"
-          )}>
-            <div ref={contentRef} className="p-2 min-h-[120px]">
-              <div className="text-xs text-muted-foreground">Start a conversation.</div>
+      {/* Main content area */}
+      <TabsContent value="chat" className="flex-1 min-h-0 relative m-0">
+        <div ref={scrollRef} className="h-full">
+          <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]]:scroll-smooth">
+            <div className="max-w-4xl mx-auto px-6 py-8 scroll-py-4">
+            {messages.length > 0 ? (
+              <>
+                <AgentThread sessionId={selectedSessionId!} messages={messages} partsMap={partsByMessage} />
+                <div ref={bottomRef} className="h-px" />
+              </>
+            ) : (
+              <div className="flex items-center justify-center min-h-[400px] text-center space-y-1">
+                <div>
+                  <p className="text-sm text-foreground/80">No messages yet</p>
+                  <p className="text-xs text-foreground/60">Start a conversation below</p>
+                </div>
+              </div>
+            )}
             </div>
           </ScrollArea>
         </div>
-        <div className={activeTab === 'agent' ? 'block h-full' : 'hidden'}>
+        
+      </TabsContent>
+      
+      <TabsContent value="agent" className="flex-1 min-h-0 m-0">
+        <div className="w-full h-full px-3 py-3">
           <TerminalWidget sandboxId={sandboxId} className="w-full h-full" />
         </div>
-      </div>
+      </TabsContent>
 
+      {/* Chat input - only show when on chat tab */}
       {activeTab === 'chat' && (
-        <ChatInput
-          onSubmit={handleSend}
-          disabled={isSending}
-          placeholder={placeholder}
-        />
+        <div className="px-1 py-1">
+          <div className="max-w-4xl mx-auto">
+            <ChatInput
+              onSubmit={handleSend}
+              disabled={sendMessage.isPending || isWorking}
+              placeholder={isWorking ? "Assistant is working..." : placeholder}
+              mode={mode}
+              onToggleMode={() => setMode((m) => (m === 'plan' ? 'build' : 'plan'))}
+            />
+          </div>
+        </div>
       )}
-    </div>
+    </Tabs>
+    <SessionDiffDialog
+      open={diffOpen}
+      onOpenChange={setDiffOpen}
+      diffs={currentSession?.summary?.diffs}
+    />
+    </>
   );
 }

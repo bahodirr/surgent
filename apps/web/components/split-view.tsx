@@ -7,6 +7,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useActivateProject, useProjectQuery } from '@/queries/projects';
 import { useSandbox } from '@/hooks/use-sandbox';
+import { useEnsureSession } from '@/queries/chats';
 
 interface SplitViewProps {
   projectId?: string;
@@ -18,6 +19,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
   const { data: project } = useProjectQuery(projectId);
   const setSandboxId = useSandbox((state: any) => state.setSandboxId);
   const lastActivatedId = useRef<string | undefined>(undefined);
+  const { data: session } = useEnsureSession(projectId);
 
   // Activate project sandbox on mount
   useEffect(() => {
@@ -40,7 +42,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
         <div className="h-full min-h-0 hidden md:block">
           <ResizablePanelGroup direction="horizontal" className="h-full">
             <ResizablePanel defaultSize={40} minSize={30}>
-              <Conversation projectId={projectId} />
+              <Conversation projectId={projectId} sessionId={session?.id} />
             </ResizablePanel>
             <ResizableHandle className="shadow-2xl" />
             <ResizablePanel defaultSize={60} minSize={30}>
@@ -61,7 +63,7 @@ export default function SplitView({ projectId, onPreviewUrl }: SplitViewProps) {
             </div>
             <TabsContent value="chat" className="flex-1 min-h-0 flex flex-col">
               <div className="flex-1 min-h-0 px-3 pb-3">
-                <Conversation projectId={projectId} />
+                <Conversation projectId={projectId} sessionId={session?.id} />
               </div>
             </TabsContent>
             <TabsContent value="preview" className="flex-1 min-h-0 flex flex-col">
