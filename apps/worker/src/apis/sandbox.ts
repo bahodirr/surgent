@@ -25,7 +25,6 @@ export interface ExecCommandOptions {
 export interface SandboxInstance {
 	id: string;
 	sandboxId: string;
-	executeCommand(command: string, options?: SandboxCommandOptions): Promise<SandboxExecutionResult>;
 	exec(command: string, options?: ExecCommandOptions): Promise<{exitCode: number, result: any}>;
 	getHost(port: number): Promise<string>;
 	fs: Sandbox["fs"];
@@ -72,43 +71,6 @@ class DaytonaSandboxInstance implements SandboxInstance {
 			result: response.result,
 		};
 	}
-
-	async executeCommand(command: string, options?: SandboxCommandOptions): Promise<SandboxExecutionResult> {
-		const timeoutSeconds = typeof options?.timeoutMs === "number" ? Math.max(0, Math.ceil(options.timeoutMs / 1000)) : undefined;
-		const sessionId = this.sessionId;
-
-		try {
-			await this.sandbox.process.createSession(sessionId);
-		} catch (_err) {
-			// Ignore if session already exists
-		}
-
-		if (options?.background) {
-			const response = await this.sandbox.process.executeSessionCommand(
-				sessionId,
-				{ command, runAsync: true },
-				timeoutSeconds
-			);
-
-			const logs = await this.sandbox.process.getSessionCommandLogs(sessionId, response.cmdId!);
-
-      console.log('[STDOUT]:', logs.stdout);
-console.log('[STDERR]:', logs.stderr);
-
-		}
-
-		const response = await this.sandbox.process.executeSessionCommand(
-			sessionId,
-			{ command, runAsync: false },
-			timeoutSeconds
-		);
-		return {
-			exitCode: response.exitCode ?? 0,
-			stdout: response.output ?? "",
-			stderr: "",
-		};
-	}
-
 	async getHost(port: number): Promise<string> {
 		const preview = await this.sandbox.getPreviewLink(port);
 		return preview.url;

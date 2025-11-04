@@ -66,25 +66,36 @@ projects.post(
 )
 // POST /projects/:id/deploy - Deploy project to Cloudflare
 projects.post('/:id/deploy', zValidator('param', idParam), zValidator('json', z.object({ deployName: z.string().optional() })), async (c) => {
-  const { id } = c.req.valid('param')
-  const { deployName } = c.req.valid('json')
-  const row = await db.selectFrom('project').selectAll().where('id', '=', id).executeTakeFirst()
-  if (!row) return c.json({ error: 'Project not found' }, 404)
-  if (row.userId !== c.get('user')!.id) return c.json({ error: 'Forbidden' }, 403)
+  try {
+    const { id } = c.req.valid('param')
+    const { deployName } = c.req.valid('json')
 
-  const name = deployName ? sanitizeDeployName(deployName) : undefined
-  const previewUrl = name ? `https://${name}.surgent.dev` : undefined
+    console.log('[deploy] request', { projectId: id, userId: c.get('user')?.id, deployName })
 
-  await db.updateTable('project').set({
-    deployment: { ...(row.deployment as any || {}), status: 'queued', name, previewUrl },
-    updatedAt: new Date(),
-  }).where('id', '=', id).execute()
+    const row = await db.selectFrom('project').selectAll().where('id', '=', id).executeTakeFirst()
+    if (!row) return c.json({ error: 'Project not found' }, 404)
+    if (row.userId !== c.get('user')!.id) return c.json({ error: 'Forbidden' }, 403)
 
-  c.executionCtx.waitUntil(
-    deployProject({ projectId: id, deployName: name }).catch(() => {})
-  )
+    const name = deployName ? sanitizeDeployName(deployName) : undefined
+    const previewUrl = name ? `https://${name}.surgent.dev` : undefined
 
-  return c.json({ scheduled: true })
+    await db.updateTable('project').set({
+      deployment: { ...(row.deployment as any || {}), status: 'queued', name, previewUrl },
+      updatedAt: new Date(),
+    }).where('id', '=', id).execute()
+
+    c.executionCtx.waitUntil(
+      deployProject({ projectId: id, deployName: name }).catch((err) => {
+        console.error('[deploy] background failed', { projectId: id, error: err?.message ?? String(err) })
+      })
+    )
+
+    console.log('[deploy] scheduled', { projectId: id })
+    return c.json({ scheduled: true })
+  } catch (err: any) {
+    console.error('[deploy] request failed', { userId: c.get('user')?.id, error: err?.message ?? String(err) })
+    return c.json({ error: 'Internal Server Error' }, 500)
+  }
 })
 
 // POST /projects/:id/activate - Resume project sandbox (alias)

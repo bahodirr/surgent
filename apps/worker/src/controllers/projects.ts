@@ -44,127 +44,95 @@ export interface DeployProjectArgs {
 export async function deployProject(
   args: DeployProjectArgs
 ): Promise<void> {
-  const project = await ProjectService.getProjectById(args.projectId);
-
-  if (!project) {
-    throw new Error(`Project ${args.projectId} not found`);
-  }
-
-  const sandboxId = project.sandbox!.id;
-  if (!sandboxId) {
-    throw new Error("Project sandbox is not initialized");
-  }
-
-  const normalizedDeployName = args.deployName
-    ? sanitizeScriptName(args.deployName)
-    : undefined;
-
-  const provider = createDaytonaProvider({
-    apiKey: config.daytona.apiKey,
-    serverUrl: config.daytona.serverUrl,
-    snapshot: config.daytona.snapshot,
-  });
-
-  await ProjectService.updateDeploymentStatus(args.projectId, "starting", normalizedDeployName);
-
-  const sandbox = await provider.resume(sandboxId);
-  const workingDir = localWorkspacePath(args.projectId);
-
-  await ProjectService.updateDeploymentStatus(args.projectId, "building");
-
-  const buildResult = await sandbox.executeCommand(
-    `cd ${workingDir} && bun run build`,
-    { timeoutMs: 180_000 }
-  );
-
-  if (buildResult.exitCode !== 0) {
-    const output =
-      buildResult.stderr || buildResult.stdout || "Unknown build error";
-    await ProjectService.updateDeploymentStatus(args.projectId, "build_failed");
-    throw new Error(`Sandbox build failed: ${output}`);
-  }
-
-  const wranglerDownloaded = await downloadFirstExistingFile(sandbox, [
-    `${workingDir}/dist/vite_reference/wrangler.json`,
-    `${workingDir}/wrangler.jsonc`,
-    `${workingDir}/wrangler.json`,
-  ]);
-  const workerDownloaded = await downloadFirstExistingFile(sandbox, [
-    `${workingDir}/dist/vite_reference/index.js`,
-    `${workingDir}/dist/index.js`,
-  ]);
-
-  const wranglerConfig = wranglerDownloaded.buffer.toString("utf8");
-  const workerContent = workerDownloaded.buffer.toString("utf8");
-
-  let assetsManifest:
-    | Record<string, { hash: string; size: number }>
-    | undefined;
-  let files: Array<{ path: string; base64: string }> | undefined;
-
-  const assetsRoot = `${workingDir}/dist/client`;
-  if (await directoryExists(sandbox, assetsRoot)) {
-    const collected = await collectAssets(sandbox, assetsRoot);
-    if (Object.keys(collected.manifest).length > 0) {
-      assetsManifest = collected.manifest;
-    }
-    if (collected.files.length > 0) {
-      files = collected.files;
-    }
-  }
-
-  let compatibilityFlags: string[] | undefined;
-  let assetsConfig: any | undefined;
-  let wranglerConfigOut = wranglerConfig;
+  let step = "start";
   try {
-    const parsed = JSON.parse(stripJsonComments(wranglerConfig));
-    if (normalizedDeployName) {
-      parsed.name = normalizedDeployName;
+    console.log("[deploy] start", { projectId: args.projectId, deployName: args.deployName });
+
+    const project = await ProjectService.getProjectById(args.projectId);
+    if (!project) throw new Error(`Project ${args.projectId} not found`);
+
+    const sandboxId = project.sandbox!.id;
+    if (!sandboxId) throw new Error("Project sandbox is not initialized");
+
+    const normalizedDeployName = args.deployName ? sanitizeScriptName(args.deployName) : undefined;
+
+    step = "status:starting";
+    await ProjectService.updateDeploymentStatus(args.projectId, "starting", normalizedDeployName);
+
+    step = "resume";
+    const provider = createDaytonaProvider({ apiKey: config.daytona.apiKey, serverUrl: config.daytona.serverUrl, snapshot: config.daytona.snapshot });
+    const sandbox = await provider.resume(sandboxId);
+    const workingDir = localWorkspacePath(args.projectId);
+
+    step = "status:building";
+    await ProjectService.updateDeploymentStatus(args.projectId, "building");
+
+    step = "build";
+    const buildResult = await sandbox.exec(`bun run build`, { cwd: workingDir, timeoutSeconds: 180_000 });
+    if (buildResult.exitCode !== 0) {
+      await ProjectService.updateDeploymentStatus(args.projectId, "build_failed");
+      throw new Error(`Build failed: ${String(buildResult.result).slice(0, 500)}`);
     }
-    wranglerConfigOut = JSON.stringify(parsed);
-    if (Array.isArray(parsed?.compatibility_flags)) {
-      compatibilityFlags = parsed.compatibility_flags;
+
+    step = "read:inputs";
+    const wranglerCat = await readFirstExistingFile(sandbox, [
+      `${workingDir}/dist/vite_reference/wrangler.json`,
+      `${workingDir}/wrangler.jsonc`,
+      `${workingDir}/wrangler.json`,
+    ], workingDir);
+    const workerCat = await readFirstExistingFile(sandbox, [
+      `${workingDir}/dist/vite_reference/index.js`,
+      `${workingDir}/dist/index.js`,
+    ], workingDir);
+
+    const wranglerConfig = wranglerCat.content;
+    const workerContent = workerCat.content;
+
+    step = "assets";
+    let assetsManifest: Record<string, { hash: string; size: number }> | undefined;
+    let files: Array<{ path: string; base64: string }> | undefined;
+    const assetsRoot = `${workingDir}/dist/client`;
+    if (await directoryExists(sandbox, assetsRoot)) {
+      const collected = await collectAssets(sandbox, assetsRoot);
+      if (Object.keys(collected.manifest).length) assetsManifest = collected.manifest;
+      if (collected.files.length) files = collected.files;
     }
-    if (parsed?.assets) {
-      assetsConfig = parsed.assets;
-    }
-  } catch {
-    // ignore parse errors of wrangler config
+
+    step = "wrangler:parse";
+    let compatibilityFlags: string[] | undefined;
+    let wranglerConfigOut = wranglerConfig;
+    try {
+      const parsed = JSON.parse(stripJsonComments(wranglerConfig));
+      if (normalizedDeployName) parsed.name = normalizedDeployName;
+      wranglerConfigOut = JSON.stringify(parsed);
+      if (Array.isArray(parsed?.compatibility_flags)) compatibilityFlags = parsed.compatibility_flags;
+    } catch {}
+
+    step = "status:uploading";
+    await ProjectService.updateDeploymentStatus(args.projectId, "uploading");
+
+    step = "deploy";
+    const wrangler = parseWranglerConfig(wranglerConfigOut);
+    const fileContents = files && files.length ? new Map(files.map((f) => [f.path, Buffer.from(f.base64, "base64")])) : undefined;
+    const deployConfig = buildDeploymentConfig(
+      wrangler,
+      workerContent,
+      config.cloudflare.accountId!,
+      config.cloudflare.apiToken!,
+      assetsManifest,
+      compatibilityFlags,
+    );
+    await deployToDispatch({ ...deployConfig, dispatchNamespace: config.cloudflare.dispatchNamespace! }, fileContents, undefined, wrangler.assets);
+
+    step = "status:deployed";
+    await ProjectService.updateProjectSandbox(args.projectId, { ...(project.sandbox as any), deployed: true, deployName: normalizedDeployName } as any);
+    await ProjectService.updateDeploymentStatus(args.projectId, "deployed");
+
+    console.log("[deploy] success", { projectId: args.projectId });
+  } catch (err: any) {
+    console.error("[deploy] failed", { projectId: args.projectId, step, error: err?.message ?? String(err) });
+    throw err;
   }
-
-  await ProjectService.updateDeploymentStatus(args.projectId, "uploading");
-
-  // Prepare deploy configuration and assets
-  const wrangler = parseWranglerConfig(wranglerConfigOut);
-  const fileContents = files && files.length
-    ? new Map(files.map((f) => [f.path, Buffer.from(f.base64, "base64")]))
-    : undefined;
-
-  const deployConfig = buildDeploymentConfig(
-    wrangler,
-    workerContent,
-    config.cloudflare.accountId!,
-    config.cloudflare.apiToken!,
-    assetsManifest,
-    compatibilityFlags,
-  );
-
-  // Execute deployment directly (no HTTP hop)
-  await deployToDispatch(
-    { ...deployConfig, dispatchNamespace: config.cloudflare.dispatchNamespace! },
-    fileContents,
-    undefined,
-    wrangler.assets,
-  );
-
-  // Update sandbox deployment status
-  await ProjectService.updateProjectSandbox(args.projectId, {
-    ...(project.sandbox as any),
-    deployed: true,
-    deployName: normalizedDeployName,
-  } as any);
-
-  await ProjectService.updateDeploymentStatus(args.projectId, "deployed");
 }
 
 const posix = path.posix;
@@ -209,6 +177,24 @@ async function directoryExists(
   }
 }
 
+async function downloadFileSafe(
+  sandbox: SandboxInstance,
+  path: string,
+  cwd?: string,
+): Promise<Buffer> {
+  try {
+    return await sandbox.fs.downloadFile(path);
+  } catch (_err) {
+    const cmd = `base64 -w0 ${shellQuote(path)} 2>/dev/null || base64 ${shellQuote(path)}`;
+    const res = await sandbox.exec(cmd, { timeoutSeconds: 60, cwd });
+    if (res.exitCode !== 0) {
+      throw new Error(`downloadFileSafe failed: ${String(res.result)}`);
+    }
+    const b64 = (res.result || '').toString().trim();
+    return Buffer.from(b64, 'base64');
+  }
+}
+
 async function collectAssets(
   sandbox: SandboxInstance,
   rootDir: string
@@ -232,18 +218,18 @@ async function collectAssets(
         continue;
       }
 
-      const buffer = await sandbox.fs.downloadFile(entryPath);
+      const buffer = await downloadFileSafe(sandbox, entryPath);
       const relative = posix.relative(normalizedRoot, entryPath);
       const normalizedRelative = relative
-        ? `/${relative.split(posix.sep).join("/")}`
-        : "/";
+        ? `/${relative.split(posix.sep).join('/')}`
+        : '/';
       manifest[normalizedRelative] = {
-        hash: createHash("sha256").update(buffer).digest("hex").slice(0, 32),
+        hash: createHash('sha256').update(buffer).digest('hex').slice(0, 32),
         size: buffer.length,
       };
       files.push({
         path: normalizedRelative,
-        base64: buffer.toString("base64"),
+        base64: buffer.toString('base64'),
       });
     }
   }
@@ -273,20 +259,16 @@ function stripTrailingSlash(input: string): string {
   return input;
 }
 
-async function downloadFirstExistingFile(
+async function readFirstExistingFile(
   sandbox: SandboxInstance,
-  candidatePaths: string[]
-): Promise<{ path: string; buffer: Buffer }> {
+  candidatePaths: string[],
+  workingDir: string
+): Promise<{ path: string; content: string }> {
   for (const p of candidatePaths) {
     try {
-      const info = await sandbox.fs.getFileDetails(p);
-      if (!isDirectory(info)) {
-        const buffer = await sandbox.fs.downloadFile(p);
-        return { path: p, buffer } as { path: string; buffer: Buffer };
-      }
-    } catch {
-      // ignore and try next path
-    }
+      const buf = await downloadFileSafe(sandbox, p, workingDir);
+      return { path: p, content: buf.toString('utf8') };
+    } catch {}
   }
   throw new Error(`Required file not found. Tried: ${candidatePaths.join(", ")}`);
 }
@@ -312,6 +294,48 @@ export async function setRunIndefinitely(sandboxId: string): Promise<{ sandboxId
 // ============================================================================
 // Sandbox Initialization & Resume
 // ============================================================================
+
+async function pm2JList(
+  sandbox: SandboxInstance,
+  cwd: string
+): Promise<any[]> {
+  try {
+    const out = await sandbox.exec("pm2 jlist", { timeoutSeconds: 30, cwd });
+    try {
+      const parsed = JSON.parse(out.result);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  } catch {
+    return [];
+  }
+}
+
+async function isPm2Online(
+  sandbox: SandboxInstance,
+  cwd: string,
+  name: string
+): Promise<boolean> {
+  const list = await pm2JList(sandbox, cwd);
+  const proc = Array.isArray(list)
+    ? list.find((p: any) => p?.name === name)
+    : undefined;
+  const status = proc?.pm2_env?.status;
+  return status === "online";
+}
+
+async function ensurePm2Process(
+  sandbox: SandboxInstance,
+  cwd: string,
+  name: string,
+  command: string
+): Promise<void> {
+  const online = await isPm2Online(sandbox, cwd, name);
+  if (online) return;
+  const startCmd = `pm2 start "${command}" --name ${name} --update-env`;
+  await sandbox.exec(startCmd, { timeoutSeconds: 5 * 60, cwd });
+}
 
 async function getOrCreateSandbox(options: {
   port: number;
@@ -351,7 +375,6 @@ async function getOrCreateSandbox(options: {
 export async function initializeProject(
   args: InitializeProjectArgs
 ): Promise<{ projectId: string; sandboxId: string; previewUrl: string }> {
-  const now = new Date();
   const created = await ProjectService.createProject({
     userId: args.userId,
     name: args.name || "app",
@@ -377,9 +400,10 @@ export async function initializeProject(
     await sandbox.git.clone(args.githubUrl, workingDirectory);
   }
 
-  // Read surgent.json for init and dev scripts
+  // Read surgent.json for init, dev scripts, and name
   let initScript: string | undefined;
   let devScript: string | undefined;
+  let processName = `${projectId}-vite-server`;
   try {
     const buffer = await sandbox.exec(`cat ${workingDirectory}/surgent.json`, { timeoutSeconds: 10 });
     const config = JSON.parse(stripJsonComments(buffer.result));
@@ -387,16 +411,20 @@ export async function initializeProject(
     console.log("config", config);
     initScript = config?.scripts?.init;
     devScript = config?.scripts?.dev;
+    if (typeof config?.name === "string" && config.name.trim()) {
+      processName = config.name.trim();
+    }
   } catch {
     // no surgent.json
   }
 
   console.log("initScript", initScript);
   console.log("devScript", devScript);
+  console.log("processName", processName);
 
   // Run init script
   if (initScript) {
-    const initResult = await sandbox.exec (
+    const initResult = await sandbox.exec(
       buildBashCommand(workingDirectory, initScript),
       { timeoutSeconds: 30 * 60 }
     );
@@ -404,20 +432,19 @@ export async function initializeProject(
   }
 
   // Start dev server with PM2
-  let processName =`${projectId}-vite-server`;
-
   if (devScript) {
-    const pm2Cmd = `pm2 start "${devScript}" --name ${processName}`;
-    const devResult = await sandbox.exec(
-      pm2Cmd,
-      { timeoutSeconds: 5 * 60, cwd: workingDirectory }
+    await ensurePm2Process(
+      sandbox,
+      workingDirectory,
+      processName,
+      devScript
     );
-    console.log("devResult", devResult.exitCode, devResult.result);
-    const agentResult = await sandbox.exec(`pm2 start "opencode serve --hostname 0.0.0.0 --port 4096" --name agent-opencode-server`, {
-      timeoutSeconds: 5 * 60,
-      cwd: workingDirectory,
-    });
-    console.log("agentResult", agentResult.exitCode);
+    await ensurePm2Process(
+      sandbox,
+      workingDirectory,
+      "agent-opencode-server",
+      "opencode serve --hostname 0.0.0.0 --port 4096"
+    );
   }
 
   // Persist metadata
@@ -467,44 +494,20 @@ export async function resumeProject(
     const processName = (project?.metadata as any)?.processName;
 
     if (startCommand && processName) {
-      // Check if process already exists
-      const checkProcess = await sandbox.exec(`pm2 describe ${processName} 2>/dev/null`, {
-        timeoutSeconds: 30,
-        cwd: workingDirectory,
-      });
-
-      if (checkProcess.exitCode !== 0) {
-        // Process doesn't exist, start it
-        console.log(`Starting process: ${processName}`);
-        const pm2Script = `pm2 start "${startCommand}" --name ${processName}`;
-        const result = await sandbox.exec(pm2Script, {
-          timeoutSeconds: 5 * 60,
-          cwd: workingDirectory,
-        });
-        console.log("App process started", result.exitCode);
-      } else {
-        console.log(`Process ${processName} already running, skipping start`);
-      }
+      await ensurePm2Process(
+        sandbox,
+        workingDirectory,
+        processName,
+        startCommand
+      );
     }
 
-    // Check if agent server is already running
-    const checkAgent = await sandbox.exec(`pm2 describe agent-opencode-server 2>/dev/null`, {
-      timeoutSeconds: 30,
-      cwd: workingDirectory,
-    });
-    console.log("checkAgent", checkAgent.exitCode);
-    if (checkAgent.exitCode !== 0) {
-      // Agent process doesn't exist, start it
-      console.log("Starting agent server");
-      const agentStart = `pm2 start "opencode serve --hostname 0.0.0.0 --port 4096" --name agent-opencode-server`;
-      const agentResult = await sandbox.exec(agentStart, {
-        timeoutSeconds: 5 * 60,
-        cwd: workingDirectory,
-      });
-      console.log("Agent server started", agentResult.exitCode);
-    } else {
-      console.log("Agent server already running, skipping start");
-    }
+    await ensurePm2Process(
+      sandbox,
+      workingDirectory,
+      "agent-opencode-server",
+      "opencode serve --hostname 0.0.0.0 --port 4096"
+    );
   } catch (err) {
     console.log("resumeProject pm2 start error", err);
   }
