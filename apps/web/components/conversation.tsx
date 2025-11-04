@@ -44,10 +44,11 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
     return true;
   }, [messages, lastAt]);
 
-  const handleCreateSession = () => {
-    createSession.mutate(undefined, {
-      onSuccess: () => router.push(`/project?id=${projectId}`),
-    });
+  const handleCreateSession = async () => {
+    const newSession = await createSession.mutateAsync();
+    if (newSession?.id) {
+      setSelectedSessionId(newSession.id);
+    }
   };
 
   const handleSessionChange = (newSessionId: string) => {

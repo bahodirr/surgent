@@ -52,7 +52,7 @@ export default function DashboardPage() {
     create.mutate(
       { name: `Project ${new Date().toLocaleDateString()}`, githubUrl: 'https://github.com/bahodirr/worker-vite-react-template' },
       {
-        onSuccess: ({ id }) => router.push(`/project?id=${id}`),
+        onSuccess: ({ id }) => router.push(`/project/${id}`),
         onError: () => toast.error('Failed to create project. Please try again.'),
       }
     );
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                 <div
                   key={project.id}
                   className="rounded-3xl border border-border/50 bg-muted/30 p-6 hover:bg-muted/50 hover:border-border/70 transition-all cursor-pointer group"
-                  onClick={() => router.push(`/project?id=${project.id}`)}
+                  onClick={() => router.push(`/project/${project.id}`)}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="space-y-1">
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/project?id=${project.id}`);
+                            router.push(`/project/${project.id}`);
                           }}
                         >
                           Open
