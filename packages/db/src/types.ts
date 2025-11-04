@@ -13,8 +13,8 @@ export interface UserTable {
   email: string
   emailVerified: boolean
   image: string | null
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface SessionTable {
@@ -24,7 +24,7 @@ export interface SessionTable {
   expiresAt: Date
   ipAddress: string | null
   userAgent: string | null
-  createdAt: Date
+  createdAt?: Date
   updatedAt: Date
 }
 
@@ -40,8 +40,8 @@ export interface AccountTable {
   scope: string | null
   idToken: string | null
   password: string | null
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface VerificationTable {
@@ -49,8 +49,8 @@ export interface VerificationTable {
   identifier: string
   value: string
   expiresAt: Date
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 
@@ -63,8 +63,8 @@ export interface ProjectTable {
   deployment: any | null
   sandbox: any | null
   metadata: any | null
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface ChatsTable {
@@ -74,6 +74,6 @@ export interface ChatsTable {
   title: string | null
   metadata: any | null
   stats: any | null
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }

@@ -12,8 +12,8 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('deployment', 'jsonb')
     .addColumn('sandbox', 'jsonb')
     .addColumn('metadata', 'jsonb')
-    .addColumn('createdAt', 'timestamp', (col) => col.notNull())
-    .addColumn('updatedAt', 'timestamp', (col) => col.notNull())
+    .addColumn('createdAt', 'timestamp', (col) => col.notNull().defaultTo(sql`now()`))
+    .addColumn('updatedAt', 'timestamp', (col) => col.notNull().defaultTo(sql`now()`))
     .execute()
 
   // Index for listing projects by user
@@ -32,8 +32,8 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('title', 'text')
     .addColumn('metadata', 'jsonb')
     .addColumn('stats', 'jsonb')
-    .addColumn('createdAt', 'timestamp', (col) => col.notNull())
-    .addColumn('updatedAt', 'timestamp', (col) => col.notNull())
+    .addColumn('createdAt', 'timestamp', (col) => col.notNull().defaultTo(sql`now()`))
+    .addColumn('updatedAt', 'timestamp', (col) => col.notNull().defaultTo(sql`now()`))
     .execute()
 
   // Index for listing chats by project
