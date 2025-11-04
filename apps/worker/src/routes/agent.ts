@@ -1,11 +1,23 @@
 import { Hono } from 'hono'
+import { Configuration, SandboxApi } from '@daytonaio/api-client'
 import { db } from '@repo/db'
 import { requireAuth } from '../middleware/auth'
 import type { AppContext } from '@/types/application'
 
 const agent = new Hono<AppContext>()
 
-// Proxy all OpenCode endpoints: /api/agent/:id/* → https://4096-{sandbox}.surgent.dev/*
+function createSandboxApi(env: Env): SandboxApi {
+  const basePath = env.DAYTONA_API_URL || 'https://app.daytona.io/api'
+  const apiKey = env.DAYTONA_API_KEY
+  return new SandboxApi(
+    new Configuration({
+      basePath,
+      baseOptions: { headers: { Authorization: `Bearer ${apiKey}` } },
+    })
+  )
+}
+
+// Proxy all OpenCode endpoints: /api/agent/:id/* → Daytona preview URL for port 4096
 agent.all('/:id/*', requireAuth, async (c) => {
   const projectId = c.req.param('id')
   
@@ -21,18 +33,37 @@ agent.all('/:id/*', requireAuth, async (c) => {
   
   const sandbox = project.sandbox as { id?: string } | null
   if (!sandbox?.id) return c.json({ error: 'Sandbox not found' }, 400)
-  
-  // Build target URL
-  const url = new URL(c.req.url)
-  const path = url.pathname.replace(`/api/agent/${projectId}`, '')
-  const target = `https://4096-${sandbox.id}.surgent.dev${path}${url.search}`
 
-  // Proxy request
-  return fetch(target, {
-    method: c.req.method,
-    headers: c.req.raw.headers,
-    body: c.req.raw.body,
-  })
+  if (!c.env.DAYTONA_API_URL || !c.env.DAYTONA_API_KEY) {
+    return c.text('Daytona not configured', 500)
+  }
+
+  try {
+    const api = createSandboxApi(c.env)
+    const previewResp = await api.getPortPreviewUrl(sandbox.id, 4096)
+    const previewUrl = previewResp.data.url as string
+    const token = previewResp.data.token as string
+
+    const url = new URL(c.req.url)
+    const path = url.pathname.replace(`/api/agent/${projectId}`, '')
+    const targetUrl = new URL(previewUrl)
+    targetUrl.pathname = `${targetUrl.pathname.replace(/\/$/, '')}${path}`
+    targetUrl.search = url.search
+
+    const headers = new Headers(c.req.raw.headers)
+    headers.set('x-daytona-preview-token', token)
+    headers.set('x-daytona-skip-preview-warning', 'true')
+    headers.delete('host')
+    console.log("proxied request to", targetUrl.toString());
+    
+    return await fetch(new Request(targetUrl.toString(), {
+      method: c.req.method,
+      headers,
+      body: c.req.raw.body,
+    }))
+  } catch {
+    return c.text('Upstream unavailable', 502)
+  }
 })
 
 export default agent

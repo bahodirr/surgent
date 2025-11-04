@@ -25,18 +25,6 @@ function createSandboxApi(env: Env): SandboxApi {
   )
 }
 
-async function ensureSandboxRunning(api: SandboxApi, sandboxId: string): Promise<void> {
-  try {
-    const info = await api.getSandbox(sandboxId)
-    const state = String((info.data as any)?.state || '').toLowerCase()
-    if (state === 'stopped' || state === 'archived') {
-      try {
-        await api.startSandbox(sandboxId)
-      } catch {}
-    }
-  } catch {}
-}
-
 preview.all('/*', async (c) => {
   const url = new URL(c.req.url)
   const defaultPort = Number(c.env.DEFAULT_SANDBOX_PORT || '3000')
@@ -48,7 +36,6 @@ preview.all('/*', async (c) => {
 
   try {
     const api = createSandboxApi(c.env)
-    await ensureSandboxRunning(api, sandboxId)
 
     const previewResp = await api.getPortPreviewUrl(sandboxId, port)
     const previewUrl = previewResp.data.url as string
