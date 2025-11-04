@@ -5,36 +5,27 @@ const dispatch = new Hono<AppContext>()
 
 function extractSubdomain(hostname: string): string | null {
   const parts = hostname.split('.')
+  // Return subdomain if it exists and hostname has at least 2 parts
   return parts.length >= 2 ? parts[0] || null : null
 }
 
-function extractWorkerFromPath(url: URL): string | null {
-  const segments = url.pathname.split('/').filter(Boolean)
-  return segments.length > 0 ? segments[0] : null
-}
-
 dispatch.all('/*', async (c) => {
+  const url = new URL(c.req.url)
+  const subdomain = extractSubdomain(url.hostname)
+
+  // If subdomain is 'api' or empty, skip dispatch - let backend routes handle it
+  if (!subdomain || subdomain === 'api') {
+    return c.notFound()
+  }
+
+  // Check dispatcher binding is configured
   if (!c.env.dispatcher) {
     return c.text('Dispatcher binding is not configured', 500)
   }
 
-  const url = new URL(c.req.url)
-  let workerName = extractSubdomain(url.hostname)
-
-  if (!workerName) {
-    workerName = extractWorkerFromPath(url)
-    if (workerName) {
-      const segments = url.pathname.split('/').filter(Boolean)
-      url.pathname = segments.length > 1 ? `/${segments.slice(1).join('/')}` : '/'
-    }
-  }
-
-  if (!workerName) {
-    return c.notFound()
-  }
-
+  // Dispatch to worker named after the subdomain
   try {
-    const worker = c.env.dispatcher.get(workerName)
+    const worker = c.env.dispatcher.get(subdomain)
     const targetRequest = new Request(url.toString(), c.req.raw)
     return await worker.fetch(targetRequest)
   } catch (error) {

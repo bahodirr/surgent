@@ -4,3 +4,6 @@ dist/**/*
 .env
 .wrangler
 CLAUDE.md
+set-secrets.sh
+.env.prod
+.env.local
