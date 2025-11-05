@@ -175,9 +175,8 @@ export const WebPreviewBody = ({
     <div className="flex-1">
       <iframe
         className={cn('size-full', className)}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-presentation allow-pointer-lock allow-storage-access-by-user-activation"
-        allow="ambient-light-sensor; autoplay; camera; clipboard-read; clipboard-write; geolocation; display-capture; encrypted-media; fullscreen; gamepad; gyroscope; magnetometer; microphone; midi; payment; usb; bluetooth; hid; serial; xr-spatial-tracking; speaker-selection; screen-wake-lock; idle-detection; publickey-credentials-get; nfc; local-fonts; window-management"
-        allowFullScreen
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-presentation allow-pointer-lock allow-storage-access-by-user-activation allow-downloads"
+        allow="autoplay; camera; clipboard-read; clipboard-write; geolocation; display-capture; encrypted-media; fullscreen; gamepad; gyroscope; magnetometer; microphone; midi; payment; usb; bluetooth; hid; serial; xr-spatial-tracking; screen-wake-lock; idle-detection; publickey-credentials-get; local-fonts; window-management"
         src={(src ?? url) || undefined}
         title="Preview"
         {...props}
