@@ -35,7 +35,7 @@ function toolSubtitle(part: ToolPart) {
   if (part.tool === "write" || part.tool === "edit") return i.filePath;
   if (part.tool === "list" || part.tool === "glob") return i.path;
   if (part.tool === "webfetch") return i.url;
-  if (part.tool === "bash" || part.tool === "devLogs" || part.tool === "dev") return i.command;
+  if (part.tool === "bash" || part.tool === "devLogs" || part.tool === "Dev") return i.command;
   if (part.tool === "task") return i.description;
   if (part.tool === "grep") return [i.path, i.pattern].filter(Boolean).join(" ");
 }
