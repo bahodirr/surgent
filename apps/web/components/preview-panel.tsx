@@ -75,9 +75,8 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
   }, [currentUrl, previewUrl]);
   const handleOpen = useCallback(() => {
     const url = `https://${project.deployment.name}.surgent.dev`
-    if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
-  }, [currentUrl, previewUrl]);
+  }, [project]);
 
   const handleConfirmDeploy = useCallback(async (sanitizedName: string) => {
     if (!projectId || isDeploying) return;

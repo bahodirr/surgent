@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { Plus, MessageCircle } from "lucide-react";
 import ChatInput from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -95,26 +96,34 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
             <div className="flex items-center gap-3 min-w-0 flex-1">
             <Select value={selectedSessionId} onValueChange={handleSessionChange} disabled={isLoadingSessions}>
               <SelectTrigger className="h-8 w-[200px] text-xs">
-                <SelectValue placeholder="Select session" />
+                <SelectValue placeholder={isLoadingSessions ? "Loading..." : "Select session"} />
               </SelectTrigger>
               <SelectContent>
-                {sessions.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="text-xs">
-                    {s.title || 'Untitled session'}
+                {isLoadingSessions ? (
+                  <SelectItem value="loading" disabled className="text-xs">
+                    Loading sessions...
                   </SelectItem>
-                ))}
+                ) : sessions.length === 0 ? (
+                  <SelectItem value="empty" disabled className="text-xs">
+                    No sessions yet
+                  </SelectItem>
+                ) : (
+                  sessions.map((s) => (
+                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                      {s.title || 'Untitled session'}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={handleCreateSession}
-              disabled={createSession.isPending}
+              disabled={createSession.isPending || isLoadingSessions}
               className="h-8 text-xs"
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus className="h-3.5 w-3.5" />
             </Button>
             <div className="flex items-center gap-2">
               {isWorking && (
@@ -153,10 +162,13 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
                 <div ref={bottomRef} className="h-px" />
               </>
             ) : (
-              <div className="flex items-center justify-center min-h-[400px] text-center space-y-1">
-                <div>
-                  <p className="text-sm text-foreground/80">No messages yet</p>
-                  <p className="text-xs text-foreground/60">Start a conversation below</p>
+              <div className="flex flex-col items-center justify-center min-h-[500px] text-center">
+                <div className="flex flex-col items-center gap-3">
+                  <MessageCircle className="h-12 w-12 text-foreground/20" strokeWidth={1.5} />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground/80">No messages yet</p>
+                    <p className="text-xs text-foreground/50">Start a conversation to get started</p>
+                  </div>
                 </div>
               </div>
             )}

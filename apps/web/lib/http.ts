@@ -5,6 +5,7 @@ export const http = ky.create({
   credentials: 'include',
   headers: { 'Content-Type': 'application/json' },
   retry: { limit: 2 },
+  timeout: 30000,
 })
 
 export const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL
