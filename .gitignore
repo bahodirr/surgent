@@ -40,3 +40,5 @@ yarn-error.log*
 .cursor
 
 /opencode
+
+worker-configuration.d.ts

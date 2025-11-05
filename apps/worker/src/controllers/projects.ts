@@ -7,6 +7,8 @@ import { createHash } from "crypto";
 import stripJsonComments from "strip-json-comments";
 import * as ProjectService from "@/services/projects";
 import { buildDeploymentConfig, parseWranglerConfig, deployToDispatch } from "@/apis/deploy";
+import { createProjectOnTeam, createDeployKey, setDeploymentEnvVars } from "@/apis/convex";
+import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 
 // ============================================================================
 // Types
@@ -445,13 +447,81 @@ export async function initializeProject(
       "agent-opencode-server",
       "opencode serve --hostname 0.0.0.0 --port 4096"
     );
+
+    // TODO: Improve auth handling for api keys/ add custom agents for speciic tasks. Convex better handling
+
+    // Configure opencode auth for provider "zai" and default model glm-4.6
+    try {
+      const opencodeUrl = await sandbox.getHost(4096);
+      const apiKey = process.env.Z_AI_API_KEY;
+
+      // Persist API key via auth.set (server-side stored in auth.json)
+      if (apiKey) {
+        const authResponse = await fetch(`${opencodeUrl}/auth/zai?directory=${encodeURIComponent(workingDirectory)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "api", key: apiKey }),
+          },
+        ).catch(() => {});
+        // console.log("authResponse", authResponse);
+      }
+
+      // Set default model and optional baseURL via config.update
+      const cfg: any = { model: "zai/glm-4.6" };
+      const configResponse = await fetch(`${opencodeUrl}/config?directory=${encodeURIComponent(workingDirectory)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cfg),
+        },
+      ).catch(() => {});
+      // console.log("configResponse", configResponse);
+    } catch (err) {
+      console.log("[init] opencode provider auth/config update failed", err);
+    }
+  }
+
+  // Provision Convex dev deployment and write .env.local for CLI use
+  const convexProject = await createProjectOnTeam({ name: args.name || "app", deploymentType: "dev" });
+  const deployKey = await createDeployKey(convexProject.deploymentName);
+  
+  const envContent = [
+    `CONVEX_DEPLOYMENT=${convexProject.deploymentName}`,
+    `CONVEX_URL=${convexProject.deploymentUrl}`,
+    `CONVEX_DEPLOY_KEY=${deployKey}`,
+    `VITE_CONVEX_URL=${convexProject.deploymentUrl}`,
+  ].join("\n") + "\n";
+  
+  const writeEnvCmd = `printf %s ${shellQuote(envContent)} > .env.local`;
+  await sandbox.exec(buildBashCommand(workingDirectory, writeEnvCmd), { timeoutSeconds: 30 });
+
+  // Bootstrap Convex Auth env vars (JWKS, JWT_PRIVATE_KEY, SANDBOX_PREVIEW_URL)
+  try {
+    const { jwks, privateKey } = await generateJwks();
+    await setDeploymentEnvVars(convexProject.deploymentUrl, deployKey, {
+      JWKS: jwks,
+      JWT_PRIVATE_KEY: privateKey,
+      SANDBOX_PREVIEW_URL: base.previewUrl,
+    });
+  } catch (err) {
+    console.error('[convex] env bootstrap failed', err);
   }
 
   // Persist metadata
+  const current = await ProjectService.getProjectById(projectId);
   await ProjectService.updateProjectMetadata(projectId, {
+    ...(current?.metadata as any),
     workingDirectory,
     processName,
     startCommand: devScript,
+    convex: {
+      projectId: convexProject.projectId,
+      projectSlug: convexProject.projectSlug,
+      deploymentName: convexProject.deploymentName,
+      deploymentUrl: convexProject.deploymentUrl,
+      deployKey,
+    },
   } as any);
 
   // Update sandbox state
@@ -513,4 +583,38 @@ export async function resumeProject(
   }
 
   return { sandboxId: base.sandboxId, previewUrl: base.previewUrl };
+}
+
+/**
+ * Generate RS256 JWKS for Convex Auth
+ */
+async function generateJwks(): Promise<{ jwks: string; privateKey: string }> {
+  const keys = await generateKeyPair('RS256', { extractable: true });
+  const privateKey = await exportPKCS8(keys.privateKey);
+  const publicKey = await exportJWK(keys.publicKey);
+  const jwks = JSON.stringify({ keys: [{ use: 'sig', ...publicKey }] });
+  
+  return {
+    jwks,
+    privateKey: privateKey.trimEnd().replace(/\n/g, ' '),
+  };
+}
+
+/**
+ * Promote current functions to production via Convex CLI
+ */
+export async function deployConvexProd(args: { projectId: string }): Promise<void> {
+  const project = await ProjectService.getProjectById(args.projectId);
+  if (!project) throw new Error(`Project ${args.projectId} not found`);
+  const sandboxId = (project.sandbox as any)?.id;
+  if (!sandboxId) throw new Error("Sandbox not found");
+
+  const provider = createDaytonaProvider({ apiKey: config.daytona.apiKey, serverUrl: config.daytona.serverUrl });
+  const sandbox = await provider.resume(sandboxId);
+  const cwd = (project.metadata as any)?.workingDirectory || localWorkspacePath(args.projectId);
+
+  const res = await sandbox.exec('bunx convex deploy -y', { cwd, timeoutSeconds: 180_000 });
+  if (res.exitCode !== 0) {
+    throw new Error(`convex deploy failed: ${String(res.result)}`);
+  }
 }

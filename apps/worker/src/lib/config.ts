@@ -11,5 +11,9 @@ export const config = {
     dispatchNamespace: process.env.DISPATCH_NAMESPACE_NAME,
     deployUrl: process.env.CLOUDFLARE_DEPLOY_URL,
   },
+  convex: {
+    host: process.env.CONVEX_HOST || 'https://api.convex.dev',
+    teamId: process.env.CONVEX_TEAM_ID,
+    teamToken: process.env.CONVEX_TEAM_TOKEN,
+  },
 } as const;
-

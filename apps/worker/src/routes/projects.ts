@@ -4,7 +4,8 @@ import { db } from '@repo/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { requireAuth } from '../middleware/auth'
-import { deployProject, initializeProject, resumeProject } from '@/controllers/projects'
+import { deployProject, initializeProject, resumeProject, deployConvexProd } from '@/controllers/projects'
+import { listDeploymentEnvVars, setDeploymentEnvVars } from '@/apis/convex'
 
 const projects = new Hono<AppContext>()
 
@@ -117,6 +118,56 @@ projects.post(
 
     return c.json({ scheduled: true })
   },
+)
+
+// Convex prod deploy (promote)
+projects.post('/:id/convex/deploy/prod', zValidator('param', idParam), async (c) => {
+  const { id } = c.req.valid('param')
+  const row = await db.selectFrom('project').selectAll().where('id', '=', id).executeTakeFirst()
+  if (!row) return c.json({ error: 'Project not found' }, 404)
+  if (row.userId !== c.get('user')!.id) return c.json({ error: 'Forbidden' }, 403)
+
+  await deployConvexProd({ projectId: id })
+  return c.json({ deployed: true })
+})
+
+// GET /projects/:id/convex/env - List all environment variables
+projects.get('/:id/convex/env', zValidator('param', idParam), async (c) => {
+  const { id } = c.req.valid('param')
+  const row = await db.selectFrom('project').selectAll().where('id', '=', id).executeTakeFirst()
+  if (!row) return c.json({ error: 'Project not found' }, 404)
+  if (row.userId !== c.get('user')!.id) return c.json({ error: 'Forbidden' }, 403)
+
+  const convex = (row.metadata as any)?.convex
+  if (!convex?.deploymentUrl || !convex?.deployKey) {
+    return c.json({ error: 'Convex not provisioned' }, 400)
+  }
+
+  const vars = await listDeploymentEnvVars(convex.deploymentUrl, convex.deployKey)
+  return c.json({ environmentVariables: vars })
+})
+
+// POST /projects/:id/convex/env - Update environment variables
+projects.post(
+  '/:id/convex/env',
+  zValidator('param', idParam),
+  zValidator('json', z.object({ vars: z.record(z.string(), z.string()) })),
+  async (c) => {
+    const { id } = c.req.valid('param')
+    const { vars } = c.req.valid('json')
+    
+    const row = await db.selectFrom('project').selectAll().where('id', '=', id).executeTakeFirst()
+    if (!row) return c.json({ error: 'Project not found' }, 404)
+    if (row.userId !== c.get('user')!.id) return c.json({ error: 'Forbidden' }, 403)
+
+    const convex = (row.metadata as any)?.convex
+    if (!convex?.deploymentUrl || !convex?.deployKey) {
+      return c.json({ error: 'Convex not provisioned' }, 400)
+    }
+
+    await setDeploymentEnvVars(convex.deploymentUrl, convex.deployKey, vars)
+    return c.json({ updated: true })
+  }
 )
 
 export default projects
