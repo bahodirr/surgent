@@ -23,6 +23,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
   const isReady = hasSandbox;
   const previewUrl = isReady ? `https://3000-${sandboxId}.${proxyHost}` : undefined;
   const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = isReady ? 'ready' : 'initializing';
+  
 
   useEffect(() => {
     if (!onPreviewUrl) return;
@@ -37,7 +38,6 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
-  // Using shadcn Tabs for tab state & rendering
 
   const webPreviewKey = useMemo(() => `${previewUrl ?? 'empty'}:${reloadCount}`, [previewUrl, reloadCount]);
 
@@ -74,7 +74,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
     navigator.clipboard?.writeText(url).catch(() => {});
   }, [currentUrl, previewUrl]);
   const handleOpen = useCallback(() => {
-    const url = currentUrl || previewUrl || '';
+    const url = `https://${project.deployment.name}.surgent.dev`
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
   }, [currentUrl, previewUrl]);
@@ -133,7 +133,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
               size="sm"
               variant="secondary"
               className="cursor-pointer"
-              disabled={!previewUrl}
+              disabled={!`https://${project.deployment.name}.surgent.dev`}
               onClick={handleOpen}
             >
               <ExternalLink className="h-4 w-4" /> Open
