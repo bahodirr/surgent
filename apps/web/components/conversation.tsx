@@ -12,7 +12,7 @@ import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
 import useAgentStream from "@/lib/use-agent-stream";
 import { AgentThread } from "@/components/agent/agent-thread";
-import { useSessionsQuery, useCreateSession, useSendMessage } from "@/queries/chats";
+import { useSessionsQuery, useCreateSession, useSendMessage, useAbortSession } from "@/queries/chats";
 import SessionDiffDialog from "@/components/diff/session-diff-dialog";
 
 interface ConversationProps {
@@ -36,6 +36,7 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
   const { data: sessions = [], isLoading: isLoadingSessions } = useSessionsQuery(projectId);
   const createSession = useCreateSession(projectId);
   const sendMessage = useSendMessage(projectId);
+  const abortSession = useAbortSession();
 
   const isWorking = useMemo(() => {
     const last = messages[messages.length - 1];
@@ -85,6 +86,11 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
     sendMessage.mutate({ sessionId: selectedSessionId, text: text.trim(), agent: mode });
   };
 
+  const handleAbort = () => {
+    if (!selectedSessionId) return;
+    abortSession.mutate({ projectId: projectId!, sessionId: selectedSessionId });
+  };
+
   const placeholder = activeTab === 'chat' ? "Ask anything..." : "Agent actions coming soon";
 
   return (
@@ -126,12 +132,6 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
               <Plus className="h-3.5 w-3.5" />
             </Button>
             <div className="flex items-center gap-2">
-              {isWorking && (
-                <div className="flex items-center gap-1 text-xs text-foreground/60">
-                  <div className="h-1.5 w-1.5 rounded-full bg-foreground/40" />
-                  <span>Working</span>
-                </div>
-              )}
               {currentSession?.summary?.diffs && currentSession.summary.diffs.length > 0 && (
                 <Button
                   size="sm"
@@ -154,7 +154,7 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
       {/* Main content area */}
       <TabsContent value="chat" className="flex-1 min-h-0 relative m-0">
         <div ref={scrollRef} className="h-full">
-          <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]]:scroll-smooth">
+          <ScrollArea className="h-full" style={{ scrollBehavior: "smooth" }}>
             <div className="max-w-4xl mx-auto px-6 py-8 scroll-py-4">
             {messages.length > 0 ? (
               <>
@@ -176,6 +176,7 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
           </ScrollArea>
         </div>
         
+        {/* Abort moved into ChatInput header */}
       </TabsContent>
       
       <TabsContent value="agent" className="flex-1 min-h-0 m-0">
@@ -194,6 +195,9 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
               placeholder={isWorking ? "Assistant is working..." : placeholder}
               mode={mode}
               onToggleMode={() => setMode((m) => (m === 'plan' ? 'build' : 'plan'))}
+              isWorking={isWorking}
+              onStop={handleAbort}
+              isStopping={abortSession.isPending}
             />
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,9 @@ type ChatInputProps = {
   className?: string;
   mode?: 'plan' | 'build';
   onToggleMode?: () => void;
+  isWorking?: boolean;
+  onStop?: () => void;
+  isStopping?: boolean;
 };
 
 export default function ChatInput({
@@ -19,63 +22,41 @@ export default function ChatInput({
   className,
   mode = 'plan',
   onToggleMode,
+  isWorking = false,
+  onStop,
+  isStopping = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
-  const isEmpty = !value.trim();
-  const isSubmitDisabled = disabled || isEmpty;
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = async () => {
     const text = value.trim();
     if (!text || disabled) return;
-    // Clear optimistically so input always resets after submit
     setValue("");
     try {
-      await Promise.resolve(onSubmit(text));
-    } catch {
-      // ignore errors; we don't repopulate the input
-    }
-  }, [value, disabled, onSubmit]);
+      await onSubmit(text);
+    } catch {}
+  };
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleStopClick = async () => {
+    if (!onStop) return;
+    try { await onStop(); } catch {}
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-  }, [handleSubmit]);
+  };
 
   return (
     <div className={cn("w-full", className)}>
-      <div className="w-full">
-        <div className="flex flex-col h-fit p-2">
-          <div className="relative w-full border border-input bg-white/80 shadow-sm rounded-2xl">
-            {/* Mode toggle badge (left-bottom) */}
-            <div className="absolute bottom-2 left-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onToggleMode}
-                aria-pressed={mode === 'plan'}
-                className={cn(
-                  "h-7 px-3 rounded-full text-xs font-medium transition-colors cursor-pointer select-none border",
-                  mode === 'plan'
-                    ? "bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-50 hover:border-purple-400 hover:text-purple-700"
-                    : "bg-transparent text-foreground/70 border-transparent hover:bg-foreground/5",
-                )}
-                aria-label="Toggle mode"
-              >
-                <span
-                  className={cn(
-                    "mr-1.5 inline-block h-2 w-2 rounded-full",
-                    mode === 'plan' ? "bg-purple-500" : "bg-foreground/40",
-                  )}
-                />
-                Discuss (No edits)
-              </Button>
-            </div>
+      <div className="w-full flex flex-col gap-1.5 p-2">
+        <div className="relative w-full rounded-2xl border border-input bg-white shadow-sm overflow-hidden">
+          <div className="relative">
             <textarea
               className={cn(
-                "p-3 pr-12 max-h-[300px] min-h-[80px] text-gray-900 w-full resize-none outline-none text-[16px] selection:bg-black/10 bg-transparent"
+                "p-4 max-h-[300px] min-h-[80px] text-gray-900 w-full resize-none outline-none text-[16px] selection:bg-black/10 bg-transparent"
               )}
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -84,20 +65,58 @@ export default function ChatInput({
               placeholder={placeholder}
               rows={3}
             />
-            <div className="absolute bottom-2 right-2">
-              <Button
-                id="bg-composer-submit-btn"
-                type="button"
-                disabled={isSubmitDisabled}
-                onClick={handleSubmit}
-                variant="default"
-                size="icon"
-                className="h-7 w-7 rounded-full bg-gray-900 text-white hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-500"
-                aria-label="Send message"
-              >
-                <ArrowUp width={14} height={14} />
-              </Button>
-            </div>
+          </div>
+
+          <div className="flex items-center justify-between px-3 py-2 bg-transparent border-t border-foreground/10">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onToggleMode}
+              aria-pressed={mode === 'plan'}
+              className={cn(
+                "group h-7 px-3 rounded-full text-xs font-medium transition-colors cursor-pointer select-none border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/10 disabled:opacity-50 disabled:cursor-not-allowed",
+                mode === 'plan'
+                  ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
+                  : "bg-transparent text-foreground/60 border-foreground/10 hover:text-foreground/80 hover:bg-foreground/5 hover:border-foreground/20",
+              )}
+              aria-label="Toggle mode"
+            >
+              <span
+                className={cn(
+                  "mr-1.5 inline-block h-1.5 w-1.5 rounded-full transition-colors",
+                  mode === 'plan' ? "bg-purple-600" : "bg-foreground/40 group-hover:bg-foreground/60",
+                )}
+              />
+              Discuss mode
+            </Button>
+
+            <Button
+              type="button"
+              disabled={isStopping || (!isWorking && (disabled || !value.trim()))}
+              onClick={isWorking ? handleStopClick : handleSubmit}
+              variant={isWorking ? "outline" : "default"}
+              size={isWorking ? "sm" : "icon"}
+              className={cn(
+                "h-8 rounded-full cursor-pointer",
+                isWorking
+                  ? "px-3 bg-red-50 text-red-600 hover:bg-red-100 border-red-300 hover:border-red-400"
+                  : "w-8 bg-gray-900 text-white hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-500",
+              )}
+            >
+              {isWorking ? (
+                <div className="flex items-center gap-1.5">
+                  {isStopping ? (
+                    <span className="h-3 w-3 rounded-full border-red-600/40 border-t-red-600 animate-spin" />
+                  ) : (
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
+                  )}
+                  <span className="text-xs font-medium">{isStopping ? "Stopping" : "Stop"}</span>
+                </div>
+              ) : (
+                <ArrowUp width={16} height={16} />
+              )}
+            </Button>
           </div>
         </div>
       </div>

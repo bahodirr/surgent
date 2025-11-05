@@ -31,6 +31,11 @@ async function sendMessage(
   return data as Message
 }
 
+async function abortSession(projectId: string, sessionId: string): Promise<boolean> {
+  const data = await http.post(`api/agent/${projectId}/session/${sessionId}/abort`).json()
+  return data as boolean
+}
+
 export function useSessionsQuery(projectId?: string) {
   return useQuery<Session[]>({
     queryKey: ['sessions', projectId],
@@ -60,6 +65,12 @@ export function useSendMessage(projectId?: string) {
   return useMutation<Message, unknown, { sessionId: string; text: string; agent: 'plan' | 'build' }>({
     mutationFn: ({ sessionId, text, agent }) =>
       sendMessage(projectId as string, sessionId, text, agent),
+  })
+}
+
+export function useAbortSession() {
+  return useMutation<boolean, unknown, { projectId: string; sessionId: string }>({
+    mutationFn: ({ projectId, sessionId }) => abortSession(projectId, sessionId),
   })
 }
 

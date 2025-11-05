@@ -20,6 +20,8 @@ const TOOL_NAMES: Record<string, string> = {
   webfetch: "Fetch",
   glob: "Glob",
   grep: "Search",
+  devLogs: "Dev Logs",
+  dev: "Dev",
 };
 
 function displayName(name: string) {
@@ -33,7 +35,7 @@ function toolSubtitle(part: ToolPart) {
   if (part.tool === "write" || part.tool === "edit") return i.filePath;
   if (part.tool === "list" || part.tool === "glob") return i.path;
   if (part.tool === "webfetch") return i.url;
-  if (part.tool === "bash") return i.command;
+  if (part.tool === "bash" || part.tool === "devLogs" || part.tool === "dev") return i.command;
   if (part.tool === "task") return i.description;
   if (part.tool === "grep") return [i.path, i.pattern].filter(Boolean).join(" ");
 }
@@ -49,37 +51,56 @@ function toolDuration(part: ToolPart) {
 }
 
 function ToolCard({ part }: { part: ToolPart }) {
-  const status = part.state.status;
-  const title = status === "pending" ? `${displayName(part.tool)}…` : displayName(part.tool);
-  const subtitle = toolSubtitle(part);
-  const error = part.state.status === "error" ? part.state.error : undefined;
-  const duration = toolDuration(part);
+  const [open, setOpen] = React.useState(false);
+  const { status } = part.state;
+  const error = status === "error" ? part.state.error : undefined;
+  const showDetails = ["bash", "devLogs", "devCommands"].includes(part.tool);
+
+  const input = (part.state as any).input?.command || JSON.stringify((part.state as any).input, null, 2);
+  const output = (part.state as any).output;
+  const outputText = typeof output === "string" ? output : JSON.stringify(output, null, 2);
 
   return (
-    <div className="flex items-center justify-between gap-2 px-1 py-1">
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium text-foreground/80">{title}</div>
-        {subtitle && <div className="text-[11px] text-muted-foreground truncate">{subtitle}</div>}
+    <div className="px-1 py-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-medium">{displayName(part.tool)}</div>
+          {toolSubtitle(part) && <div className="text-[11px] text-muted-foreground truncate">{toolSubtitle(part)}</div>}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {error && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="text-[10px]">Error</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span className="text-xs">{String(error)}</span>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <Badge variant={status === "completed" ? "secondary" : "outline"} className="text-[10px]">{status}</Badge>
+          {toolDuration(part) && <span className="text-[10px] text-muted-foreground">{toolDuration(part)}</span>}
+          {showDetails && (
+            <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => setOpen(!open)}>
+              {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {error ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="destructive" className="text-[10px]">Error</Badge>
-            </TooltipTrigger>
-            <TooltipContent sideOffset={6}>
-              <span className="max-w-xs block whitespace-pre-wrap text-left text-xs">
-                {String(error).replace("Error: ", "")}
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        ) : status && (
-          <Badge variant={status === "completed" ? "secondary" : "outline"} className="text-[10px]">
-            {status}
-          </Badge>
-        )}
-        {duration && <span className="text-[10px] text-muted-foreground tabular-nums">{duration}</span>}
-      </div>
+      {open && (
+        <div className="mt-2 flex flex-col gap-2 p-2 rounded border bg-muted/5 max-w-full overflow-x-auto">
+          <div>
+            <div className="text-[10px] text-muted-foreground mb-1">Input</div>
+            <pre className="text-[11px] max-h-40 overflow-auto p-2 rounded border bg-background/50 max-w-full wrap-break-word whitespace-pre-wrap">{input}</pre>
+          </div>
+          {status === "completed" && (
+            <div>
+              <div className="text-[10px] text-muted-foreground mb-1">Output</div>
+              <pre className="text-[11px] max-h-40 overflow-auto p-2 rounded border bg-background/50 max-w-full wrap-break-word whitespace-pre-wrap">{outputText}</pre>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -191,7 +212,7 @@ export function AgentThread({ sessionId, messages, partsMap }: Props & { message
                   </Button>
                 </div>
                 <Dialog open={!!messageDiffOpen[userMsg.id]} onOpenChange={(v) => setMessageDiffOpen((p) => ({ ...p, [userMsg.id]: v }))}>
-                  <DialogContent className="!max-w-[95vw] sm:!max-w-[95vw] h-[85vh]">
+                  <DialogContent className="max-w-[95vw]! sm:max-w-[95vw]! h-[85vh]">
                     <DialogHeader>
                       <DialogTitle>File Changes</DialogTitle>
                     </DialogHeader>
