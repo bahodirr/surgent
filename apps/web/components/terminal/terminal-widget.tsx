@@ -1,6 +1,6 @@
-'use client';
+ 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Terminal as XTermType } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
@@ -12,10 +12,12 @@ type TerminalWidgetProps = {
 export default function TerminalWidget({ sandboxId, className }: TerminalWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initedRef = useRef(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!containerRef.current || !sandboxId || initedRef.current) return
     initedRef.current = true
+    setIsLoading(true)
 
     let terminal: XTermType | null = null
     let socket: WebSocket | null = null
@@ -75,7 +77,11 @@ export default function TerminalWidget({ sandboxId, className }: TerminalWidgetP
       socket = new WebSocket(wsUrl)
       socket.binaryType = 'arraybuffer'
 
-      socket.onopen = () => socket?.send(JSON.stringify({ type: 'init' }))
+      socket.onopen = () => {
+        if (cancelled) return
+        setIsLoading(false)
+        socket?.send(JSON.stringify({ type: 'init' }))
+      }
 
       socket.onmessage = (event: MessageEvent) => {
         if (typeof event.data === 'string') {
@@ -91,8 +97,14 @@ export default function TerminalWidget({ sandboxId, className }: TerminalWidgetP
         }
       }
 
-      socket.onclose = () => terminal?.write('\r\n[disconnected]\r\n')
-      socket.onerror = () => terminal?.write('\r\n[connection error]\r\n')
+      socket.onclose = () => {
+        if (!cancelled) setIsLoading(false)
+        terminal?.write('\r\n[disconnected]\r\n')
+      }
+      socket.onerror = () => {
+        if (!cancelled) setIsLoading(false)
+        terminal?.write('\r\n[connection error]\r\n')
+      }
 
       terminal.onData((data: string) => {
         if (socket?.readyState === WebSocket.OPEN) {
@@ -122,10 +134,17 @@ export default function TerminalWidget({ sandboxId, className }: TerminalWidgetP
   return (
     <div className={`w-full h-full ${className || ''}`}>
       {sandboxId ? (
-        <div ref={containerRef} className="w-full h-full" />
+        <div className="relative w-full h-full">
+          <div ref={containerRef} className="w-full h-full" />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center px-2">
+              <div className="text-xs text-muted-foreground">Loading...</div>
+            </div>
+          )}
+        </div>
       ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-xs text-muted-foreground">Preparing environment...</div>
+        <div className="w-full h-full flex items-center justify-center px-2">
+          <div className="text-xs text-muted-foreground">Loading...</div>
         </div>
       )}
     </div>
