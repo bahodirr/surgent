@@ -28,18 +28,11 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [value, setValue] = useState("");
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     const text = value.trim();
     if (!text || disabled) return;
     setValue("");
-    try {
-      await onSubmit(text);
-    } catch {}
-  };
-
-  const handleStopClick = async () => {
-    if (!onStop) return;
-    try { await onStop(); } catch {}
+    onSubmit(text);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -55,9 +48,7 @@ export default function ChatInput({
         <div className="relative w-full rounded-2xl border border-input bg-white shadow-sm overflow-hidden">
           <div className="relative">
             <textarea
-              className={cn(
-                "p-4 max-h-[300px] min-h-[80px] text-gray-900 w-full resize-none outline-none text-[16px] selection:bg-black/10 bg-transparent"
-              )}
+              className="p-4 max-h-[300px] min-h-[80px] text-gray-900 w-full resize-none outline-none text-[16px] selection:bg-black/10 bg-transparent"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -75,7 +66,7 @@ export default function ChatInput({
               onClick={onToggleMode}
               aria-pressed={mode === 'plan'}
               className={cn(
-                "group h-7 px-3 rounded-full text-xs font-medium transition-colors cursor-pointer select-none border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/10 disabled:opacity-50 disabled:cursor-not-allowed",
+                "group h-7 px-3 rounded-full text-xs font-medium transition-colors cursor-pointer select-none border disabled:opacity-50 disabled:cursor-not-allowed",
                 mode === 'plan'
                   ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
                   : "bg-transparent text-foreground/60 border-foreground/10 hover:text-foreground/80 hover:bg-foreground/5 hover:border-foreground/20",
@@ -94,7 +85,7 @@ export default function ChatInput({
             <Button
               type="button"
               disabled={isStopping || (!isWorking && (disabled || !value.trim()))}
-              onClick={isWorking ? handleStopClick : handleSubmit}
+              onClick={isWorking ? onStop : handleSubmit}
               variant={isWorking ? "outline" : "default"}
               size={isWorking ? "sm" : "icon"}
               className={cn(
@@ -107,7 +98,7 @@ export default function ChatInput({
               {isWorking ? (
                 <div className="flex items-center gap-1.5">
                   {isStopping ? (
-                    <span className="h-3 w-3 rounded-full border-red-600/40 border-t-red-600 animate-spin" />
+                    <span className="h-3 w-3 rounded-full border-2 border-red-600/40 border-t-red-600 animate-spin" />
                   ) : (
                     <span className="h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
                   )}
