@@ -12,7 +12,7 @@ import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
 import useAgentStream from "@/lib/use-agent-stream";
 import { AgentThread } from "@/components/agent/agent-thread";
-import { useSessionsQuery, useCreateSession, useSendMessage, useAbortSession } from "@/queries/chats";
+import { useSessionsQuery, useCreateSession, useSendMessage, useAbortSession, useEnsureSession } from "@/queries/chats";
 import SessionDiffDialog from "@/components/diff/session-diff-dialog";
 
 interface ConversationProps {
@@ -37,6 +37,7 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
   const createSession = useCreateSession(projectId);
   const sendMessage = useSendMessage(projectId);
   const abortSession = useAbortSession();
+  const ensuredSession = useEnsureSession(projectId);
 
   const isWorking = useMemo(() => {
     const last = messages[messages.length - 1];
@@ -60,6 +61,13 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
   useEffect(() => {
     setSelectedSessionId(sessionId);
   }, [sessionId]);
+  
+  // Ensure we always have a session on first load (creates one if none exist)
+  useEffect(() => {
+    if (!selectedSessionId && ensuredSession.data?.id) {
+      setSelectedSessionId(ensuredSession.data.id);
+    }
+  }, [selectedSessionId, ensuredSession.data?.id]);
   
   useEffect(() => {
     const root = scrollRef.current;
@@ -95,10 +103,10 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
 
   return (
     <>
-    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'agent')} className="h-full flex flex-col">
+    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'agent')} className="h-full flex flex-col w-full min-w-0">
       {/* Header with session selector */}
       <div className="border-b px-6 py-3">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
             <Select value={selectedSessionId} onValueChange={handleSessionChange} disabled={isLoadingSessions}>
               <SelectTrigger className="h-8 w-[200px] text-xs">
@@ -144,7 +152,7 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
               )}
             </div>
           </div>
-          <TabsList className="h-8">
+          <TabsList className="h-8 shrink-0">
             <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
             <TabsTrigger value="agent" className="text-xs">Terminal</TabsTrigger>
           </TabsList>
@@ -152,10 +160,10 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
       </div>
 
       {/* Main content area */}
-      <TabsContent value="chat" className="flex-1 min-h-0 relative m-0">
-        <div ref={scrollRef} className="h-full">
-          <ScrollArea className="h-full" style={{ scrollBehavior: "smooth" }}>
-            <div className="max-w-4xl mx-auto px-6 py-8 scroll-py-4">
+      <TabsContent value="chat" className="flex-1 min-h-0 relative m-0 w-full min-w-0 overflow-x-hidden">
+        <div ref={scrollRef} className="h-full w-full min-w-0">
+          <ScrollArea className="h-full w-full" style={{ scrollBehavior: "smooth" }}>
+            <div className="max-w-4xl mx-auto px-6 py-8 scroll-py-4 w-full min-w-0">
             {messages.length > 0 ? (
               <>
                 <AgentThread sessionId={selectedSessionId!} messages={messages} partsMap={partsByMessage} />
@@ -179,7 +187,7 @@ export default function Conversation({ projectId, sessionId }: ConversationProps
         {/* Abort moved into ChatInput header */}
       </TabsContent>
       
-      <TabsContent value="agent" className="flex-1 min-h-0 m-0">
+      <TabsContent value="agent" className="flex-1 min-h-0 m-0 w-full min-w-0 overflow-x-hidden">
         <div className="w-full h-full px-3 py-3">
           <TerminalWidget sandboxId={sandboxId} className="w-full h-full" />
         </div>

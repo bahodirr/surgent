@@ -12,9 +12,13 @@ type Props = {
   after: string;
   path?: string;
   className?: string;
+  // When true, collapse long stretches of unchanged lines
+  collapseUnchanged?: boolean;
+  // Number of context lines to show around each change when collapsing
+  contextLines?: number;
 };
 
-export default function DiffView({ before, after, path, className }: Props) {
+export default function DiffView({ before, after, path, className, collapseUnchanged = false, contextLines = 3 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
@@ -50,26 +54,32 @@ export default function DiffView({ before, after, path, className }: Props) {
     if (!containerRef.current) return;
     viewRef.current?.destroy();
 
+    const mergeConfig: any = {
+      original: before,
+      gutter: true,
+      highlightChanges: true,
+      allowInlineDiffs: false,
+      mergeControls: false,
+    };
+
+    if (collapseUnchanged) {
+      mergeConfig.collapseUnchanged = {
+        margin: Math.max(0, contextLines),
+        minSize: 6,
+      };
+    }
+
     viewRef.current = new EditorView({
       parent: containerRef.current,
       doc: after,
-      extensions: [
-        ...extensions,
-        unifiedMergeView({
-          original: before,
-          gutter: true,
-          highlightChanges: true,
-          allowInlineDiffs: false,
-          mergeControls: false,
-        }),
-      ],
+      extensions: [...extensions, unifiedMergeView(mergeConfig)],
     });
 
     return () => {
       viewRef.current?.destroy();
       viewRef.current = null;
     };
-  }, [before, after, extensions]);
+  }, [before, after, extensions, collapseUnchanged, contextLines]);
 
   return (
     <div className={className}>

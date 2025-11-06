@@ -10,9 +10,11 @@ import { File as FileIcon } from "lucide-react";
 type Props = {
   diffs: FileDiff[];
   className?: string;
+  collapseUnchanged?: boolean;
+  contextLines?: number;
 };
 
-export default function DiffViewerWithSidebar({ diffs, className }: Props) {
+export default function DiffViewerWithSidebar({ diffs, className, collapseUnchanged = false, contextLines = 3 }: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const diffRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -85,7 +87,7 @@ export default function DiffViewerWithSidebar({ diffs, className }: Props) {
                 else diffRefs.current.delete(i);
               }}
             >
-              <DiffView before={d.before} after={d.after} path={d.file} />
+              <DiffView before={d.before} after={d.after} path={d.file} collapseUnchanged={collapseUnchanged} contextLines={contextLines} />
             </div>
           ))}
         </div>

@@ -52,7 +52,6 @@ export default function ChatInput({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={disabled}
               placeholder={placeholder}
               rows={3}
             />
