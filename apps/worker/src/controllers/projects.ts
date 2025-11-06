@@ -9,6 +9,7 @@ import * as ProjectService from "@/services/projects";
 import { buildDeploymentConfig, parseWranglerConfig, deployToDispatch } from "@/apis/deploy";
 import { createProjectOnTeam, createDeployKey, setDeploymentEnvVars } from "@/apis/convex";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
+import { parse as parseDotEnv } from "dotenv";
 
 // ============================================================================
 // Types
@@ -100,6 +101,16 @@ export async function deployProject(
       if (collected.files.length) files = collected.files;
     }
 
+    // Read .env.local for env vars to inject into worker vars
+    step = "env:read";
+    let envFromDotenvLocal: Record<string, string> | undefined;
+    try {
+      const envBuf = await downloadFileSafe(sandbox, `${workingDir}/.env.local`, workingDir);
+      envFromDotenvLocal = parseDotEnv(envBuf);
+    } catch {
+      // .env.local not found, continue silently
+    }
+
     step = "wrangler:parse";
     let compatibilityFlags: string[] | undefined;
     let wranglerConfigOut = wranglerConfig;
@@ -124,6 +135,13 @@ export async function deployProject(
       assetsManifest,
       compatibilityFlags,
     );
+    // Merge .env.local vars (if any) with wrangler vars; wrangler vars take precedence
+    if (envFromDotenvLocal && Object.keys(envFromDotenvLocal).length > 0) {
+      deployConfig.vars = {
+        ...(envFromDotenvLocal || {}),
+        ...(deployConfig.vars || {}),
+      };
+    }
     await deployToDispatch({ ...deployConfig, dispatchNamespace: config.cloudflare.dispatchNamespace! }, fileContents, undefined, wrangler.assets);
 
     step = "status:deployed";
