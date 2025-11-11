@@ -1,11 +1,12 @@
 import FullChat from '@/components/chat/full-chat';
 
-export default function ChatPage({
+export default async function ChatPage({
   searchParams,
 }: {
-  searchParams?: { initial?: string };
+  searchParams?: Promise<{ initial?: string }>;
 }) {
-  const initial = typeof searchParams?.initial === 'string' ? searchParams?.initial : undefined;
+  const params = await searchParams;
+  const initial = typeof params?.initial === 'string' ? params?.initial : undefined;
   return <FullChat initialPrompt={initial} />;
 }
 
