@@ -19,6 +19,7 @@ export interface InitializeProjectArgs {
   githubUrl: string;
   userId: string;
   name?: string;
+  initConvex?: boolean;
 }
 
 export interface ResumeProjectArgs {
@@ -57,6 +58,7 @@ export async function deployProject(
     const sandboxId = project.sandbox!.id;
     if (!sandboxId) throw new Error("Project sandbox is not initialized");
 
+    const hasConvex = !!(project.metadata as any)?.convex;
     const normalizedDeployName = args.deployName ? sanitizeScriptName(args.deployName) : undefined;
 
     step = "status:starting";
@@ -361,6 +363,7 @@ async function getOrCreateSandbox(options: {
   port: number;
   workingDirectory: string;
   sandboxId?: string;
+  env?: Record<string, string>;
 }): Promise<{ sandboxId: string; previewUrl: string }> {
   const provider = createDaytonaProvider({
     apiKey: config.daytona.apiKey,
@@ -375,10 +378,10 @@ async function getOrCreateSandbox(options: {
       sandbox = await provider.resume(options.sandboxId);
     } catch (error) {
       console.log("Failed to resume sandbox, creating new one", error);
-      sandbox = await provider.create({}, options.workingDirectory);
+      sandbox = await provider.create(options.env, options.workingDirectory);
     }
   } else {
-    sandbox = await provider.create({}, options.workingDirectory);
+    sandbox = await provider.create(options.env, options.workingDirectory);
   }
 
   const previewUrl = await sandbox.getHost(options.port);
@@ -407,6 +410,7 @@ export async function initializeProject(
   const base = await getOrCreateSandbox({
     port: 3000,
     workingDirectory,
+    env: process.env.APIFY_TOKEN ? { APIFY_TOKEN: process.env.APIFY_TOKEN } : undefined,
   });
 
   const provider = createDaytonaProvider({
@@ -500,30 +504,42 @@ export async function initializeProject(
     }
   }
 
-  // Provision Convex dev deployment and write .env.local for CLI use
-  const convexProject = await createProjectOnTeam({ name: args.name || "app", deploymentType: "dev" });
-  const deployKey = await createDeployKey(convexProject.deploymentName);
-  
-  const envContent = [
-    `CONVEX_DEPLOYMENT=${convexProject.deploymentName}`,
-    `CONVEX_URL=${convexProject.deploymentUrl}`,
-    `CONVEX_DEPLOY_KEY=${deployKey}`,
-    `VITE_CONVEX_URL=${convexProject.deploymentUrl}`,
-  ].join("\n") + "\n";
-  
-  const writeEnvCmd = `printf %s ${shellQuote(envContent)} > .env.local`;
-  await sandbox.exec(buildBashCommand(workingDirectory, writeEnvCmd), { timeoutSeconds: 30 });
+  // Conditionally provision Convex dev deployment
+  let convexMetadata: any;
+  if (args.initConvex) {
+    const convexProject = await createProjectOnTeam({ name: args.name || "app", deploymentType: "dev" });
+    const deployKey = await createDeployKey(convexProject.deploymentName);
+    
+    const envContent = [
+      `CONVEX_DEPLOYMENT=${convexProject.deploymentName}`,
+      `CONVEX_URL=${convexProject.deploymentUrl}`,
+      `CONVEX_DEPLOY_KEY=${deployKey}`,
+      `VITE_CONVEX_URL=${convexProject.deploymentUrl}`,
+      `VITE_APP_URL=${base.previewUrl}`,
+    ].join("\n") + "\n";
+    
+    const writeEnvCmd = `printf %s ${shellQuote(envContent)} > .env.local`;
+    await sandbox.exec(buildBashCommand(workingDirectory, writeEnvCmd), { timeoutSeconds: 30 });
 
-  // Bootstrap Convex Auth env vars (JWKS, JWT_PRIVATE_KEY, SANDBOX_PREVIEW_URL)
-  try {
-    const { jwks, privateKey } = await generateJwks();
-    await setDeploymentEnvVars(convexProject.deploymentUrl, deployKey, {
-      JWKS: jwks,
-      JWT_PRIVATE_KEY: privateKey,
-      SANDBOX_PREVIEW_URL: base.previewUrl,
-    });
-  } catch (err) {
-    console.error('[convex] env bootstrap failed', err);
+    // Bootstrap Convex Auth env vars (JWKS, JWT_PRIVATE_KEY, SANDBOX_PREVIEW_URL)
+    try {
+      const { jwks, privateKey } = await generateJwks();
+      await setDeploymentEnvVars(convexProject.deploymentUrl, deployKey, {
+        JWKS: jwks,
+        JWT_PRIVATE_KEY: privateKey,
+        SANDBOX_PREVIEW_URL: base.previewUrl,
+      });
+    } catch (err) {
+      console.error('[convex] env bootstrap failed', err);
+    }
+
+    convexMetadata = {
+      projectId: convexProject.projectId,
+      projectSlug: convexProject.projectSlug,
+      deploymentName: convexProject.deploymentName,
+      deploymentUrl: convexProject.deploymentUrl,
+      deployKey,
+    };
   }
 
   // Persist metadata
@@ -533,13 +549,7 @@ export async function initializeProject(
     workingDirectory,
     processName,
     startCommand: devScript,
-    convex: {
-      projectId: convexProject.projectId,
-      projectSlug: convexProject.projectSlug,
-      deploymentName: convexProject.deploymentName,
-      deploymentUrl: convexProject.deploymentUrl,
-      deployKey,
-    },
+    ...(convexMetadata && { convex: convexMetadata }),
   } as any);
 
   // Update sandbox state
@@ -565,6 +575,7 @@ export async function resumeProject(
     sandboxId: args.sandboxId,
     port: 3000,
     workingDirectory,
+    env: process.env.APIFY_TOKEN ? { APIFY_TOKEN: process.env.APIFY_TOKEN } : undefined,
   });
 
   // Start/restart app and agent processes with pm2
