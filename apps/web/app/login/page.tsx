@@ -19,7 +19,7 @@ export default function LoginPage() {
       await authClient.signIn.email({
         email,
         password,
-        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}`,
       });
     } catch (err) {
       setError("Invalid email or password");
@@ -33,7 +33,7 @@ export default function LoginPage() {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}`,
       });
     } catch (err) {
       setError("Failed to login with Google");

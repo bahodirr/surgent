@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Copy, Rocket } from 'lucide-react';
 import { useDeployProject } from '@/queries/projects';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import DeployDialog from '@/components/deploy-dialog';
  
 interface PreviewPanelProps {
@@ -35,9 +35,12 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
+  
+  const [hasError, setHasError] = useState(false);
 
   const webPreviewKey = useMemo(() => `${previewUrl ?? 'empty'}:${reloadCount}`, [previewUrl, reloadCount]);
 
@@ -48,23 +51,38 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
     }
   }, []);
 
+  const clearLoadGuard = useCallback(() => {
+    if (loadGuardRef.current) {
+      clearTimeout(loadGuardRef.current);
+      loadGuardRef.current = null;
+    }
+  }, []);
+
   const startProgress = useCallback(() => {
     setIsLoading(true);
     setProgress(30);
     clearProgressTimer();
     progressTimerRef.current = setTimeout(() => setProgress(70), 400);
-  }, [clearProgressTimer]);
+    // If the iframe doesn't finish loading in time, assume it's asleep/unreachable
+    clearLoadGuard();
+    loadGuardRef.current = setTimeout(() => {
+      setHasError(true);
+      setIsLoading(false);
+    }, 10000);
+  }, [clearProgressTimer, clearLoadGuard]);
 
   const finishProgress = useCallback(() => {
     setProgress(100);
     clearProgressTimer();
+    clearLoadGuard();
     setTimeout(() => {
       setIsLoading(false);
       setProgress(0);
     }, 250);
-  }, [clearProgressTimer]);
+  }, [clearProgressTimer, clearLoadGuard]);
 
   const handleReload = useCallback(() => {
+    setHasError(false);
     startProgress();
     setReloadCount((c) => c + 1);
   }, [startProgress]);
@@ -95,7 +113,12 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
     }
   }, [initStatus]);
 
-  useEffect(() => () => clearProgressTimer(), [clearProgressTimer]);
+  useEffect(() => () => {
+    clearProgressTimer();
+    clearLoadGuard();
+  }, [clearProgressTimer, clearLoadGuard]);
+
+  // Removed favicon ping and auto-recovery to avoid refresh loops
 
   const headerActions = (
     <div className="flex items-center gap-3">
@@ -167,11 +190,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
     <div className="h-full flex flex-col relative">
       <Tabs defaultValue="preview" className="h-full flex flex-col gap-0">
         <div className="flex items-center justify-between px-4 py-3 border-b">
-          <div className="flex items-center gap-3">
-            <TabsList className="bg-white border gap-1.5 p-1 rounded-lg">
-              <TabsTrigger value="preview" className="cursor-pointer select-none px-5 py-2 rounded-md data-[state=active]:bg-gray-100 data-[state=active]:shadow-none">Preview</TabsTrigger>
-            </TabsList>
-          </div>
+          <span className="text-sm font-medium">Preview</span>
           {headerActions}
         </div>
 
@@ -210,7 +229,11 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
                     />
                   </div>
                 </WebPreviewNavigation>
-                <WebPreviewBody className="w-full h-full border-0" onLoad={finishProgress} />
+                <WebPreviewBody 
+                  className="w-full h-full border-0" 
+                  onLoad={finishProgress}
+                  onError={() => setHasError(true)}
+                />
               </WebPreview>
             )}
           </div>

@@ -8,7 +8,7 @@ async function fetchProjects() {
   return ProjectsSchema.parse(data)
 }
 
-async function postProject(githubUrl: string, name: string) {
+async function postProject(githubUrl: string, name: string, initConvex: boolean) {
   const data = await http.post('api/projects', { json: { githubUrl, name } }).json()
   return CreateProjectResponseSchema.parse(data)
 }
@@ -20,7 +20,7 @@ export function useProjectsQuery() {
 export function useCreateProject() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (args: { githubUrl: string; name?: string }) => postProject(args.githubUrl, args.name ?? ''),
+    mutationFn: (args: { githubUrl: string; name?: string; initConvex?: boolean }) => postProject(args.githubUrl, args.name ?? '', args.initConvex ?? false),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
   })
 }

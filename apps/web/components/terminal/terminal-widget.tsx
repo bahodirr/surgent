@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Terminal as XTermType } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+import { cn } from '@/lib/utils';
 
 type TerminalWidgetProps = {
   sandboxId?: string
@@ -132,10 +133,10 @@ export default function TerminalWidget({ sandboxId, className }: TerminalWidgetP
   }, [sandboxId])
 
   return (
-    <div className={`w-full h-full ${className || ''}`}>
+    <div className={cn('w-full h-full min-h-0', className)}>
       {sandboxId ? (
-        <div className="relative w-full h-full">
-          <div ref={containerRef} className="w-full h-full" />
+        <div className="relative w-full h-full min-h-0">
+          <div ref={containerRef} className="w-full h-full min-h-0" />
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center px-2">
               <div className="text-xs text-muted-foreground">Loading...</div>

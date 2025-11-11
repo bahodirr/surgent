@@ -1,12 +1,82 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { UserPlus, MessageSquare, Rocket, Github, Twitter } from 'lucide-react';
+import { Github, Twitter } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth-client';
+import { ChatComposer } from '@/components/chat/chat-composer';
+import { Card, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
+import { useCreateProject } from '@/queries/projects';
+import { toast, Toaster } from 'react-hot-toast';
+
+const templates = [
+  {
+    id: 'landing-page',
+    title: 'Landing Page',
+    description: 'Beautiful, responsive landing page with modern design. Great for product launches.',
+    image: '/landing-template.png',
+    gitRepo: 'https://github.com/bahodirr/surgent-template-landing',
+    initConvex: false,
+  },
+  {
+    id: 'portfolio',
+    title: 'Personal Website',
+    description: 'Showcase your work with a clean, professional portfolio site. Perfect for creatives.',
+    image: '/personal-website.png',
+    gitRepo: 'https://github.com/bahodirr/surgent-template-portfolio',
+    initConvex: false,
+  },
+  {
+    id: '3d-apps',
+    title: '3D Interactive App',
+    description: 'Modern 3D application with interactive elements. Perfect for immersive experiences.',
+    image: '/3d-apps.png',
+    gitRepo: 'https://github.com/bahodirr/surgent-template-3d',
+    initConvex: false,
+  },
+  {
+    id: 'utility-app',
+    title: 'Utility App',
+    description: 'Practical tools like calculators, converters, task managers, or note apps. Includes data persistence and real-time features.',
+    image: '/c4e_raw_note_transformer.svg',
+    gitRepo: 'https://github.com/bahodirr/surgent-template-utility',
+    initConvex: true,
+  },
+];
+
+// Simple Template Card Component
+function TemplateCard({ template }: { template: typeof templates[0] }) {
+  return (
+    <Card className="border-0 p-0 shadow-none bg-transparent rounded-xs">
+      <div className="rounded-md overflow-hidden border border-zinc-200 dark:border-zinc-800">
+        <Image
+          src={template.image}
+          alt={template.title}
+          width={1200}
+          height={750}
+          sizes="(min-width: 1280px) 28vw, (min-width: 768px) 40vw, 80vw"
+          className="w-full h-auto"
+        />
+      </div>
+      <CardContent className="px-0 pt-3 space-y-1.5">
+        <CardTitle className="text-base sm:text-lg text-zinc-900 dark:text-zinc-100">
+          {template.title}
+        </CardTitle>
+        <CardDescription className="text-zinc-600 dark:text-zinc-400">
+          {template.description}
+        </CardDescription>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Index() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
+  const create = useCreateProject();
 
   useEffect(() => {
     const load = async () => {
@@ -16,11 +86,66 @@ export default function Index() {
     load();
   }, []);
 
+  const handlePromptSend = (text: string, files?: FileList) => {
+    const initial = text.trim();
+    if (!initial) return;
+    
+    if (isLoggedIn) {
+      // show loading toast and start project creation
+      toast.loading('Creating your project…', { id: 'create-project' });
+      create.mutate(
+        { 
+          name: `Website ${new Date().toLocaleDateString()}`, 
+          githubUrl: 'https://github.com/bahodirr/worker-vite-react-simple-template',
+          initConvex: false 
+        },
+        {
+          onSuccess: ({ id }) => {
+            toast.success('Project created!', { id: 'create-project' });
+            const q = new URLSearchParams({ initial }).toString();
+            router.push(`/project/${id}?${q}`);
+          },
+          onError: () => toast.error('Failed to create project. Please try again.', { id: 'create-project' }),
+        }
+      );
+    } else {
+      const q = new URLSearchParams({ initial }).toString();
+      const next = `/project/new?${q}`;
+      const qp = new URLSearchParams({ next }).toString();
+      router.push(`/signup?${qp}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 relative overflow-hidden">
-      {/* Removed coming soon dialog */}
+      {/* Floating orbs in background */}
+      <motion.div
+        className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-3xl"
+        animate={{
+          y: [0, 30, 0],
+          scale: [1, 1.1, 1],
+        }}
+        transition={{
+          duration: 8,
+          repeat: Number.POSITIVE_INFINITY,
+          ease: "easeInOut",
+        }}
+      />
+      <motion.div
+        className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 dark:bg-purple-500/5 rounded-full blur-3xl"
+        animate={{
+          y: [0, -40, 0],
+          scale: [1, 1.2, 1],
+        }}
+        transition={{
+          duration: 10,
+          repeat: Number.POSITIVE_INFINITY,
+          ease: "easeInOut",
+        }}
+      />
+      
       {/* Subtle gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-zinc-50 via-white to-zinc-100 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900" />
+      <div className="absolute inset-0 bg-linear-to-br from-zinc-50 via-white to-zinc-100 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900" />
       
       {/* Dot pattern overlay */}
       <div 
@@ -33,7 +158,12 @@ export default function Index() {
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
-        <header className="w-full px-6 py-6">
+        <motion.header 
+          className="w-full px-6 py-6"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
               <span className="text-lg font-bold tracking-tight">Surgent</span>
@@ -48,174 +178,119 @@ export default function Index() {
               </Button>
             )}
           </div>
-        </header>
+        </motion.header>
 
         {/* Hero Section */}
-        <div className="flex-1 flex flex-col items-center justify-center px-6 pt-6 md:pt-10">
-          <div className="max-w-4xl w-full space-y-10">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+          <div className="max-w-4xl w-full space-y-16">
             {/* Hero text */}
             <div className="text-center space-y-6">
-              <div className="flex items-center justify-center">
-                <span className="inline-flex items-center rounded-full font-medium border px-2.5 py-0.5 text-[11px] leading-tight bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 font-mono">
-                  Free during beta
-                </span>
-              </div>
-              <h1 className="text-4xl sm:text-5xl md:text-7xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-100">
-                The easiest way to run AI agents in the cloud
-              </h1>
-              <p className="text-base md:text-xl text-zinc-500 dark:text-zinc-400 font-light max-w-3xl mx-auto leading-relaxed">
-                Built for developers who want to ship <span className="text-zinc-800 dark:text-zinc-200 font-medium italic">fast</span>. Agentic development, wherever you are. Fire. Forget. Come back to pull requests.
-              </p>
-              
-              {/* Signup CTA */}
-              <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-                {isLoggedIn ? (
-                  <Button asChild size="lg" className="rounded-full cursor-pointer w-full sm:w-auto">
-                    <Link href="/dashboard">Go to dashboard</Link>
-                  </Button>
-                ) : (
-                  <Button asChild size="lg" className="rounded-full cursor-pointer w-full sm:w-auto">
-                    <Link href="/signup">Sign up to get started</Link>
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="rounded-full w-full sm:w-auto"
-                  onClick={() => {
-                    const el = document.getElementById('features');
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }}
-                >
-                  Features
-                </Button>
-              </div>
-
-              {/* Supported agents */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                <span className="font-medium">Supported agents:</span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 text-zinc-700 dark:text-zinc-300">
-                  <img alt="Claude Logo" src="/claude-logo.svg" className="inline-block h-4 w-4" />
-                  <span>Claude Code</span>
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 text-zinc-700 dark:text-zinc-300">
-                  <img alt="OpenAI Logo" src="/OpenAI-logo.svg" className="inline-block h-4 w-4 dark:invert dark:opacity-90" />
-                  <span>OpenAI Codex</span>
-                </span>
-                <span className="text-zinc-400 dark:text-zinc-500">• more coming soon</span>
-              </div>
+              <motion.h1 
+                className="text-4xl sm:text-5xl md:text-7xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-100"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.1 }}
+              >
+                Build your dream website.
+              </motion.h1>
+              <motion.p 
+                className="text-base md:text-xl text-zinc-500 dark:text-zinc-400 font-light max-w-3xl mx-auto leading-relaxed"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+              >
+                Ask AI to build what you want.
+              </motion.p>
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="max-w-2xl mx-auto w-full pt-2"
+              >
+                <div className="relative">
+                  <ChatComposer
+                    onSend={handlePromptSend}
+                    placeholder="What do you want to build today?"
+                    disabled={create.isPending}
+                  />
+                  {create.isPending && (
+                    <div className="absolute inset-0 rounded-xl bg-background/60 backdrop-blur-sm flex items-center justify-center border border-zinc-200 dark:border-zinc-800">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="h-4 w-4 border-2 border-brand-foreground border-t-transparent rounded-full animate-spin" />
+                        Creating your project… Give us a sec
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
             </div>
 
-            
-            {/* Core features */}
-            <section id="features" className="max-w-4xl mx-auto py-6 md:py-8">
-              <div className="text-center mb-6">
-                <div className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Core features</div>
+            {/* Templates Section */}
+            <div className="space-y-8">
+              <motion.div 
+                className="text-center"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+              >
+                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 tracking-wide uppercase">
+                  Things you can build
+                </p>
+              </motion.div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto">
+                {templates.map((template, index) => (
+                  <motion.div
+                    key={template.id}
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
+                  >
+                    <TemplateCard template={template} />
+                  </motion.div>
+                ))}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40">
-                  <div className="mx-auto mb-2 h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                    <MessageSquare className="h-4 w-4 text-zinc-700 dark:text-zinc-300" />
-                  </div>
-                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Conversational building</div>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Describe your app in plain English and iterate naturally.</p>
-                </div>
-                <div className="text-center p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40">
-                  <div className="mx-auto mb-2 h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                    <Rocket className="h-4 w-4 text-zinc-700 dark:text-zinc-300" />
-                  </div>
-                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">AI-powered generation</div>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Generate working code and ship faster with confidence.</p>
-                </div>
-                <div className="text-center p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40">
-                  <div className="mx-auto mb-2 h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                    <UserPlus className="h-4 w-4 text-zinc-700 dark:text-zinc-300" />
-                  </div>
-                  <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Simple onboarding</div>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Get started in seconds with Google sign-in.</p>
-                </div>
-              </div>
-            </section>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="relative z-10 border-t border-zinc-200 dark:border-zinc-800">
-          <div className="max-w-7xl mx-auto px-6 py-12">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              <div className="col-span-2 md:col-span-1">
-                <div className="text-zinc-900 dark:text-zinc-100 text-lg font-semibold tracking-tight">Surgent</div>
-                <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Build faster with AI.</p>
+        <footer className="relative z-10 border-t border-border/50">
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <Link href="/terms" className="hover:text-foreground transition-colors">
+                  Terms
+                </Link>
+                <Link href="/privacy" className="hover:text-foreground transition-colors">
+                  Privacy
+                </Link>
               </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Product</div>
-                <ul className="space-y-2 text-sm">
-                  <li>
-                    <button
-                      onClick={() => {
-                        const el = document.getElementById('features');
-                        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }}
-                      className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                    >
-                      Features
-                    </button>
-                  </li>
-                  <li>
-                    <a href="/dashboard" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Dashboard</a>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Account</div>
-                <ul className="space-y-2 text-sm">
-                  <li>
-                    <a href="/signup" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Sign up</a>
-                  </li>
-                  <li>
-                    <a href="/login" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Log in</a>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Legal</div>
-                <ul className="space-y-2 text-sm">
-                  <li>
-                    <a href="/terms" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Terms</a>
-                  </li>
-                  <li>
-                    <a href="/privacy" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Privacy</a>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="mt-10 flex items-center justify-between border-t border-zinc-200 dark:border-zinc-800 pt-6">
-              <p className="text-xs text-zinc-400 dark:text-zinc-600">© {new Date().getFullYear()} Surgent. All rights reserved.</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <a
                   href="https://github.com/bahodirr/surgent"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="GitHub"
-                  className="h-8 w-8 inline-flex items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <Github className="h-4 w-4" />
+                  <Github className="h-5 w-5" />
                 </a>
                 <a
                   href="https://twitter.com/benrov_"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Twitter"
-                  className="h-8 w-8 inline-flex items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <Twitter className="h-4 w-4" />
+                  <Twitter className="h-5 w-5" />
                 </a>
               </div>
             </div>
           </div>
         </footer>
       </div>
+      <Toaster position="top-right" />
     </div>
   );
 }

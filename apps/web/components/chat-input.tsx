@@ -44,7 +44,7 @@ export default function ChatInput({
 
   return (
     <div className={cn("w-full", className)}>
-      <div className="w-full flex flex-col gap-1.5 p-2">
+      <div className="w-full flex flex-col gap-1.5">
         <div className="relative w-full rounded-2xl border border-input bg-white shadow-sm overflow-hidden">
           <div className="relative">
             <textarea
@@ -78,7 +78,7 @@ export default function ChatInput({
                   mode === 'plan' ? "bg-purple-600" : "bg-foreground/40 group-hover:bg-foreground/60",
                 )}
               />
-              Discuss mode
+              Chat mode (for Planning)
             </Button>
 
             <Button

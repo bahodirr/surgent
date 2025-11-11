@@ -49,11 +49,15 @@ export default function DashboardPage() {
   };
 
   const createProject = () => {
+    toast.loading('Creating your project…', { id: 'create-project' });
     create.mutate(
       { name: `Project ${new Date().toLocaleDateString()}`, githubUrl: 'https://github.com/bahodirr/worker-vite-react-template' },
       {
-        onSuccess: ({ id }) => router.push(`/project/${id}`),
-        onError: () => toast.error('Failed to create project. Please try again.'),
+        onSuccess: ({ id }) => {
+          toast.success('Project created!', { id: 'create-project' });
+          router.push(`/project/${id}`);
+        },
+        onError: () => toast.error('Failed to create project. Please try again.', { id: 'create-project' }),
       }
     );
   };
@@ -160,11 +164,11 @@ export default function DashboardPage() {
             <Button 
               onClick={createProject} 
               disabled={create.isPending}
-              className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+              className="flex items-center gap-2 rounded-full"
             >
               {create.isPending ? (
                 <>
-                  <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                  <div className="h-4 w-4 border-2 border-brand-foreground border-t-transparent rounded-full animate-spin" />
                   Creating...
                 </>
               ) : (
@@ -189,11 +193,11 @@ export default function DashboardPage() {
                 <Button 
                   onClick={createProject} 
                   disabled={create.isPending}
-                  className="flex items-center gap-2 rounded-full bg-foreground text-background hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-opacity"
+                  className="flex items-center gap-2 rounded-full"
                 >
                   {create.isPending ? (
                     <>
-                      <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                      <div className="h-4 w-4 border-2 border-brand-foreground border-t-transparent rounded-full animate-spin" />
                       Creating...
                     </>
                   ) : (

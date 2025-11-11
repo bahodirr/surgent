@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
-import type { Message, Part, ToolPart, TextPart, ReasoningPart, FileDiff } from "@opencode-ai/sdk";
+import type { Message, Part, ToolPart, TextPart, ReasoningPart } from "@opencode-ai/sdk";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, Wrench } from "lucide-react";
+import { ChevronDown, ChevronUp, Wrench, Undo2, CheckCircle2, Circle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import DiffSummary from "@/components/diff/diff-summary";
 import DiffViewerWithSidebar from "@/components/diff/diff-viewer-with-sidebar";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ const TOOL_NAMES: Record<string, string> = {
   grep: "Searching Content",
   devLogs: "Viewing Server Logs",
   dev: "Running Development Server",
+  todowrite: "Todo Update",
+  todoread: "Todo Plan",
 };
 
 function displayName(name: string) {
@@ -47,13 +50,23 @@ function toolDuration(part: ToolPart) {
   return s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : `${s}s`;
 }
 
-function ToolCard({ part }: { part: ToolPart }) {
+function ToolCard({ part, minimal = false }: { part: ToolPart; minimal?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const { status } = part.state;
   const error = status === "error" ? part.state.error : undefined;
   const showDetails = ["bash", "devLogs", "dev"].includes(part.tool);
   const input = part.state.status !== "pending" ? part.state.input : undefined;
   const output = part.state.status === "completed" ? part.state.output : undefined;
+  const isTodoTool = part.tool === "todowrite" || part.tool === "todoread";
+  const parsedTodos = React.useMemo(() => {
+    if (!isTodoTool || output == null) return null;
+    try {
+      const value = typeof output === "string" ? JSON.parse(output) : output;
+      return Array.isArray(value) ? value as Array<{ id?: string; content?: string; status?: string; priority?: string; }> : null;
+    } catch {
+      return null;
+    }
+  }, [isTodoTool, output]);
 
   return (
     <div className="px-1 py-1">
@@ -82,6 +95,61 @@ function ToolCard({ part }: { part: ToolPart }) {
           )}
         </div>
       </div>
+      {/* Todo tools: render clean checklist UI if we can parse structured data; otherwise fallback to raw markdown */}
+      {isTodoTool && output && parsedTodos ? (
+        <div className={`mt-2 ${minimal ? "" : "rounded border bg-muted/5 p-2"} overflow-hidden`}>
+          <div className="flex items-center justify-between px-1">
+            <div className="text-[11px] text-muted-foreground">
+              {(() => {
+                const total = parsedTodos.length;
+                const done = parsedTodos.filter(t => (t.status || "").toLowerCase() === "completed").length;
+                return `${done}/${total} completed`;
+              })()}
+            </div>
+          </div>
+          <div className="mt-2 max-h-48 overflow-auto space-y-1">
+            {parsedTodos.map((t, idx) => {
+              const completed = (t.status || "").toLowerCase() === "completed";
+              const prio = (t.priority || "").toLowerCase();
+              const icon = completed ? (
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              ) : (
+                <Circle className="h-4 w-4 text-muted-foreground" />
+              );
+              return (
+                <div
+                  key={t.id || String(idx)}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  {t.priority ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {icon}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <span className="text-xs">Priority: {t.priority}</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    icon
+                  )}
+                  <div className={`min-w-0 flex-1 ${completed ? "line-through text-muted-foreground" : ""}`}>
+                    <span className="wrap-break-word">{t.content || ""}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : isTodoTool && output ? (
+        <div className={`mt-2 ${minimal ? "" : "rounded border bg-muted/5 p-2"} overflow-hidden`}>
+          <div className="prose prose-sm dark:prose-invert max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {typeof output === "string" ? output : JSON.stringify(output, null, 2)}
+            </ReactMarkdown>
+          </div>
+        </div>
+      ) : null}
       {open && input ? (
         <div className="mt-2 rounded border bg-muted/5 p-2 space-y-2 overflow-hidden">
           <div className="min-w-0">
@@ -104,7 +172,21 @@ function ToolCard({ part }: { part: ToolPart }) {
   );
 }
 
-export function AgentThread({ messages, partsMap }: Props & { messages: Message[]; partsMap: Record<string, Part[]> }) {
+export function AgentThread({
+  messages,
+  partsMap,
+  onRevert,
+  revertMessageId,
+  reverting,
+  revertingMessageId,
+}: Props & {
+  messages: Message[]
+  partsMap: Record<string, Part[]>
+  onRevert?: (messageId: string) => void
+  revertMessageId?: string
+  reverting?: boolean
+  revertingMessageId?: string
+}) {
   const [groupOpen, setGroupOpen] = React.useState<Record<string, boolean>>({});
   const [messageDiffOpen, setMessageDiffOpen] = React.useState<Record<string, boolean>>({});
 
@@ -122,7 +204,9 @@ export function AgentThread({ messages, partsMap }: Props & { messages: Message[
     return groups;
   };
 
-  const userMessages = messages.filter((m) => m.role === "user");
+  const boundary = revertMessageId
+  const visible = boundary ? messages.filter((m) => m.id < boundary) : messages
+  const userMessages = visible.filter((m) => m.role === "user");
 
   return (
     <div className="flex flex-col gap-8 w-full min-w-0">
@@ -141,9 +225,29 @@ export function AgentThread({ messages, partsMap }: Props & { messages: Message[
 
         return (
           <div key={userMsg.id} className="flex flex-col gap-4 w-full min-w-0">
-            <div className="rounded-md border bg-muted/20 px-4 py-3 overflow-hidden">
+            <div className="rounded-md border bg-muted/20 px-4 py-3 overflow-hidden relative group">
               {userMsg.summary?.title && <div className="text-sm font-medium text-foreground/90 wrap-break-word">{userMsg.summary.title}</div>}
               <div className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed wrap-break-word">{userText}</div>
+              {onRevert && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="cursor-pointer absolute top-2 right-2 h-6 w-6 p-0"
+                      onClick={() => onRevert(userMsg.id)}
+                      disabled={reverting}
+                    >
+                      {reverting && revertingMessageId === userMsg.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Undo2 className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Undo to here</TooltipContent>
+                </Tooltip>
+              )}
             </div>
 
             <div className="flex flex-col gap-3 w-full min-w-0">
@@ -164,9 +268,11 @@ export function AgentThread({ messages, partsMap }: Props & { messages: Message[
                 
                 if (g.kind === 'tool') {
                   if (g.items.length === 1) {
+                    const single = g.items[0] as ToolPart;
+                    const isTodo = single.tool === "todowrite" || single.tool === "todoread";
                     return (
-                      <div key={key} className="rounded-md border bg-muted/20 p-2 overflow-hidden">
-                        <ToolCard part={g.items[0] as ToolPart} />
+                      <div key={key} className={isTodo ? "overflow-hidden" : "rounded-md border bg-muted/20 p-2 overflow-hidden"}>
+                        <ToolCard part={single} minimal={isTodo} />
                       </div>
                     );
                   }
@@ -195,7 +301,7 @@ export function AgentThread({ messages, partsMap }: Props & { messages: Message[
                 const text = g.items.map((p) => (p as TextPart).text?.trim()).filter(Boolean).join("\n\n");
                 if (!text) return null;
                 return (
-                  <div key={key} className="prose prose-sm dark:prose-invert w-full min-w-0 prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:rounded prose-pre:overflow-x-auto prose-code:break-words">
+                  <div key={key} className="prose prose-sm dark:prose-invert w-full min-w-0 prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:rounded prose-pre:overflow-x-auto prose-code:wrap-break-word">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
                   </div>
                 );

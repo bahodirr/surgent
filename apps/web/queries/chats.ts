@@ -13,12 +13,6 @@ async function createSession(projectId: string): Promise<Session> {
   return data as Session
 }
 
-async function ensureSession(projectId: string): Promise<Session> {
-  const sessions = await fetchSessions(projectId)
-  if (sessions?.length) return sessions[0] as Session
-  return createSession(projectId)
-}
-
 async function sendMessage(
   projectId: string,
   sessionId: string,
@@ -53,11 +47,16 @@ export function useCreateSession(projectId?: string) {
 }
 
 export function useEnsureSession(projectId?: string) {
-  return useQuery<Session>({
-    queryKey: ['session', 'ensure', projectId],
-    queryFn: () => ensureSession(projectId as string),
-    enabled: Boolean(projectId),
-    refetchOnWindowFocus: false,
+  const queryClient = useQueryClient()
+  return useMutation<Session, unknown, void>({
+    mutationFn: async () => {
+      const sessions = await fetchSessions(projectId as string)
+      if (sessions?.length) return sessions[0]!
+      return createSession(projectId as string)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', projectId] })
+    },
   })
 }
 
@@ -74,3 +73,35 @@ export function useAbortSession() {
   })
 }
 
+async function revertMessage(projectId: string, sessionId: string, messageId: string): Promise<Session> {
+  const data = await http
+    .post(`api/agent/${projectId}/session/${sessionId}/revert`, { json: { messageID: messageId } })
+    .json()
+  return data as Session
+}
+
+async function unrevertSession(projectId: string, sessionId: string): Promise<Session> {
+  const data = await http.post(`api/agent/${projectId}/session/${sessionId}/unrevert`).json()
+  return data as Session
+}
+
+export function useRevertMessage(projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation<Session, unknown, { sessionId: string; messageId: string }>({
+    mutationFn: ({ sessionId, messageId }) => revertMessage(projectId as string, sessionId, messageId),
+    onSuccess: (session) => {
+      // Refresh sessions list and messages for this session
+      queryClient.invalidateQueries({ queryKey: ['sessions', projectId] })
+    },
+  })
+}
+
+export function useUnrevert(projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation<Session, unknown, { sessionId: string }>({
+    mutationFn: ({ sessionId }) => unrevertSession(projectId as string, sessionId),
+    onSuccess: (session) => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', projectId] })
+    },
+  })
+}
