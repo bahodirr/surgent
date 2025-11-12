@@ -18,6 +18,8 @@ type ChatComposerProps = {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
 };
 
 export function ChatComposer({
@@ -25,8 +27,12 @@ export function ChatComposer({
   disabled = false,
   placeholder = 'Type a message…',
   className,
+  value: controlledValue,
+  onValueChange,
 }: ChatComposerProps) {
-  const [value, setValue] = useState('');
+  const [internalValue, setInternalValue] = useState('');
+  const value = controlledValue !== undefined ? controlledValue : internalValue;
+  const setValue = onValueChange || setInternalValue;
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
