@@ -232,13 +232,7 @@ export default function Index() {
                     onClick={() => setPromptValue('Personal website with minimal design. Use my LinkedIn profile to fill all content (name, bio, experience, projects, skills, education, contact info).  Clean layout, whitespace, subtle shadows, one accent color, dark mode, responsive.\n Linkedin:')}
                     className="px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                   >
-                    Personal website with minimal design
-                  </button>
-                  <button
-                    onClick={() => setPromptValue('Personal website with creative, elegant design. Use my LinkedIn profile to fill all content (name, bio, experience, projects, skills, education, contact info). Expressive fonts, gradients, glassmorphism, scroll animations, dark mode, responsive. \n Linkedin:')}
-                    className="px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                  >
-                    Personal website with creative, elegant design
+                    Personal website with LinkedIn profile
                   </button>
                 </div>
               </motion.div>

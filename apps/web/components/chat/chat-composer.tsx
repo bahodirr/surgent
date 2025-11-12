@@ -10,11 +10,18 @@ import {
   PromptInputActions,
   PromptInputTextarea,
 } from '@/components/ui/prompt-input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const MAX_PHOTOS = 6;
 
 type ChatComposerProps = {
-  onSend: (text: string, files?: FileList) => void;
+  onSend: (text: string, files?: FileList, projectType?: string) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -34,6 +41,7 @@ export function ChatComposer({
   const value = controlledValue !== undefined ? controlledValue : internalValue;
   const setValue = onValueChange || setInternalValue;
   const [files, setFiles] = useState<File[]>([]);
+  const [projectType, setProjectType] = useState<string>('fullstack');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clearFiles = () => {
@@ -52,7 +60,7 @@ export function ChatComposer({
     const text = value.trim();
     if (disabled) return;
     if (!text && files.length === 0) return;
-    onSend(text, createFileList(files));
+    onSend(text, createFileList(files), projectType);
     setValue('');
     clearFiles();
   };
@@ -138,26 +146,38 @@ export function ChatComposer({
         />
 
         <PromptInputActions className="pt-2">
-          <PromptInputAction
-            tooltip={
-              files.length >= MAX_PHOTOS
-                ? `Max ${MAX_PHOTOS} photos`
-                : files.length
-                ? `${files.length} selected`
-                : 'Attach photos'
-            }
-          >
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || files.length >= MAX_PHOTOS}
-              className="h-8 w-8 rounded-2xl cursor-pointer"
+          <div className="flex items-center gap-1.5">
+            <PromptInputAction
+              tooltip={
+                files.length >= MAX_PHOTOS
+                  ? `Max ${MAX_PHOTOS} photos`
+                  : files.length
+                  ? `${files.length} selected`
+                  : 'Attach photos'
+              }
             >
-              <Plus className="h-5 w-5" />
-            </Button>
-          </PromptInputAction>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled || files.length >= MAX_PHOTOS}
+                className="h-8 w-8 rounded-full cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </PromptInputAction>
+
+            <Select value={projectType} onValueChange={setProjectType}>
+              <SelectTrigger size="sm" className="h-8 rounded-xl border border-border bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fullstack">Full Stack App</SelectItem>
+                <SelectItem value="landing">Landing Page</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="ml-auto flex items-center gap-1.5">
             {/* <PromptInputAction tooltip="Voice input">
