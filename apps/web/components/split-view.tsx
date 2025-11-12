@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import Link from 'next/link';
 import Conversation from './conversation';
 import PreviewPanel from './preview-panel';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useActivateProject, useProjectQuery } from '@/queries/projects';
 import { useSandbox } from '@/hooks/use-sandbox';
-import { Button } from '@/components/ui/button';
 
 interface SplitViewProps {
   projectId?: string;
@@ -38,12 +36,7 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
   }, [project, setSandboxId]);
 
   return (
-    <div className="h-screen w-full bg-background flex flex-col relative">
-      <div className="absolute right-3 top-3 z-10">
-        <Button asChild size="sm" variant="outline" className="cursor-pointer">
-          <Link href="/">Home</Link>
-        </Button>
-      </div>
+    <div className="h-screen w-full bg-background flex flex-col">
       <div className="flex-1 min-h-0">
         <div className="h-full min-h-0 hidden md:block">
           <ResizablePanelGroup direction="horizontal" className="h-full">

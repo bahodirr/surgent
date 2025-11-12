@@ -169,20 +169,15 @@ export default function Index() {
             <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
               <span className="text-lg font-bold tracking-tight">Surgent</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Button asChild variant="ghost" size="sm" className="rounded-full shrink-0 cursor-pointer">
-                <Link href="/">Home</Link>
+            {isLoggedIn ? (
+              <Button asChild variant="outline" size="sm" className="rounded-full shrink-0 cursor-pointer">
+                <Link href="/dashboard">Go to dashboard</Link>
               </Button>
-              {isLoggedIn ? (
-                <Button asChild variant="outline" size="sm" className="rounded-full shrink-0 cursor-pointer">
-                  <Link href="/dashboard">Go to dashboard</Link>
-                </Button>
-              ) : (
-                <Button asChild variant="outline" size="sm" className="rounded-full shrink-0 cursor-pointer">
-                  <Link href="/signup">Sign up</Link>
-                </Button>
-              )}
-            </div>
+            ) : (
+              <Button asChild variant="outline" size="sm" className="rounded-full shrink-0 cursor-pointer">
+                <Link href="/signup">Sign up</Link>
+              </Button>
+            )}
           </div>
         </motion.header>
 
