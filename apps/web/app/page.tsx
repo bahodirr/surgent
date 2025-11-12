@@ -229,13 +229,13 @@ export default function Index() {
                 <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
                   <span className="text-zinc-500 dark:text-zinc-400">Try:</span>
                   <button
-                    onClick={() => setPromptValue('Personal website with minimal design. Sections: Hero, About with photo, Projects grid (6 items with tech tags and links), Skills by category, Contact form. Clean layout, whitespace, subtle shadows, one accent color, dark mode, responsive.')}
+                    onClick={() => setPromptValue('Personal website with minimal design. Use my LinkedIn profile to fill all content (name, bio, experience, projects, skills, education, contact info).  Clean layout, whitespace, subtle shadows, one accent color, dark mode, responsive.\n Linkedin:')}
                     className="px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                   >
                     Personal website with minimal design
                   </button>
                   <button
-                    onClick={() => setPromptValue('Personal website with creative, elegant design. Sections: Hero with large typography, About with timeline, Featured Projects (3 cards) + grid, Skills with badges, Contact form. Expressive fonts, gradients, glassmorphism, scroll animations, dark mode, responsive.')}
+                    onClick={() => setPromptValue('Personal website with creative, elegant design. Use my LinkedIn profile to fill all content (name, bio, experience, projects, skills, education, contact info). Expressive fonts, gradients, glassmorphism, scroll animations, dark mode, responsive. \n Linkedin:')}
                     className="px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                   >
                     Personal website with creative, elegant design
