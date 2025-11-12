@@ -87,18 +87,22 @@ export default function Index() {
     load();
   }, []);
 
-  const handlePromptSend = (text: string, files?: FileList) => {
+  const handlePromptSend = (text: string, files?: FileList, projectType?: string) => {
     const initial = text.trim();
     if (!initial) return;
     
     if (isLoggedIn) {
       // show loading toast and start project creation
       toast.loading('Creating your project…', { id: 'create-project' });
+      const isFullstack = projectType === 'fullstack';
+      const githubUrl = isFullstack
+        ? 'https://github.com/bahodirr/worker-vite-react-template'
+        : 'https://github.com/bahodirr/worker-vite-react-simple-template';
       create.mutate(
         { 
           name: `Website ${new Date().toLocaleDateString()}`, 
-          githubUrl: 'https://github.com/bahodirr/worker-vite-react-simple-template',
-          initConvex: false 
+          githubUrl,
+          initConvex: isFullstack 
         },
         {
           onSuccess: ({ id }) => {
