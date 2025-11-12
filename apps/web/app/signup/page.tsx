@@ -2,32 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 
 export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-
-  const handleEmailSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
-    try {
-      await authClient.signUp.email({
-        email,
-        password,
-        name,
-        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-      });
-    } catch (err) {
-      setError("Failed to create account");
-      setIsLoading(false);
-    }
-  };
 
   const handleGoogleSignup = async () => {
     setIsLoading(true);
@@ -35,7 +14,7 @@ export default function SignupPage() {
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+        callbackURL: `${process.env.NEXT_PUBLIC_APP_URL}`,
       });
     } catch (err) {
       setError("Failed to sign up with Google");
@@ -62,54 +41,6 @@ export default function SignupPage() {
                 {error}
               </div>
             )}
-
-            {/* Email/Password Form */}
-            <form onSubmit={handleEmailSignup} className="w-full space-y-3">
-              <Input
-                type="text"
-                placeholder="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isLoading}
-                required
-                className="h-12"
-              />
-              <Input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-                required
-                className="h-12"
-              />
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                required
-                className="h-12"
-              />
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full h-12 text-base font-medium"
-              >
-                {isLoading ? "Creating account..." : "Create account"}
-              </Button>
-            </form>
-
-            {/* Divider */}
-            <div className="relative w-full">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
 
             {/* Google OAuth */}
             <Button
