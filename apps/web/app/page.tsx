@@ -95,12 +95,13 @@ export default function Index() {
       // show loading toast and start project creation
       toast.loading('Creating your project…', { id: 'create-project' });
       const isFullstack = projectType === 'fullstack';
+      console.log('projectType', projectType, isFullstack);
       const githubUrl = isFullstack
         ? 'https://github.com/bahodirr/worker-vite-react-template'
         : 'https://github.com/bahodirr/worker-vite-react-simple-template';
       create.mutate(
         { 
-          name: `Website ${new Date().toLocaleDateString()}`, 
+          name: `${isFullstack ? 'Fullstack' : 'Simple'} Website ${new Date().toLocaleDateString()}`, 
           githubUrl,
           initConvex: isFullstack 
         },
