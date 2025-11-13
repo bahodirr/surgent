@@ -49,14 +49,18 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
   const [revertingId, setRevertingId] = useState<string | undefined>();
   const seededRef = useRef(false);
 
-  const { messages, parts: partsByMessage, session: currentSession, lastAt } = useAgentStream({ projectId, sessionId: selectedSessionId });
-  const { data: sessions = [], isLoading: isLoadingSessions } = useSessionsQuery(projectId);
+  const { data: sessions = [] } = useSessionsQuery(projectId);
   const createSession = useCreateSession(projectId);
   const sendMessage = useSendMessage(projectId);
   const abortSession = useAbortSession();
   const revertMutation = useRevertMessage(projectId);
   const unrevertMutation = useUnrevert(projectId);
   const busy = revertMutation.isPending || unrevertMutation.isPending;
+
+  // Derive selected session: use state if set, otherwise first session
+  const activeSessionId = selectedSessionId || sessions[0]?.id;
+
+  const { messages, parts: partsByMessage, session: currentSession, lastAt } = useAgentStream({ projectId, sessionId: activeSessionId });
 
   const isWorking = useMemo(() => {
     const last = messages[messages.length - 1];
@@ -77,25 +81,14 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
     setSelectedSessionId(newSessionId);
   };
 
-  // Auto-ensure a session exists and is selected
-  useEffect(() => {
-    if (!projectId || isLoadingSessions || selectedSessionId) return;
-    
-    if (sessions.length > 0) {
-      setSelectedSessionId(sessions[0]?.id);
-    } else if (!createSession.isPending) {
-      createSession.mutateAsync().then((s) => s?.id && setSelectedSessionId(s.id));
-    }
-  }, [projectId, isLoadingSessions, selectedSessionId, sessions.length]);
-  
   // Seed initial prompt once if provided
   useEffect(() => {
-    if (!initialPrompt || seededRef.current || !selectedSessionId) return;
+    if (!initialPrompt || seededRef.current || !activeSessionId) return;
     if (messages.length > 0) return;
     const text = initialPrompt.trim();
     if (!text) return;
     seededRef.current = true;
-    sendMessage.mutate({ sessionId: selectedSessionId, text, agent: 'build' });
+    sendMessage.mutate({ sessionId: activeSessionId, text, agent: 'build' });
     // Clean up the URL by removing the 'initial' query after seeding
     try {
       const params = new URLSearchParams(searchParams?.toString?.() || "");
@@ -107,7 +100,7 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
     } catch {
       // no-op: if URL manipulation fails, we still avoid reseeding via seededRef
     }
-  }, [initialPrompt, selectedSessionId, messages.length]);
+  }, [initialPrompt, activeSessionId, messages.length]);
   
   useEffect(() => {
     const root = scrollRef.current;
@@ -130,28 +123,28 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
 
 
   const handleSend = (text: string) => {
-    if (!selectedSessionId || !text.trim()) return;
-    sendMessage.mutate({ sessionId: selectedSessionId, text: text.trim(), agent: mode });
+    if (!activeSessionId || !text.trim()) return;
+    sendMessage.mutate({ sessionId: activeSessionId, text: text.trim(), agent: mode });
   };
 
   const handleAbort = () => {
-    if (!selectedSessionId) return;
-    abortSession.mutate({ projectId: projectId!, sessionId: selectedSessionId });
+    if (!activeSessionId) return;
+    abortSession.mutate({ projectId: projectId!, sessionId: activeSessionId });
   };
 
   const handleRevert = async (messageId: string) => {
-    if (!selectedSessionId || busy) return;
+    if (!activeSessionId || busy) return;
     setRevertingId(messageId);
     try {
-      await revertMutation.mutateAsync({ sessionId: selectedSessionId, messageId });
+      await revertMutation.mutateAsync({ sessionId: activeSessionId, messageId });
     } finally {
       setRevertingId(undefined);
     }
   };
 
   const handleUnrevert = () => {
-    if (!selectedSessionId) return;
-    unrevertMutation.mutate({ sessionId: selectedSessionId });
+    if (!activeSessionId) return;
+    unrevertMutation.mutate({ sessionId: activeSessionId });
   };
 
   const placeholder = activeTab === 'chat' ? "Ask anything..." : "Terminal actions";
@@ -164,11 +157,11 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
           <SidebarHeader>
             <div className="flex items-center justify-between px-2 py-1">
               <h2 className="text-sm font-semibold group-data-[collapsible=icon]:hidden">Sessions</h2>
-              <Button 
+                <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={handleCreateSession}
-                disabled={createSession.isPending || isLoadingSessions}
+                disabled={createSession.isPending}
                 className="h-7 w-7 p-0 group-data-[collapsible=icon]:w-full"
                 title="New Session"
               >
@@ -188,11 +181,7 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu className="group-data-[collapsible=icon]:hidden">
-                  {isLoadingSessions ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : sessions.length === 0 ? (
+                  {sessions.length === 0 ? (
                     <div className="px-2 py-4 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
                       No sessions yet
                     </div>
@@ -200,7 +189,7 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
                     sessions.map((session) => (
                       <SidebarMenuItem key={session.id}>
                         <SidebarMenuButton
-                          isActive={selectedSessionId === session.id}
+                          isActive={activeSessionId === session.id}
                           onClick={() => handleSessionChange(session.id)}
                           tooltip={session.title || 'Untitled session'}
                           className="group"
@@ -256,7 +245,7 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
                   <div className="max-w-4xl mx-auto px-6 py-8">
                     {messages.length > 0 ? (
                       <AgentThread
-                        sessionId={selectedSessionId!}
+                        sessionId={activeSessionId!}
                         messages={messages}
                         partsMap={partsByMessage}
                         onRevert={handleRevert}

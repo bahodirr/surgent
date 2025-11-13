@@ -7,6 +7,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useActivateProject, useProjectQuery } from '@/queries/projects';
 import { useSandbox } from '@/hooks/use-sandbox';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SplitViewProps {
   projectId?: string;
@@ -19,6 +20,7 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
   const { data: project } = useProjectQuery(projectId);
   const setSandboxId = useSandbox((state: any) => state.setSandboxId);
   const lastActivatedId = useRef<string | undefined>(undefined);
+  const isMobile = useIsMobile();
 
   // Activate project sandbox on mount
   useEffect(() => {
@@ -38,42 +40,44 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
   return (
     <div className="h-screen w-full bg-background flex flex-col">
       <div className="flex-1 min-h-0">
-        <div className="h-full min-h-0 hidden md:block">
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={40} minSize={30}>
-              <Conversation projectId={projectId} initialPrompt={initialPrompt} />
-            </ResizablePanel>
-            <ResizableHandle className="shadow-2xl" />
-            <ResizablePanel defaultSize={60} minSize={30}>
-              <div className="h-full bg-background">
-                <PreviewPanel projectId={projectId} project={project} onPreviewUrl={onPreviewUrl} />
+        {isMobile ? (
+          <div className="h-full min-h-0 flex flex-col">
+            <Tabs defaultValue="chat" className="h-full min-h-0 flex flex-col">
+              <div className="px-3 pt-3 pb-2">
+                <TabsList className="w-full max-w-sm mx-auto h-10 p-1!">
+                  <TabsTrigger value="chat" className="cursor-pointer select-none px-3">Conversation</TabsTrigger>
+                  <TabsTrigger value="preview" className="cursor-pointer select-none px-3">Preview</TabsTrigger>
+                </TabsList>
               </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
-
-        <div className="h-full min-h-0 flex flex-col md:hidden">
-          <Tabs defaultValue="chat" className="h-full min-h-0 flex flex-col">
-            <div className="px-3 pt-3 pb-2">
-              <TabsList className="w-full max-w-sm mx-auto h-10 !p-1">
-                <TabsTrigger value="chat" className="cursor-pointer select-none px-3">Conversation</TabsTrigger>
-                <TabsTrigger value="preview" className="cursor-pointer select-none px-3">Preview</TabsTrigger>
-              </TabsList>
-            </div>
-            <TabsContent value="chat" className="flex-1 min-h-0 flex flex-col">
-              <div className="flex-1 min-h-0 px-3 pb-3">
+              <TabsContent value="chat" className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 min-h-0 px-3 pb-3">
+                  <Conversation projectId={projectId} initialPrompt={initialPrompt} />
+                </div>
+              </TabsContent>
+              <TabsContent value="preview" className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 min-h-0 px-3 pb-3">
+                  <div className="h-full min-h-0 overflow-hidden rounded-xl border bg-background">
+                    <PreviewPanel projectId={projectId} project={project} onPreviewUrl={onPreviewUrl} />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        ) : (
+          <div className="h-full min-h-0">
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+              <ResizablePanel defaultSize={40} minSize={30}>
                 <Conversation projectId={projectId} initialPrompt={initialPrompt} />
-              </div>
-            </TabsContent>
-            <TabsContent value="preview" className="flex-1 min-h-0 flex flex-col">
-              <div className="flex-1 min-h-0 px-3 pb-3">
-                <div className="h-full min-h-0 overflow-hidden rounded-xl border bg-background">
+              </ResizablePanel>
+              <ResizableHandle className="shadow-2xl" />
+              <ResizablePanel defaultSize={60} minSize={30}>
+                <div className="h-full bg-background">
                   <PreviewPanel projectId={projectId} project={project} onPreviewUrl={onPreviewUrl} />
                 </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
+        )}
       </div>
     </div>
   );

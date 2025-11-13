@@ -33,8 +33,16 @@ async function abortSession(projectId: string, sessionId: string): Promise<boole
 export function useSessionsQuery(projectId?: string) {
   return useQuery<Session[]>({
     queryKey: ['sessions', projectId],
-    queryFn: () => fetchSessions(projectId as string),
+    queryFn: async () => {
+      const sessions = await fetchSessions(projectId as string)
+      if (sessions.length === 0) {
+        const newSession = await createSession(projectId as string)
+        return [newSession]
+      }
+      return sessions
+    },
     enabled: Boolean(projectId),
+    staleTime: 10000,
   })
 }
 
