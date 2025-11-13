@@ -473,35 +473,35 @@ export async function initializeProject(
     // TODO: Improve auth handling for api keys/ add custom agents for speciic tasks. Convex better handling
 
     // Configure opencode auth for provider "zai" and default model glm-4.6
-    try {
-      const opencodeUrl = await sandbox.getHost(4096);
-      const apiKey = process.env.Z_AI_API_KEY;
+    // try {
+    //   const opencodeUrl = await sandbox.getHost(4096);
+    //   const apiKey = process.env.Z_AI_API_KEY;
 
-      // Persist API key via auth.set (server-side stored in auth.json)
-      if (apiKey) {
-        const authResponse = await fetch(`${opencodeUrl}/auth/zai?directory=${encodeURIComponent(workingDirectory)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ type: "api", key: apiKey }),
-          },
-        ).catch(() => {});
-        // console.log("authResponse", authResponse);
-      }
+    //   // Persist API key via auth.set (server-side stored in auth.json)
+    //   if (apiKey) {
+    //     const authResponse = await fetch(`${opencodeUrl}/auth/zai?directory=${encodeURIComponent(workingDirectory)}`,
+    //       {
+    //         method: "PUT",
+    //         headers: { "Content-Type": "application/json" },
+    //         body: JSON.stringify({ type: "api", key: apiKey }),
+    //       },
+    //     ).catch(() => {});
+    //     // console.log("authResponse", authResponse);
+    //   }
 
-      // Set default model and optional baseURL via config.update
-      const cfg: any = { model: "zai/glm-4.6" };
-      const configResponse = await fetch(`${opencodeUrl}/config?directory=${encodeURIComponent(workingDirectory)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(cfg),
-        },
-      ).catch(() => {});
-      // console.log("configResponse", configResponse);
-    } catch (err) {
-      console.log("[init] opencode provider auth/config update failed", err);
-    }
+    //   // Set default model and optional baseURL via config.update
+    //   const cfg: any = { model: "zai/glm-4.6" };
+    //   const configResponse = await fetch(`${opencodeUrl}/config?directory=${encodeURIComponent(workingDirectory)}`,
+    //     {
+    //       method: "PATCH",
+    //       headers: { "Content-Type": "application/json" },
+    //       body: JSON.stringify(cfg),
+    //     },
+    //   ).catch(() => {});
+    //   // console.log("configResponse", configResponse);
+    // } catch (err) {
+    //   console.log("[init] opencode provider auth/config update failed", err);
+    // }
   }
 
   // Conditionally provision Convex dev deployment
