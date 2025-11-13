@@ -540,6 +540,20 @@ export async function initializeProject(
       deploymentUrl: convexProject.deploymentUrl,
       deployKey,
     };
+
+    // Run Convex codegen and sync
+    const codegen = await sandbox.exec("bun run convex:codegen", { cwd: workingDirectory, timeoutSeconds: 120 });
+    if (codegen.exitCode !== 0) {
+      console.error("[convex] codegen failed", String(codegen.result).slice(0, 500));
+    } else {
+      console.log("[convex] codegen completed");
+    }
+    const sync = await sandbox.exec("bun run convex:once", { cwd: workingDirectory, timeoutSeconds: 180 });
+    if (sync.exitCode !== 0) {
+      console.error("[convex] sync failed", String(sync.result).slice(0, 500));
+    } else {
+      console.log("[convex] sync completed");
+    }
   }
 
   // Persist metadata
