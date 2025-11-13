@@ -17,10 +17,24 @@ async function sendMessage(
   projectId: string,
   sessionId: string,
   text: string,
-  agent: 'plan' | 'build'
+  agent: 'plan' | 'build',
+  model?: string,
+  providerID?: string
 ): Promise<Message> {
+  const body: any = {
+    agent,
+    parts: [{ type: 'text', text }] as Array<Part>,
+  };
+
+  if (model && model.trim()) {
+    body.model = {
+      providerID: providerID,
+      modelID: model,
+    };
+  }
+
   const data = await http.post(`api/agent/${projectId}/session/${sessionId}/message`, {
-    json: { agent, parts: [{ type: 'text', text }] as Array<Part> },
+    json: body,
   }).json()
   return data as Message
 }
@@ -69,9 +83,9 @@ export function useEnsureSession(projectId?: string) {
 }
 
 export function useSendMessage(projectId?: string) {
-  return useMutation<Message, unknown, { sessionId: string; text: string; agent: 'plan' | 'build' }>({
-    mutationFn: ({ sessionId, text, agent }) =>
-      sendMessage(projectId as string, sessionId, text, agent),
+  return useMutation<Message, unknown, { sessionId: string; text: string; agent: 'plan' | 'build'; model?: string; providerID?: string }>({
+    mutationFn: ({ sessionId, text, agent, model, providerID }) =>
+      sendMessage(projectId as string, sessionId, text, agent, model, providerID),
   })
 }
 

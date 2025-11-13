@@ -39,8 +39,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
-  
-  const [hasError, setHasError] = useState(false);
+  const [showInitialLoader, setShowInitialLoader] = useState(true);
 
   const webPreviewKey = useMemo(() => `${previewUrl ?? 'empty'}:${reloadCount}`, [previewUrl, reloadCount]);
 
@@ -63,10 +62,8 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
     setProgress(30);
     clearProgressTimer();
     progressTimerRef.current = setTimeout(() => setProgress(70), 400);
-    // If the iframe doesn't finish loading in time, assume it's asleep/unreachable
     clearLoadGuard();
     loadGuardRef.current = setTimeout(() => {
-      setHasError(true);
       setIsLoading(false);
     }, 10000);
   }, [clearProgressTimer, clearLoadGuard]);
@@ -82,10 +79,10 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
   }, [clearProgressTimer, clearLoadGuard]);
 
   const handleReload = useCallback(() => {
-    setHasError(false);
     startProgress();
     setReloadCount((c) => c + 1);
   }, [startProgress]);
+
   const handleCopy = useCallback(() => {
     const url = currentUrl || previewUrl || '';
     if (!url) return;
@@ -106,12 +103,16 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
     setIsDeploying(false);
   }, [deployProject, isDeploying, projectId]);
 
-  // Kick off progress when preview becomes ready with a URL (initial load)
+  // Show loader for 5 seconds on initial load
   useEffect(() => {
     if (initStatus === 'ready' && (previewUrl || currentUrl)) {
       startProgress();
+      const timer = setTimeout(() => {
+        setShowInitialLoader(false);
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-  }, [initStatus]);
+  }, [initStatus, previewUrl, currentUrl, startProgress]);
 
   useEffect(() => () => {
     clearProgressTimer();
@@ -207,7 +208,11 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
               <WebPreview
                 key={webPreviewKey}
                 defaultUrl={previewUrl || ''}
-                onUrlChange={(u) => { setCurrentUrl(u); onPreviewUrl?.(u || null); startProgress(); }}
+                onUrlChange={(u) => {
+                  setCurrentUrl(u);
+                  onPreviewUrl?.(u || null);
+                  startProgress();
+                }}
                 className="h-full border-0"
               >
                 
@@ -229,10 +234,21 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
                     />
                   </div>
                 </WebPreviewNavigation>
-                <WebPreviewBody 
-                  className="w-full h-full border-0" 
+                <WebPreviewBody
+                  className="w-full h-full border-0"
                   onLoad={finishProgress}
-                  onError={() => setHasError(true)}
+                  overlay={
+                    showInitialLoader ? (
+                      <div className="flex size-full flex-col items-center justify-center gap-4 bg-background/95 px-6 text-center backdrop-blur-md pointer-events-auto">
+                        <div className="h-12 w-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <div className="flex flex-col gap-2">
+                          <div className="text-base font-semibold text-foreground">
+                            Loading preview...
+                          </div>
+                        </div>
+                      </div>
+                    ) : null
+                  }
                 />
               </WebPreview>
             )}

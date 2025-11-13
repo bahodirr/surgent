@@ -470,38 +470,24 @@ export async function initializeProject(
       "opencode serve --hostname 0.0.0.0 --port 4096"
     );
 
-    // TODO: Improve auth handling for api keys/ add custom agents for speciic tasks. Convex better handling
+    try {
+      const opencodeUrl = await sandbox.getHost(4096);
+      const apiKey = process.env.Z_AI_API_KEY;
 
-    // Configure opencode auth for provider "zai" and default model glm-4.6
-    // try {
-    //   const opencodeUrl = await sandbox.getHost(4096);
-    //   const apiKey = process.env.Z_AI_API_KEY;
-
-    //   // Persist API key via auth.set (server-side stored in auth.json)
-    //   if (apiKey) {
-    //     const authResponse = await fetch(`${opencodeUrl}/auth/zai?directory=${encodeURIComponent(workingDirectory)}`,
-    //       {
-    //         method: "PUT",
-    //         headers: { "Content-Type": "application/json" },
-    //         body: JSON.stringify({ type: "api", key: apiKey }),
-    //       },
-    //     ).catch(() => {});
-    //     // console.log("authResponse", authResponse);
-    //   }
-
-    //   // Set default model and optional baseURL via config.update
-    //   const cfg: any = { model: "zai/glm-4.6" };
-    //   const configResponse = await fetch(`${opencodeUrl}/config?directory=${encodeURIComponent(workingDirectory)}`,
-    //     {
-    //       method: "PATCH",
-    //       headers: { "Content-Type": "application/json" },
-    //       body: JSON.stringify(cfg),
-    //     },
-    //   ).catch(() => {});
-    //   // console.log("configResponse", configResponse);
-    // } catch (err) {
-    //   console.log("[init] opencode provider auth/config update failed", err);
-    // }
+      // Persist API key via auth.set (server-side stored in auth.json)
+      if (apiKey) {
+        await fetch(`${opencodeUrl}/auth/zai?directory=${encodeURIComponent(workingDirectory)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "api", key: apiKey }),
+          },
+        ).catch(() => {});
+        // console.log("authResponse", authResponse);
+      }
+    } catch (err) {
+      console.log("[init] opencode provider auth/config update failed", err);
+    }
   }
 
   // Conditionally provision Convex dev deployment
@@ -555,6 +541,7 @@ export async function initializeProject(
       console.log("[convex] sync completed");
     }
   }
+
 
   // Persist metadata
   const current = await ProjectService.getProjectById(projectId);

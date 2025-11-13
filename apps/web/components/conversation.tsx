@@ -122,9 +122,15 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
   }, [messages.length]);
 
 
-  const handleSend = (text: string) => {
+  const handleSend = (text: string, model?: string, providerID?: string) => {
     if (!activeSessionId || !text.trim()) return;
-    sendMessage.mutate({ sessionId: activeSessionId, text: text.trim(), agent: mode });
+    sendMessage.mutate({
+      sessionId: activeSessionId,
+      text: text.trim(),
+      agent: mode,
+      model,  
+      providerID,
+    });
   };
 
   const handleAbort = () => {

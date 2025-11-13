@@ -2,9 +2,16 @@ import { useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ChatInputProps = {
-  onSubmit: (value: string) => void | Promise<void>;
+  onSubmit: (value: string, model?: string, providerID?: string) => void | Promise<void>;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -27,12 +34,15 @@ export default function ChatInput({
   isStopping = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
+  const [tier, setTier] = useState("intern");
 
   const handleSubmit = () => {
     const text = value.trim();
     if (!text || disabled) return;
     setValue("");
-    onSubmit(text);
+    const model = tier === "engineer" ? "glm-4.6" : "big-pickle";
+    const providerId = tier === "engineer" ? "zai" : "opencode";
+    onSubmit(text, model, providerId);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -58,28 +68,57 @@ export default function ChatInput({
           </div>
 
           <div className="flex items-center justify-between px-3 py-2 bg-transparent border-t border-foreground/10">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onToggleMode}
-              aria-pressed={mode === 'plan'}
-              className={cn(
-                "group h-7 px-3 rounded-full text-xs font-medium transition-colors cursor-pointer select-none border disabled:opacity-50 disabled:cursor-not-allowed",
-                mode === 'plan'
-                  ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
-                  : "bg-transparent text-foreground/60 border-foreground/10 hover:text-foreground/80 hover:bg-foreground/5 hover:border-foreground/20",
-              )}
-              aria-label="Toggle mode"
-            >
-              <span
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onToggleMode}
+                aria-pressed={mode === 'plan'}
                 className={cn(
-                  "mr-1.5 inline-block h-1.5 w-1.5 rounded-full transition-colors",
-                  mode === 'plan' ? "bg-purple-600" : "bg-foreground/40 group-hover:bg-foreground/60",
+                  "group h-8 px-3 rounded-full text-xs font-medium transition-colors cursor-pointer select-none border disabled:opacity-50 disabled:cursor-not-allowed",
+                  mode === 'plan'
+                    ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
+                    : "bg-transparent text-foreground/60 border-foreground/10 hover:text-foreground/80 hover:bg-foreground/5 hover:border-foreground/20",
                 )}
-              />
-              Chat mode (for Planning)
-            </Button>
+                aria-label="Toggle mode"
+              >
+                <span
+                  className={cn(
+                    "mr-1.5 inline-block h-1.5 w-1.5 rounded-full transition-colors",
+                    mode === 'plan' ? "bg-purple-600" : "bg-foreground/40 group-hover:bg-foreground/60",
+                  )}
+                />
+                Chat mode (for Planning)
+              </Button>
+
+              <Select value={tier} onValueChange={setTier}>
+                <SelectTrigger
+                  size="sm"
+                  className="rounded-full border border-input bg-background px-3 text-xs"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="intern">
+                    <span className="flex items-center gap-1">
+                      <span>Intern</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                        Free
+                      </span>
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="engineer">
+                    <span className="flex items-center gap-1">
+                      <span>Engineer</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                        Paid
+                      </span>
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <Button
               type="button"

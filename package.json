@@ -25,6 +25,7 @@
     "@opencode-ai/plugin": "^0.15.14",
     "@opencode-ai/sdk": "^0.15.14",
     "@stripe/ui-extension-sdk": "^9.1.0",
+    "autumn-js": "^0.1.47",
     "convex": "^1.28.0",
     "monaco-themes": "^0.4.7"
   }

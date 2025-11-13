@@ -160,19 +160,19 @@ export const WebPreviewUrl = ({
 };
 
 export type WebPreviewBodyProps = ComponentProps<'iframe'> & {
-  loading?: ReactNode;
+  overlay?: ReactNode;
 };
 
 export const WebPreviewBody = ({
   className,
-  loading,
+  overlay,
   src,
   ...props
 }: WebPreviewBodyProps) => {
   const { url } = useWebPreview();
 
   return (
-    <div className="flex-1">
+    <div className="relative flex-1">
       <iframe
         className={cn('size-full', className)}
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-presentation allow-pointer-lock allow-storage-access-by-user-activation allow-downloads"
@@ -181,7 +181,7 @@ export const WebPreviewBody = ({
         title="Preview"
         {...props}
       />
-      {loading}
+      {overlay ? <div className="absolute inset-0 z-10 pointer-events-none">{overlay}</div> : null}
     </div>
   );
 };

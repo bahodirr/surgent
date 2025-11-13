@@ -19,9 +19,11 @@ function parseMarkdownIntoBlocks(markdown: string): string[] {
 }
 
 function extractLanguage(className?: string): string {
-  if (!className) return "plaintext"
+  // Default to TypeScript/TSX since most code blocks in the app are TS/TSX.
+  // This improves highlighting when the markdown does not specify a language.
+  if (!className) return "tsx"
   const match = className.match(/language-(\w+)/)
-  return match?.[1] ?? "plaintext"
+  return match?.[1] ?? "tsx"
 }
 
 const INITIAL_COMPONENTS: Partial<Components> = {

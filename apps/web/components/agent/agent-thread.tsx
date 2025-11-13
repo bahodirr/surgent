@@ -2,8 +2,6 @@
 
 import React from "react";
 import type { Message, Part, ToolPart, TextPart, ReasoningPart } from "@opencode-ai/sdk";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, Wrench, Undo2, CheckCircle2, Circle } from "lucide-react";
 import { Loader2 } from "lucide-react";
@@ -14,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Markdown } from "@/components/ui/markdown";
 
 type Props = { sessionId: string };
 
@@ -154,11 +153,9 @@ function ToolCard({ part, minimal = false }: { part: ToolPart; minimal?: boolean
         </div>
       ) : isTodoTool && output ? (
         <div className={`mt-2 ${minimal ? "" : "rounded border bg-muted/5 p-2"} overflow-hidden`}>
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <Markdown className="prose prose-sm dark:prose-invert max-w-none">
               {typeof output === "string" ? output : JSON.stringify(output, null, 2)}
-            </ReactMarkdown>
-          </div>
+          </Markdown>
         </div>
       ) : null}
       {open && input ? (
@@ -294,9 +291,9 @@ export function AgentThread({
                         <CollapsibleContent>
                           {text && (
                             <div className="mt-1 border-l-2 border-muted-foreground/30 pl-2">
-                              <div className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground wrap-break-word">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-                              </div>
+                              <Markdown className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground wrap-break-word">
+                                {text}
+                              </Markdown>
                             </div>
                           )}
                           {!text && isStreaming && (
@@ -345,9 +342,9 @@ export function AgentThread({
                 const text = g.items.map((p) => (p as TextPart).text?.trim()).filter(Boolean).join("\n\n");
                 if (!text) return null;
                 return (
-                  <div key={key} className="prose prose-sm dark:prose-invert w-full min-w-0 prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:rounded prose-pre:overflow-x-auto prose-code:wrap-break-word">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
-                  </div>
+                  <Markdown key={key} className="prose prose-sm dark:prose-invert w-full min-w-0 prose-p:leading-relaxed prose-code:wrap-break-word">
+                    {text}
+                  </Markdown>
                 );
               })}
             </div>
