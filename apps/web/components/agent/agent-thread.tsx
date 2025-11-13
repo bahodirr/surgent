@@ -9,6 +9,7 @@ import { ChevronDown, ChevronUp, Wrench, Undo2, CheckCircle2, Circle } from "luc
 import { Loader2 } from "lucide-react";
 import DiffSummary from "@/components/diff/diff-summary";
 import DiffViewerWithSidebar from "@/components/diff/diff-viewer-with-sidebar";
+import { ShimmeringText } from "@/components/ui/shimmer-text";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ function ToolCard({ part, minimal = false }: { part: ToolPart; minimal?: boolean
   const input = part.state.status !== "pending" ? part.state.input : undefined;
   const output = part.state.status === "completed" ? part.state.output : undefined;
   const isTodoTool = part.tool === "todowrite" || part.tool === "todoread";
+  const isTodoUpdate = part.tool === "todowrite" && input && (input as { merge?: boolean }).merge === true;
   const parsedTodos = React.useMemo(() => {
     if (!isTodoTool || output == null) return null;
     try {
@@ -67,6 +69,15 @@ function ToolCard({ part, minimal = false }: { part: ToolPart; minimal?: boolean
       return null;
     }
   }, [isTodoTool, output]);
+
+  // Hide todo updates, only show creation
+  if (isTodoUpdate) {
+    return (
+      <div className="px-1 py-0.5">
+        <div className="text-[11px] text-muted-foreground/60">Updated todos</div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-1 py-1">
@@ -256,13 +267,46 @@ export function AgentThread({
                 
                 if (g.kind === 'reasoning') {
                   const text = g.items.map((p) => (p as ReasoningPart).text?.trim()).filter(Boolean).join("\n\n");
-                  if (!text) return null;
+                  const isStreaming = g.items.some((p) => !(p as ReasoningPart).time?.end);
+                  if (!text && !isStreaming) return null;
+                  
                   return (
-                    <div key={key} className="border-l-2 border-muted-foreground/30 pl-2 overflow-hidden min-w-0">
-                      <div className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground wrap-break-word">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                    <Collapsible
+                      key={key}
+                      open={groupOpen[key] ?? isStreaming}
+                      onOpenChange={(v) => setGroupOpen({ ...groupOpen, [key]: v })}
+                    >
+                      <div className="overflow-hidden">
+                        <CollapsibleTrigger className="w-full py-1 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {isStreaming ? (
+                              <ShimmeringText text="Thinking…" duration={1} className="text-xs text-muted-foreground" />
+                            ) : (
+                              <span className="text-xs font-medium text-muted-foreground">Thinking completed</span>
+                            )}
+                          </div>
+                          {groupOpen[key] ?? isStreaming ? (
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          )}
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          {text && (
+                            <div className="mt-1 border-l-2 border-muted-foreground/30 pl-2">
+                              <div className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground wrap-break-word">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+                          {!text && isStreaming && (
+                            <div className="mt-1 border-l-2 border-muted-foreground/30 pl-2">
+                              <div className="text-[11px] text-muted-foreground">in progress…</div>
+                            </div>
+                          )}
+                        </CollapsibleContent>
                       </div>
-                    </div>
+                    </Collapsible>
                   );
                 }
                 
