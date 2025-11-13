@@ -51,15 +51,20 @@ projects.get('/:id', zValidator('param', idParam), async (c) => {
 // POST /projects - Create + Initialize project (no id provided by client)
 projects.post(
   '/',
-  zValidator('json', z.object({ githubUrl: z.string(), name: z.string().optional() })),
+  zValidator('json', z.object({ 
+    githubUrl: z.string(), 
+    name: z.string().optional(),
+    initConvex: z.boolean().optional()
+  })),
   async (c) => {
-    const { githubUrl, name } = c.req.valid('json')
+    const { githubUrl, name, initConvex } = c.req.valid('json')
 
 
     const result = await initializeProject({
       githubUrl,
       userId: c.get('user')!.id,
       name,
+      initConvex,
     })
 
     return c.json({ id: result.projectId })
