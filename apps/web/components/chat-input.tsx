@@ -34,7 +34,7 @@ export default function ChatInput({
   isStopping = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
-  const [tier, setTier] = useState("intern");
+  const [tier, setTier] = useState("engineer");
 
   const handleSubmit = () => {
     const text = value.trim();
