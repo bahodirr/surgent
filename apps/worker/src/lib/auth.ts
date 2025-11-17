@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { autumn } from "autumn-js/better-auth";
 import { dialect } from '@repo/db';
 
 export const auth = betterAuth({
@@ -7,7 +8,9 @@ export const auth = betterAuth({
   trustedOrigins: [
     process.env.CLIENT_ORIGIN || "http://localhost:3000",
   ],
-  plugins: [],
+  plugins: [
+    autumn(), // User-scoped customers by default. Configure productId in Autumn dashboard.
+  ],
   database: {
     dialect: dialect,
     type: "postgres",

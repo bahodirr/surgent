@@ -354,7 +354,9 @@ async function ensurePm2Process(
   command: string
 ): Promise<void> {
   const online = await isPm2Online(sandbox, cwd, name);
-  if (online) return;
+  if (online) {
+    await sandbox.exec(`pm2 delete ${name}`, { timeoutSeconds: 30, cwd }).catch(() => {});
+  }
   const startCmd = `pm2 start "${command}" --name ${name} --update-env`;
   await sandbox.exec(startCmd, { timeoutSeconds: 5 * 60, cwd });
 }
