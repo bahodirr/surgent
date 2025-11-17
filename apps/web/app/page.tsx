@@ -234,7 +234,7 @@ export default function Index() {
                 <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
                   <span className="text-zinc-500 dark:text-zinc-400">Try:</span>
                   <button
-                    onClick={() => setPromptValue('Please build personal website with linkedin data. Minimal, clean yet unique and creative. No ai slop. Comprehensive full web page. Linkedin:')}
+                    onClick={() => setPromptValue('Please build personal website with linkedin data. Clean yet unique and creative. No ai slop. Comprehensive full web page. Linkedin:')}
                     className="px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                   >
                     Build personal website
