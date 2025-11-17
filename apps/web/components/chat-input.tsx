@@ -89,8 +89,7 @@ export default function ChatInput({
                     mode === 'plan' ? "bg-purple-600" : "bg-foreground/40 group-hover:bg-foreground/60",
                   )}
                 />
-                Chat mode (for Planning)
-              </Button>
+                Chat mode</Button>
 
               <Select value={tier} onValueChange={setTier}>
                 <SelectTrigger

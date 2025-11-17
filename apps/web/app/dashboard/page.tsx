@@ -16,9 +16,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, MoreVertical, Code2, Clock, Activity } from 'lucide-react';
+import { Plus, MoreVertical, Code2, Clock, Activity, CreditCard } from 'lucide-react';
 import { useProjectsQuery, useCreateProject } from '@/queries/projects';
 import type { Project } from '@/types/project';
+import { useCustomer } from 'autumn-js/react';
 
 // Project type moved to '@/types/project'
 
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const { data: projects = [], isLoading, error: queryError } = useProjectsQuery();
   const create = useCreateProject();
+  const { customer } = useCustomer();
 
   useEffect(() => {
     checkAuth();
@@ -129,12 +131,23 @@ export default function DashboardPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
+                <DropdownMenuLabel className="py-3">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user?.name || 'User'}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                    <span className="font-medium text-base">
+                      {user?.name || user?.email}
+                    </span>
+                    {customer && (
+                      <span className="text-xs rounded-full bg-muted px-2 py-0.5 w-fit text-brand font-semibold mt-1">
+                        {customer.products[0]?.name || 'Free'} Plan
+                      </span>
+                    )}
                   </div>
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/pricing')}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Billing & Plans
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut}>
                   Sign out
