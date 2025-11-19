@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import DeployDialog from '@/components/deploy-dialog';
  
+import { cn } from '@/lib/utils';
+
 interface PreviewPanelProps {
   projectId?: string;
   project?: any;
@@ -32,62 +34,29 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
 
   const [currentUrl, setCurrentUrl] = useState(previewUrl || '');
   const [reloadCount, setReloadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const loadGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isWarmingUp, setIsWarmingUp] = useState(true);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
-  const [showInitialLoader, setShowInitialLoader] = useState(true);
 
   const webPreviewKey = useMemo(() => `${previewUrl ?? 'empty'}:${reloadCount}`, [previewUrl, reloadCount]);
 
-  const clearProgressTimer = useCallback(() => {
-    if (progressTimerRef.current) {
-      clearTimeout(progressTimerRef.current);
-      progressTimerRef.current = null;
-    }
-  }, []);
-
-  const clearLoadGuard = useCallback(() => {
-    if (loadGuardRef.current) {
-      clearTimeout(loadGuardRef.current);
-      loadGuardRef.current = null;
-    }
-  }, []);
-
-  const startProgress = useCallback(() => {
-    setIsLoading(true);
-    setProgress(30);
-    clearProgressTimer();
-    progressTimerRef.current = setTimeout(() => setProgress(70), 400);
-    clearLoadGuard();
-    loadGuardRef.current = setTimeout(() => {
-      setIsLoading(false);
-    }, 10000);
-  }, [clearProgressTimer, clearLoadGuard]);
-
-  const finishProgress = useCallback(() => {
-    setProgress(100);
-    clearProgressTimer();
-    clearLoadGuard();
-    setTimeout(() => {
-      setIsLoading(false);
-      setProgress(0);
-    }, 250);
-  }, [clearProgressTimer, clearLoadGuard]);
-
   const handleReload = useCallback(() => {
-    startProgress();
+    setIsLoading(true);
     setReloadCount((c) => c + 1);
-  }, [startProgress]);
+  }, []);
+
+  const handleIframeLoad = useCallback(() => {
+    setIsLoading(false);
+  }, []);
 
   const handleCopy = useCallback(() => {
     const url = currentUrl || previewUrl || '';
     if (!url) return;
     navigator.clipboard?.writeText(url).catch(() => {});
   }, [currentUrl, previewUrl]);
+
   const handleOpen = useCallback(() => {
     const url = `https://${project.deployment.name}.surgent.dev`
     window.open(url, '_blank', 'noopener,noreferrer');
@@ -103,21 +72,15 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
     setIsDeploying(false);
   }, [deployProject, isDeploying, projectId]);
 
-  // Show loader for 5 seconds on initial load
+  // Reset loading state when URL changes
   useEffect(() => {
-    if (initStatus === 'ready' && (previewUrl || currentUrl)) {
-      startProgress();
-      const timer = setTimeout(() => {
-        setShowInitialLoader(false);
-      }, 5000);
+    if (previewUrl) {
+      setIsLoading(true);
+      setIsWarmingUp(true);
+      const timer = setTimeout(() => setIsWarmingUp(false), 3000);
       return () => clearTimeout(timer);
     }
-  }, [initStatus, previewUrl, currentUrl, startProgress]);
-
-  useEffect(() => () => {
-    clearProgressTimer();
-    clearLoadGuard();
-  }, [clearProgressTimer, clearLoadGuard]);
+  }, [previewUrl]);
 
   // Removed favicon ping and auto-recovery to avoid refresh loops
 
@@ -211,14 +174,14 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
                 onUrlChange={(u) => {
                   setCurrentUrl(u);
                   onPreviewUrl?.(u || null);
-                  startProgress();
+                  setIsLoading(true);
                 }}
                 className="h-full border-0"
               >
                 
                 <WebPreviewNavigation className="border-b p-2 relative">
                   <WebPreviewNavigationButton tooltip="Reload" onClick={handleReload}>
-                    <RefreshCw className="h-4 w-4" />
+                    <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
                   </WebPreviewNavigationButton>
                   <WebPreviewNavigationButton tooltip="Copy URL" onClick={handleCopy}>
                     <Copy className="h-4 w-4" />
@@ -227,23 +190,23 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
                     <ExternalLink className="h-4 w-4" />
                   </WebPreviewNavigationButton>
                   <WebPreviewUrl placeholder="Enter URL..." />
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5">
-                    <div
-                      className="h-full bg-primary transition-[width] duration-200 ease-out"
-                      style={{ width: isLoading ? `${progress}%` : '0%' }}
-                    />
-                  </div>
+                  {isLoading && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden bg-primary/20">
+                      <div className="h-full w-full bg-primary animate-indeterminate-bar origin-left" />
+                    </div>
+                  )}
                 </WebPreviewNavigation>
                 <WebPreviewBody
                   className="w-full h-full border-0"
-                  onLoad={finishProgress}
+                  onLoad={handleIframeLoad}
+                  src={isWarmingUp ? 'about:blank' : undefined}
                   overlay={
-                    showInitialLoader ? (
-                      <div className="flex size-full flex-col items-center justify-center gap-4 bg-background/95 px-6 text-center backdrop-blur-md pointer-events-auto">
+                    isLoading || isWarmingUp ? (
+                      <div className="flex size-full flex-col items-center justify-center gap-4 bg-background/95 px-6 text-center backdrop-blur-md pointer-events-auto transition-opacity duration-300">
                         <div className="h-12 w-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
                         <div className="flex flex-col gap-2">
                           <div className="text-base font-semibold text-foreground">
-                            Loading preview...
+                            {isWarmingUp ? 'Starting sandbox...' : 'Loading preview...'}
                           </div>
                         </div>
                       </div>

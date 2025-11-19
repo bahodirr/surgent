@@ -58,16 +58,16 @@ export default function ChatInput({
         <div className="relative w-full rounded-2xl border border-input bg-white shadow-sm overflow-hidden">
           <div className="relative">
             <textarea
-              className="p-4 max-h-[300px] min-h-[80px] text-gray-900 w-full resize-none outline-none text-[16px] selection:bg-black/10 bg-transparent"
+              className="p-4 max-h-[300px] min-h-[30px] text-gray-900 w-full resize-none outline-none text-[16px] selection:bg-black/10 bg-transparent"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
-              rows={3}
+              rows={1}
             />
           </div>
 
-          <div className="flex items-center justify-between px-3 py-2 bg-transparent border-t border-foreground/10">
+          <div className="flex items-center justify-between px-3 py-2 bg-transparent">
             <div className="flex items-center gap-2">
               <Button
                 type="button"
