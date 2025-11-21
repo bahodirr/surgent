@@ -34,14 +34,23 @@ export default function ChatInput({
   isStopping = false,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
-  const [tier, setTier] = useState("engineer");
+  const [tier, setTier] = useState("en");
 
   const handleSubmit = () => {
     const text = value.trim();
     if (!text || disabled) return;
     setValue("");
-    const model = tier === "engineer" ? "glm-4.6" : "big-pickle";
-    const providerId = tier === "engineer" ? "zai" : "opencode";
+    let model = "big-pickle";
+    let providerId = "opencode";
+
+    if (tier === "engineer") {
+      model = "glm-4.6";
+      providerId = "zai";
+    } else if (tier === "en") {
+      model = "gpt-5";
+      providerId = "openai";
+    }
+
     onSubmit(text, model, providerId);
   };
 
@@ -112,6 +121,14 @@ export default function ChatInput({
                       <span>Engineer</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                         Paid
+                      </span>
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="en">
+                    <span className="flex items-center gap-1">
+                      <span>Cracked Dev</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                        Pro
                       </span>
                     </span>
                   </SelectItem>
