@@ -47,7 +47,7 @@ export default function ChatInput({
       model = "glm-4.6";
       providerId = "zai";
     } else if (tier === "en") {
-      model = "gpt-5";
+      model = "gpt-5.1-codex";
       providerId = "openai";
     }
 

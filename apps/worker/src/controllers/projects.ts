@@ -355,7 +355,7 @@ async function ensurePm2Process(
 ): Promise<void> {
   const online = await isPm2Online(sandbox, cwd, name);
   if (online) {
-    await sandbox.exec(`pm2 delete ${name}`, { timeoutSeconds: 30, cwd }).catch(() => {});
+    return;
   }
   const startCmd = `pm2 start "${command}" --name ${name} --update-env`;
   await sandbox.exec(startCmd, { timeoutSeconds: 5 * 60, cwd });
@@ -474,11 +474,11 @@ export async function initializeProject(
 
     try {
       const opencodeUrl = await sandbox.getHost(4096);
-      const apiKey = process.env.Z_AI_API_KEY;
+      const apiKey = process.env.OPENAI_API_KEY;
 
       // Persist API key via auth.set (server-side stored in auth.json)
       if (apiKey) {
-        await fetch(`${opencodeUrl}/auth/zai?directory=${encodeURIComponent(workingDirectory)}`,
+        await fetch(`${opencodeUrl}/auth/openai?directory=${encodeURIComponent(workingDirectory)}`,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },

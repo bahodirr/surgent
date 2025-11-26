@@ -1,7 +1,7 @@
 import { Experimental_Agent as Agent, stepCountIs, tool, wrapLanguageModel, defaultSettingsMiddleware } from 'ai';
 import { z } from 'zod';
 import { readFile, writeFile } from 'node:fs/promises';
-import { gateway } from '@ai-sdk/gateway';
+import { openai } from '@ai-sdk/openai';
 import { join } from 'node:path';
 
 // PLAN.md lives on the server as the source of truth
@@ -27,7 +27,7 @@ function ensureNewline(s: string): string {
 }
 
 // Wrap gateway model with reasoning effort for OpenAI
-const baseModel = gateway('openai/gpt-5-chat-latest');
+const baseModel = openai('gpt-5.1-codex');
 
 export const codingAgent = new Agent({
 	model: baseModel,

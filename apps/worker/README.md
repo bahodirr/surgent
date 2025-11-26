@@ -5,6 +5,7 @@ The `apps/worker` workspace defines the Cloudflare Worker that fronts Daytona sa
 ## Responsibilities
 - `POST /deploy` – receives the bundle produced by `packages/backend/convex/agent.ts`, uploads assets to Cloudflare Dispatch, and publishes the worker (see `services/deployer`).
 - Preview proxy – requests to `https://<port>-<sandboxId>.<worker-domain>` are warmed up against Daytona via `SandboxApi` and forwarded with the correct preview token.
+- AI Proxy – `POST /api/proxy/:provider/*` (e.g. `openai`, `anthropic`) forwards requests to upstream LLM providers, injecting secrets server-side. Authenticated via session cookie or `Authorization: Bearer <api-key>`.
 - Dispatch routing – other hostnames are resolved through the bound `dispatcher` namespace so you can serve previously deployed workers from the same entrypoint.
 - Health check – `GET /health` responds with `ok` for uptime probes.
 

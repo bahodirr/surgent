@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { autumn } from "autumn-js/better-auth";
+import { apiKey } from "better-auth/plugins";
 import { dialect } from '@repo/db';
 
 export const auth = betterAuth({
@@ -10,6 +11,11 @@ export const auth = betterAuth({
   ],
   plugins: [
     autumn(), // User-scoped customers by default. Configure productId in Autumn dashboard.
+    apiKey({
+      rateLimit: {
+        enabled: false // handled by Worker DO or upstream
+      }
+    })
   ],
   database: {
     dialect: dialect,

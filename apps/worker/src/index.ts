@@ -5,6 +5,7 @@ import projects from './routes/projects'
 import preview from './routes/preview'
 import agent from './routes/agent'
 import dispatch from './routes/dispatch'
+import proxy from './routes/proxy'
 import { auth } from './lib/auth'
 import type { AppContext } from '@/types/application'
 import { requireAuth } from './middleware/auth'
@@ -76,6 +77,7 @@ app.get('/api/session', (c) => {
 
 app.route('/api/projects', projects)
 app.route('/api/agent', agent)
+app.route('/api/proxy', proxy)
 app.route('/preview', preview)
 
 

@@ -235,7 +235,6 @@ export function AgentThread({
           <div key={userMsg.id} className="flex flex-col gap-4 w-full min-w-0">
             <div className="rounded-md border bg-muted/20 px-4 py-3 overflow-hidden relative group">
               <div className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed wrap-break-word">{userText}</div>
-              {userMsg.summary?.title && <div className="mt-1 text-[10px] text-muted-foreground/40 wrap-break-word">{userMsg.summary.title}</div>}
               {onRevert && (
                 <Tooltip>
                   <TooltipTrigger asChild>
