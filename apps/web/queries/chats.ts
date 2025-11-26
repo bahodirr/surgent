@@ -86,7 +86,6 @@ export function useSendMessage(projectId?: string) {
   return useMutation<Message, unknown, { sessionId: string; text: string; agent: 'plan' | 'build'; model?: string; providerID?: string }>({
     mutationFn: ({ sessionId, text, agent, model, providerID }) =>
       sendMessage(projectId as string, sessionId, text, agent, model, providerID),
-    retry: 3,
   })
 }
 
