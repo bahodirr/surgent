@@ -465,6 +465,11 @@ export async function initializeProject(
       processName,
       devScript
     );
+
+    // Update opencode to latest before starting the server
+    const updateResult = await sandbox.exec("bun update -g opencode-ai@latest", { timeoutSeconds: 120 });
+    console.log("[init] opencode update", updateResult.exitCode === 0 ? "success" : "failed");
+
     await ensurePm2Process(
       sandbox,
       workingDirectory,
@@ -603,6 +608,11 @@ export async function resumeProject(
         startCommand
       );
     }
+
+    // Update opencode to latest before starting the server
+    const updateResult = await sandbox.exec("bun update -g opencode-ai@latest", { timeoutSeconds: 120 });
+    console.log("[resume] opencode update", updateResult.exitCode === 0 ? "success" : "failed");
+    console.log("[resume] opencode update result", updateResult.result);
 
     await ensurePm2Process(
       sandbox,
