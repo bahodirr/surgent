@@ -20,17 +20,19 @@ export interface PreviewTab {
   messageId?: string;
 }
 
+const DEFAULT_TABS: PreviewTab[] = [{ id: 'preview', type: 'preview', title: 'Preview' }];
+
 interface PreviewPanelProps {
   projectId?: string;
   project?: any;
   onPreviewUrl?: (url: string | null) => void;
-  tabs: PreviewTab[];
-  activeTabId: string;
-  onTabChange: (tabId: string) => void;
-  onCloseTab: (tabId: string) => void;
+  tabs?: PreviewTab[];
+  activeTabId?: string;
+  onTabChange?: (tabId: string) => void;
+  onCloseTab?: (tabId: string) => void;
 }
 
-export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, activeTabId, onTabChange, onCloseTab }: PreviewPanelProps) {
+export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = DEFAULT_TABS, activeTabId = 'preview', onTabChange, onCloseTab }: PreviewPanelProps) {
   const deployProject = useDeployProject();
   const connected = useSandbox(s => s.connected);
 
@@ -57,10 +59,17 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
     navigator.clipboard?.writeText(url).catch(() => {});
   }, [currentUrl, previewUrl]);
 
-  const handleOpen = useCallback(() => {
-    const url = `https://${project.deployment.name}.surgent.dev`
-    window.open(url, '_blank', 'noopener,noreferrer');
+  const handleOpenDeployment = useCallback(() => {
+    const name = project?.deployment?.name;
+    if (!name) return;
+    window.open(`https://${name}.surgent.dev`, '_blank', 'noopener,noreferrer');
   }, [project]);
+
+  const handleOpenPreview = useCallback(() => {
+    const url = currentUrl || previewUrl;
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [currentUrl, previewUrl]);
 
   const handleConfirmDeploy = useCallback(async (sanitizedName: string) => {
     if (!projectId || isDeploying) return;
@@ -107,8 +116,8 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
               size="sm"
               variant="secondary"
               className="cursor-pointer"
-              disabled={!`https://${project.deployment.name}.surgent.dev`}
-              onClick={handleOpen}
+              disabled={!project?.deployment?.name}
+              onClick={handleOpenDeployment}
             >
               <ExternalLink className="h-4 w-4" /> Open
             </Button>
@@ -118,8 +127,8 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
             size="sm"
             variant="secondary"
             className="cursor-pointer"
-            disabled={!previewUrl}
-            onClick={handleOpen}
+            disabled={!project?.deployment?.name}
+            onClick={handleOpenDeployment}
           >
             <ExternalLink className="h-4 w-4" /> Open
           </Button>
@@ -148,7 +157,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
           {tabs.map(tab => (
             <button
               key={tab.id}
-              onClick={() => onTabChange(tab.id)}
+              onClick={() => onTabChange?.(tab.id)}
               className={cn(
                 "group flex items-center gap-2 px-3 text-sm border-r transition-colors",
                 activeTabId === tab.id ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
@@ -158,7 +167,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
               {tab.type !== 'preview' && (
                 <span
                   role="button"
-                  onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
+                  onClick={(e) => { e.stopPropagation(); onCloseTab?.(tab.id); }}
                   className="p-0.5 rounded hover:bg-muted-foreground/20 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="size-3" />
@@ -194,7 +203,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
                 <WebPreviewNavigationButton tooltip="Copy URL" onClick={handleCopy}>
                   <Copy className="h-4 w-4" />
                 </WebPreviewNavigationButton>
-                <WebPreviewNavigationButton tooltip="Open in new tab" onClick={handleOpen}>
+                <WebPreviewNavigationButton tooltip="Open in new tab" onClick={handleOpenPreview}>
                   <ExternalLink className="h-4 w-4" />
                 </WebPreviewNavigationButton>
                 <WebPreviewUrl placeholder="Enter URL..." />

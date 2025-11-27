@@ -191,7 +191,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
           (p.type === "reasoning" && !(p as ReasoningPart).time?.end)
         );
 
-        const showWaiting = isLast && working && !hasActivity;
+        const showWaiting = isLast && working && !hasActivity && groups.length > 0;
 
         return (
           <div key={userMsg.id} className="space-y-3">
