@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Trash2, Sparkles, MessageSquarePlus } from "lucide-react";
+import { Plus, MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Trash2, Sparkles, MessageSquarePlus, Wifi, WifiOff } from "lucide-react";
 import ChatInput from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -60,7 +60,7 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
   // Derive selected session: use state if set, otherwise first session
   const activeSessionId = selectedSessionId || sessions[0]?.id;
 
-  const { messages, parts: partsByMessage, session: currentSession, lastAt } = useAgentStream({ projectId, sessionId: activeSessionId });
+  const { messages, parts: partsByMessage, session: currentSession, lastAt, connected } = useAgentStream({ projectId, sessionId: activeSessionId });
 
   const isWorking = useMemo(() => {
     const last = messages[messages.length - 1];
@@ -231,6 +231,12 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
               </div>
               
               <div className="flex items-center gap-2">
+                {!connected && projectId && (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-500" title="Reconnecting to server...">
+                    <WifiOff className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Reconnecting...</span>
+                  </div>
+                )}
                 {currentSession?.summary?.diffs && currentSession.summary.diffs.length > 0 && (
                   <Button
                     size="sm"
@@ -306,8 +312,8 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
                 <div className="max-w-4xl mx-auto">
                   <ChatInput
                     onSubmit={handleSend}
-                    disabled={sendMessage.isPending || isWorking || busy}
-                    placeholder={isWorking ? "Assistant is working..." : placeholder}
+                    disabled={sendMessage.isPending || isWorking || busy || !connected}
+                    placeholder={!connected ? "Connecting to server..." : isWorking ? "Assistant is working..." : placeholder}
                     mode={mode}
                     onToggleMode={() => setMode((m) => (m === 'plan' ? 'build' : 'plan'))}
                     isWorking={isWorking}

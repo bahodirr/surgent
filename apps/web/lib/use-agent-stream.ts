@@ -9,11 +9,12 @@ type State = {
   parts: Record<string, Part[]>;
   session?: Session;
   lastAt: number;
+  connected: boolean;
 };
 
 type StreamEvent = Event | { type: string; properties?: Record<string, any> };
 
-const initialState: State = { messages: [], parts: {}, lastAt: 0 };
+const initialState: State = { messages: [], parts: {}, lastAt: 0, connected: false };
 
 function upsertMessage(list: Message[], incoming: Message): Message[] {
   const idx = list.findIndex((m) => m.id === incoming.id);
@@ -71,6 +72,10 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
       else delete parts[props.messageID];
       return { ...state, parts, lastAt: now };
     }
+    case "server.connected":
+      return { ...state, connected: true, lastAt: now };
+    case "connection.closed":
+      return { ...state, connected: false, lastAt: now };
     default:
       return { ...state, lastAt: now };
   }
@@ -128,6 +133,7 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
         } catch {}
       };
       es.onerror = () => {
+        dispatch({ type: "connection.closed" });
         es.close();
         if (!closedRef.current) setTimeout(connect, 2000);
       };
@@ -135,6 +141,7 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
     connect();
     return () => {
       closedRef.current = true;
+      dispatch({ type: "connection.closed" });
       esRef.current?.close();
     };
   }, [projectId]);
