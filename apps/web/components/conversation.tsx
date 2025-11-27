@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Trash2, Sparkles, MessageSquarePlus, Wifi, WifiOff } from "lucide-react";
+import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, MessageSquarePlus, WifiOff } from "lucide-react";
 import ChatInput from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -14,20 +14,10 @@ import { AgentThread } from "@/components/agent/agent-thread";
 import { useSessionsQuery, useCreateSession, useSendMessage, useAbortSession, useRevertMessage, useUnrevert } from "@/queries/chats";
 import SessionDiffDialog from "@/components/diff/session-diff-dialog";
 import {
-  SidebarProvider,
-  Sidebar,
-  SidebarContent,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarTrigger,
-  SidebarInset,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
+  SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu,
+  SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarInset,
+  SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
 } from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils";
 
 export interface ConversationProps {
   projectId?: string;
@@ -38,305 +28,200 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null);
-  const shouldStickRef = useRef(true);
-  const [activeTab, setActiveTab] = useState<'chat' | 'terminal'>('chat');
-  const [mode, setMode] = useState<'plan' | 'build'>('build');
-  const [diffOpen, setDiffOpen] = useState(false);
-  const sandboxId = useSandbox((s: { sandboxId?: string | null }) => s.sandboxId || undefined);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>();
-  const [revertingId, setRevertingId] = useState<string | undefined>();
+  const stickRef = useRef(true);
   const seededRef = useRef(false);
 
+  const [tab, setTab] = useState<"chat" | "terminal">("chat");
+  const [mode, setMode] = useState<"plan" | "build">("build");
+  const [diffOpen, setDiffOpen] = useState(false);
+  const [sessionId, setSessionId] = useState<string>();
+  const [revertingId, setRevertingId] = useState<string>();
+
+  // Queries & mutations
+  const sandboxId = useSandbox(s => s.sandboxId || undefined);
   const { data: sessions = [] } = useSessionsQuery(projectId);
-  const createSession = useCreateSession(projectId);
-  const sendMessage = useSendMessage(projectId);
-  const abortSession = useAbortSession();
-  const revertMutation = useRevertMessage(projectId);
-  const unrevertMutation = useUnrevert(projectId);
-  const busy = revertMutation.isPending || unrevertMutation.isPending;
+  const create = useCreateSession(projectId);
+  const send = useSendMessage(projectId);
+  const abort = useAbortSession();
+  const revert = useRevertMessage(projectId);
+  const unrevert = useUnrevert(projectId);
 
-  // Derive selected session: use state if set, otherwise first session
-  const activeSessionId = selectedSessionId || sessions[0]?.id;
+  const activeId = sessionId || sessions[0]?.id;
+  const busy = revert.isPending || unrevert.isPending;
+  const { messages, parts, session, lastAt, connected } = useAgentStream({ projectId, sessionId: activeId });
 
-  const { messages, parts: partsByMessage, session: currentSession, lastAt, connected } = useAgentStream({ projectId, sessionId: activeSessionId });
-
-  const isWorking = useMemo(() => {
+  const working = useMemo(() => {
     const last = messages[messages.length - 1];
-    if (!last || last.role !== "assistant") return false;
-    if (last.time?.completed) return false;
-    if (Date.now() - (lastAt || 0) > 15000) return false;
-    return true;
+    return last?.role === "assistant" && !last.time?.completed && Date.now() - (lastAt || 0) <= 15000;
   }, [messages, lastAt]);
 
-  const handleCreateSession = async () => {
-    const newSession = await createSession.mutateAsync();
-    if (newSession?.id) {
-      setSelectedSessionId(newSession.id);
-    }
-  };
-
-  const handleSessionChange = (newSessionId: string) => {
-    setSelectedSessionId(newSessionId);
-  };
-
-  // Seed initial prompt once if provided
+  // Auto-scroll setup
   useEffect(() => {
-    if (!initialPrompt || seededRef.current || !activeSessionId) return;
-    if (messages.length > 0) return;
+    const viewport = scrollRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (!viewport) return;
+    viewportRef.current = viewport;
+    const onScroll = () => { stickRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100; };
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (stickRef.current && viewportRef.current) {
+      viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages.length]);
+
+  // Seed initial prompt
+  useEffect(() => {
+    if (!initialPrompt || seededRef.current || !activeId || messages.length) return;
     const text = initialPrompt.trim();
     if (!text) return;
     seededRef.current = true;
-    sendMessage.mutate({ sessionId: activeSessionId, text, agent: 'build' });
-    // Clean up the URL by removing the 'initial' query after seeding
+    send.mutate({ sessionId: activeId, text, agent: "build" });
     try {
       const params = new URLSearchParams(searchParams?.toString?.() || "");
       if (params.has("initial")) {
         params.delete("initial");
-        const next = params.toString();
-        router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+        router.replace(params.toString() ? `${pathname}?${params}` : pathname, { scroll: false });
       }
-    } catch {
-      // no-op: if URL manipulation fails, we still avoid reseeding via seededRef
-    }
-  }, [initialPrompt, activeSessionId, messages.length]);
-  
-  useEffect(() => {
-    const root = scrollRef.current;
-    if (!root) return;
-    const viewport = root.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
-    if (!viewport) return;
-    viewportRef.current = viewport;
-    const onScroll = () => {
-      shouldStickRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 100;
-    };
-    viewport.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => viewport.removeEventListener('scroll', onScroll);
-  }, []);
+    } catch {}
+  }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send]);
 
-  useEffect(() => {
-    if (!shouldStickRef.current || !viewportRef.current) return;
-    viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages.length]);
-
-
+  // Handlers
   const handleSend = (text: string, model?: string, providerID?: string) => {
-    if (!activeSessionId || !text.trim()) return;
-    sendMessage.mutate({
-      sessionId: activeSessionId,
-      text: text.trim(),
-      agent: mode,
-      model,  
-      providerID,
-    });
-  };
-
-  const handleAbort = () => {
-    if (!activeSessionId) return;
-    abortSession.mutate({ projectId: projectId!, sessionId: activeSessionId });
+    if (!activeId || !text.trim()) return;
+    send.mutate({ sessionId: activeId, text: text.trim(), agent: mode, model, providerID });
   };
 
   const handleRevert = async (messageId: string) => {
-    if (!activeSessionId || busy) return;
+    if (!activeId || busy) return;
     setRevertingId(messageId);
-    try {
-      await revertMutation.mutateAsync({ sessionId: activeSessionId, messageId });
-    } finally {
-      setRevertingId(undefined);
-    }
+    try { await revert.mutateAsync({ sessionId: activeId, messageId }); }
+    finally { setRevertingId(undefined); }
   };
 
-  const handleUnrevert = () => {
-    if (!activeSessionId) return;
-    unrevertMutation.mutate({ sessionId: activeSessionId });
-  };
-
-  const placeholder = activeTab === 'chat' ? "Ask anything..." : "Terminal actions";
+  const handleCreate = () => create.mutateAsync().then(s => s?.id && setSessionId(s.id));
 
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-svh w-full">
-        {/* Sidebar for session management */}
+        {/* Sidebar */}
         <Sidebar collapsible="icon">
           <SidebarHeader>
-            <div className="flex items-center justify-between px-2 py-1">
-              <h2 className="text-sm font-semibold group-data-[collapsible=icon]:hidden">Sessions</h2>
-                <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={handleCreateSession}
-                disabled={createSession.isPending}
-                className="h-7 w-7 p-0 group-data-[collapsible=icon]:w-full"
-                title="New Session"
-              >
-                {createSession.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MessageSquarePlus className="h-4 w-4" />
-                )}
+            <div className="flex items-center justify-between px-3 py-2">
+              <h2 className="text-sm font-medium group-data-[collapsible=icon]:hidden">Sessions</h2>
+              <Button variant="ghost" size="icon" onClick={handleCreate} disabled={create.isPending} className="size-8 group-data-[collapsible=icon]:w-full">
+                {create.isPending ? <Loader2 className="size-4 animate-spin" /> : <MessageSquarePlus className="size-4" />}
               </Button>
             </div>
           </SidebarHeader>
-          
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">
-                Recent Chats
-              </SidebarGroupLabel>
+              <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">Recent</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu className="group-data-[collapsible=icon]:hidden">
-                  {sessions.length === 0 ? (
-                    <div className="px-2 py-4 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                      No sessions yet
-                    </div>
-                  ) : (
-                    sessions.map((session) => (
-                      <SidebarMenuItem key={session.id}>
-                        <SidebarMenuButton
-                          isActive={activeSessionId === session.id}
-                          onClick={() => handleSessionChange(session.id)}
-                          tooltip={session.title || 'Untitled session'}
-                          className="group"
-                        >
-                          <span className="truncate">{session.title || 'Untitled session'}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))
-                  )}
+                  {sessions.length ? sessions.map(s => (
+                    <SidebarMenuItem key={s.id}>
+                      <SidebarMenuButton isActive={activeId === s.id} onClick={() => setSessionId(s.id)} tooltip={s.title || "Untitled"}>
+                        <span className="truncate">{s.title || "Untitled"}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )) : <p className="px-3 py-6 text-sm text-muted-foreground">No sessions</p>}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
         </Sidebar>
 
-        {/* Main content area */}
+        {/* Main */}
         <SidebarInset className="flex flex-col min-h-0">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'chat' | 'terminal')} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            {/* Header with tabs and controls */}
-            <header className="flex h-14 items-center justify-between px-4 gap-4 shrink-0">
-              <div className="flex items-center gap-2">
+          <Tabs value={tab} onValueChange={v => setTab(v as "chat" | "terminal")} className="flex flex-col flex-1 min-h-0">
+            {/* Header */}
+            <header className="flex h-12 items-center justify-between px-4 shrink-0 border-b">
+              <div className="flex items-center gap-3">
                 <SidebarTrigger />
-                <TabsList>
-                  <TabsTrigger value="chat">
-                    <MessagesSquare className="h-3.5 w-3.5 mr-1.5" />
-                    Chat
-                  </TabsTrigger>
-                  <TabsTrigger value="terminal">
-                    <Terminal className="h-3.5 w-3.5 mr-1.5" />
-                    Terminal
-                  </TabsTrigger>
+                <TabsList className="h-9">
+                  <TabsTrigger value="chat" className="gap-2 px-3"><MessagesSquare className="size-4" />Chat</TabsTrigger>
+                  <TabsTrigger value="terminal" className="gap-2 px-3"><Terminal className="size-4" />Terminal</TabsTrigger>
                 </TabsList>
               </div>
-              
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {!connected && projectId && (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-500" title="Reconnecting to server...">
-                    <WifiOff className="h-3.5 w-3.5" />
+                  <div className="flex items-center gap-2 text-sm text-amber-500">
+                    <WifiOff className="size-4" />
                     <span className="hidden sm:inline">Reconnecting...</span>
                   </div>
                 )}
-                {currentSession?.summary?.diffs && currentSession.summary.diffs.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs"
-                    onClick={() => setDiffOpen(true)}
-                  >
-                    View Diff
-                  </Button>
-                )}
+                {session?.summary?.diffs?.length ? (
+                  <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)}>View Diff</Button>
+                ) : null}
               </div>
             </header>
 
-            {/* Chat Tab Content */}
-            <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 m-0 overflow-hidden relative">
+            {/* Chat */}
+            <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 m-0">
               <div ref={scrollRef} className="flex-1 min-h-0">
-                <ScrollArea className="h-full w-full">
-                  <div className="max-w-4xl mx-auto px-6 py-8">
-                    {messages.length > 0 ? (
+                <ScrollArea className="h-full">
+                  <div className="max-w-3xl mx-auto px-4 py-6">
+                    {messages.length ? (
                       <AgentThread
-                        sessionId={activeSessionId!}
+                        sessionId={activeId!}
                         messages={messages}
-                        partsMap={partsByMessage}
+                        partsMap={parts}
                         onRevert={handleRevert}
-                        revertMessageId={currentSession?.revert?.messageID}
+                        revertMessageId={session?.revert?.messageID}
                         reverting={busy}
                         revertingMessageId={revertingId}
                       />
                     ) : (
-                      <div className="flex flex-col items-center justify-center min-h-[500px] text-center">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="rounded-full bg-muted p-4">
-                            <MessageCircle className="h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-base font-medium">No messages yet</p>
-                            <p className="text-sm text-muted-foreground">Start a conversation to get started</p>
-                          </div>
+                      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+                        <div className="rounded-full bg-muted p-4 mb-4">
+                          <MessageCircle className="size-8 text-muted-foreground" strokeWidth={1.5} />
                         </div>
+                        <p className="font-medium">No messages yet</p>
+                        <p className="text-sm text-muted-foreground">Start a conversation</p>
                       </div>
                     )}
                   </div>
                 </ScrollArea>
               </div>
 
-              {/* Chat input */}
-              <div className=" px-4 py-3 shrink-0 relative">
-                {/* Floating Revert Button */}
-                {currentSession?.revert?.messageID && (
-                  <div className="absolute -top-11 right-4 z-10">
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={handleUnrevert} 
-                      disabled={unrevertMutation.isPending}
-                      className="cursor-pointer h-8 text-xs bg-background/80 backdrop-blur-sm shadow-sm"
-                    >
-                      {unrevertMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          Restoring…
-                        </>
-                      ) : (
-                        <>
-                          <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                          Revert back messages
-                        </>
-                      )}
+              {/* Input */}
+              <div className="px-4 py-4 shrink-0 relative">
+                {session?.revert?.messageID && (
+                  <div className="absolute -top-10 right-4 z-10">
+                    <Button size="sm" variant="outline" onClick={() => unrevert.mutate({ sessionId: activeId! })} disabled={unrevert.isPending} className="bg-background/90 backdrop-blur-sm shadow-sm">
+                      {unrevert.isPending ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Restoring...</> : <><RotateCcw className="size-3.5 mr-2" />Restore</>}
                     </Button>
                   </div>
                 )}
-                
-                <div className="max-w-4xl mx-auto">
+                <div className="max-w-3xl mx-auto">
                   <ChatInput
                     onSubmit={handleSend}
-                    disabled={sendMessage.isPending || isWorking || busy || !connected}
-                    placeholder={!connected ? "Connecting to server..." : isWorking ? "Assistant is working..." : placeholder}
+                    disabled={send.isPending || working || busy || !connected}
+                    placeholder={!connected ? "Connecting..." : working ? "Working..." : "Ask anything..."}
                     mode={mode}
-                    onToggleMode={() => setMode((m) => (m === 'plan' ? 'build' : 'plan'))}
-                    isWorking={isWorking}
-                    onStop={handleAbort}
-                    isStopping={abortSession.isPending}
+                    onToggleMode={() => setMode(m => m === "plan" ? "build" : "plan")}
+                    isWorking={working}
+                    onStop={() => activeId && abort.mutate({ projectId: projectId!, sessionId: activeId })}
+                    isStopping={abort.isPending}
                   />
                 </div>
               </div>
             </TabsContent>
 
-            {/* Terminal Tab Content */}
-            <TabsContent value="terminal" className="flex flex-col flex-1 min-h-0 m-0 p-2 overflow-hidden">
-              <TerminalWidget sandboxId={sandboxId} className="w-full h-full rounded-lg" />
+            {/* Terminal */}
+            <TabsContent value="terminal" className="flex-1 min-h-0 m-0 p-3">
+              <TerminalWidget sandboxId={sandboxId} className="size-full rounded-lg" />
             </TabsContent>
           </Tabs>
         </SidebarInset>
       </div>
 
-      <SessionDiffDialog
-        open={diffOpen}
-        onOpenChange={setDiffOpen}
-        diffs={currentSession?.summary?.diffs}
-      />
+      <SessionDiffDialog open={diffOpen} onOpenChange={setDiffOpen} diffs={session?.summary?.diffs} />
     </SidebarProvider>
   );
 }
