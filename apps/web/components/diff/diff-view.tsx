@@ -100,10 +100,8 @@ export default function DiffView({ before, after, path, className, collapseUncha
       <style jsx>{`
         .cm-diff :global(.cm-editor) { font-size: 13px; line-height: 1.5; }
         .cm-diff :global(.cm-scroller) {
-          overflow: auto;
-          max-height: 70vh;
-          scroll-behavior: smooth;
-          scroll-padding: 1rem;
+          overflow-x: auto;
+          overflow-y: visible;
         }
         .cm-diff :global(.cm-gutters) { background: transparent; border: none; }
         .cm-diff :global(.cm-content) { padding: 12px 0; }

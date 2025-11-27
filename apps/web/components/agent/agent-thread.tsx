@@ -3,10 +3,8 @@
 import React, { useState, useMemo } from "react";
 import type { Message, Part, ToolPart, TextPart, ReasoningPart, FileDiff } from "@opencode-ai/sdk";
 import { ChevronDown, Undo2, CheckCircle2, Eye, FileText, FilePenLine, Trash2, Terminal, Search, Globe, ListTodo, Play, Loader2 } from "lucide-react";
-import DiffViewerWithSidebar from "@/components/diff/diff-viewer-with-sidebar";
 import { ShimmeringText } from "@/components/ui/shimmer-text";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Markdown } from "@/components/ui/markdown";
 
@@ -144,7 +142,7 @@ function Changes({ diffs, onView }: { diffs: FileDiff[]; onView: () => void }) {
 }
 
 // Main
-export function AgentThread({ messages, partsMap, onRevert, revertMessageId, reverting, revertingMessageId }: {
+export function AgentThread({ messages, partsMap, onRevert, revertMessageId, reverting, revertingMessageId, onViewChanges }: {
   sessionId: string;
   messages: Message[];
   partsMap: Record<string, Part[]>;
@@ -152,9 +150,9 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
   revertMessageId?: string;
   reverting?: boolean;
   revertingMessageId?: string;
+  onViewChanges?: (diffs: FileDiff[], messageId?: string) => void;
 }) {
   const [openThoughts, setOpenThoughts] = useState<Record<string, boolean>>({});
-  const [openDiffs, setOpenDiffs] = useState<Record<string, boolean>>({});
 
   const visible = revertMessageId ? messages.filter(m => m.id < revertMessageId) : messages;
   const userMessages = visible.filter(m => m.role === "user");
@@ -255,15 +253,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
               isLast && working ? (
                 <p className="text-xs text-muted-foreground py-1">{diffs.length} file{diffs.length > 1 ? "s" : ""} changed</p>
               ) : (
-                <>
-                  <Changes diffs={diffs} onView={() => setOpenDiffs(s => ({ ...s, [userMsg.id]: true }))} />
-                  <Dialog open={openDiffs[userMsg.id]} onOpenChange={v => setOpenDiffs(s => ({ ...s, [userMsg.id]: v }))}>
-                    <DialogContent className="max-w-[95vw] w-[95vw] h-[85vh] flex flex-col">
-                      <DialogHeader><DialogTitle>Changes</DialogTitle></DialogHeader>
-                      <DiffViewerWithSidebar diffs={diffs} className="flex-1 min-h-0" collapseUnchanged contextLines={3} />
-                  </DialogContent>
-                </Dialog>
-              </>
+                <Changes diffs={diffs} onView={() => onViewChanges?.(diffs, userMsg.id)} />
               )
             ) : null}
           </div>

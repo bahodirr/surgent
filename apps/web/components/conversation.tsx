@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type { FileDiff } from "@opencode-ai/sdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, MessageSquarePlus, WifiOff } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, ChevronDown, WifiOff, Check } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ChatInput from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -13,18 +15,14 @@ import useAgentStream from "@/lib/use-agent-stream";
 import { AgentThread } from "@/components/agent/agent-thread";
 import { useSessionsQuery, useCreateSession, useSendMessage, useAbortSession, useRevertMessage, useUnrevert } from "@/queries/chats";
 import SessionDiffDialog from "@/components/diff/session-diff-dialog";
-import {
-  SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu,
-  SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarInset,
-  SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-} from "@/components/ui/sidebar";
 
 export interface ConversationProps {
   projectId?: string;
   initialPrompt?: string;
+  onViewChanges?: (diffs: FileDiff[], messageId?: string) => void;
 }
 
-export default function Conversation({ projectId, initialPrompt }: ConversationProps) {
+export default function Conversation({ projectId, initialPrompt, onViewChanges }: ConversationProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -105,123 +103,136 @@ export default function Conversation({ projectId, initialPrompt }: ConversationP
 
   const handleCreate = () => create.mutateAsync().then(s => s?.id && setSessionId(s.id));
 
+  const activeSession = sessions.find(s => s.id === activeId);
+
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className="flex h-svh w-full">
-        {/* Sidebar */}
-        <Sidebar collapsible="icon">
-          <SidebarHeader>
-            <div className="flex items-center justify-between px-3 py-2">
-              <h2 className="text-sm font-medium group-data-[collapsible=icon]:hidden">Sessions</h2>
-              <Button variant="ghost" size="icon" onClick={handleCreate} disabled={create.isPending} className="size-8 group-data-[collapsible=icon]:w-full">
-                {create.isPending ? <Loader2 className="size-4 animate-spin" /> : <MessageSquarePlus className="size-4" />}
+    <div className="flex flex-col h-svh w-full">
+      {/* Header */}
+      <header className="flex h-10 items-stretch border-b bg-muted/30 shrink-0">
+        {/* Session dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2 px-4 text-sm border-r hover:bg-muted/50 transition-colors">
+              <span className="truncate max-w-40">{activeSession?.title || "Untitled"}</span>
+              <ChevronDown className="size-3.5 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem onClick={handleCreate} disabled={create.isPending}>
+              {create.isPending ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Plus className="size-4 mr-2" />}
+              New Session
+            </DropdownMenuItem>
+            {sessions.length > 0 && <DropdownMenuSeparator />}
+            <ScrollArea className={sessions.length > 8 ? "h-64" : ""}>
+              {sessions.map(s => (
+                <DropdownMenuItem key={s.id} onClick={() => setSessionId(s.id)} className="justify-between">
+                  <span className="truncate">{s.title || "Untitled"}</span>
+                  {s.id === activeId && <Check className="size-4 text-muted-foreground" />}
+                </DropdownMenuItem>
+              ))}
+            </ScrollArea>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Tabs */}
+        <div className="flex flex-1 overflow-x-auto">
+          <button
+            onClick={() => setTab("chat")}
+            className={cn(
+              "flex items-center gap-2 px-4 text-sm border-r transition-colors",
+              tab === "chat" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
+            )}
+          >
+            <MessagesSquare className="size-4" />Chat
+          </button>
+          <button
+            onClick={() => setTab("terminal")}
+            className={cn(
+              "flex items-center gap-2 px-4 text-sm border-r transition-colors",
+              tab === "terminal" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
+            )}
+          >
+            <Terminal className="size-4" />Terminal
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-3 px-4">
+          {!connected && projectId && (
+            <div className="flex items-center gap-2 text-sm text-amber-500">
+              <WifiOff className="size-4" />
+              <span className="hidden sm:inline">Reconnecting...</span>
+            </div>
+          )}
+          {session?.summary?.diffs?.length ? (
+            <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)}>View Diff</Button>
+          ) : null}
+        </div>
+      </header>
+
+      {/* Chat */}
+      {tab === "chat" && (
+      <div className="flex flex-col flex-1 min-h-0">
+        <div ref={scrollRef} className="flex-1 min-h-0">
+          <ScrollArea className="h-full">
+            <div className="max-w-3xl mx-auto px-4 py-6">
+              {messages.length ? (
+                <AgentThread
+                  sessionId={activeId!}
+                  messages={messages}
+                  partsMap={parts}
+                  onRevert={handleRevert}
+                  revertMessageId={session?.revert?.messageID}
+                  reverting={busy}
+                  revertingMessageId={revertingId}
+                  onViewChanges={onViewChanges}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+                  <div className="rounded-full bg-muted p-4 mb-4">
+                    <MessageCircle className="size-8 text-muted-foreground" strokeWidth={1.5} />
+                  </div>
+                  <p className="font-medium">No messages yet</p>
+                  <p className="text-sm text-muted-foreground">Start a conversation</p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* Input */}
+        <div className="px-4 py-4 shrink-0 relative">
+          {session?.revert?.messageID && (
+            <div className="absolute -top-10 right-4 z-10">
+              <Button size="sm" variant="outline" onClick={() => unrevert.mutate({ sessionId: activeId! })} disabled={unrevert.isPending} className="bg-background/90 backdrop-blur-sm shadow-sm">
+                {unrevert.isPending ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Restoring...</> : <><RotateCcw className="size-3.5 mr-2" />Restore</>}
               </Button>
             </div>
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden">Recent</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu className="group-data-[collapsible=icon]:hidden">
-                  {sessions.length ? sessions.map(s => (
-                    <SidebarMenuItem key={s.id}>
-                      <SidebarMenuButton isActive={activeId === s.id} onClick={() => setSessionId(s.id)} tooltip={s.title || "Untitled"}>
-                        <span className="truncate">{s.title || "Untitled"}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )) : <p className="px-3 py-6 text-sm text-muted-foreground">No sessions</p>}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-        </Sidebar>
-
-        {/* Main */}
-        <SidebarInset className="flex flex-col min-h-0">
-          <Tabs value={tab} onValueChange={v => setTab(v as "chat" | "terminal")} className="flex flex-col flex-1 min-h-0">
-            {/* Header */}
-            <header className="flex h-12 items-center justify-between px-4 shrink-0 border-b">
-              <div className="flex items-center gap-3">
-                <SidebarTrigger />
-                <TabsList className="h-9">
-                  <TabsTrigger value="chat" className="gap-2 px-3"><MessagesSquare className="size-4" />Chat</TabsTrigger>
-                  <TabsTrigger value="terminal" className="gap-2 px-3"><Terminal className="size-4" />Terminal</TabsTrigger>
-                </TabsList>
-              </div>
-              <div className="flex items-center gap-3">
-                {!connected && projectId && (
-                  <div className="flex items-center gap-2 text-sm text-amber-500">
-                    <WifiOff className="size-4" />
-                    <span className="hidden sm:inline">Reconnecting...</span>
-                  </div>
-                )}
-                {session?.summary?.diffs?.length ? (
-                  <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)}>View Diff</Button>
-                ) : null}
-              </div>
-            </header>
-
-            {/* Chat */}
-            <TabsContent value="chat" className="flex flex-col flex-1 min-h-0 m-0">
-              <div ref={scrollRef} className="flex-1 min-h-0">
-                <ScrollArea className="h-full">
-                  <div className="max-w-3xl mx-auto px-4 py-6">
-                    {messages.length ? (
-                      <AgentThread
-                        sessionId={activeId!}
-                        messages={messages}
-                        partsMap={parts}
-                        onRevert={handleRevert}
-                        revertMessageId={session?.revert?.messageID}
-                        reverting={busy}
-                        revertingMessageId={revertingId}
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-                        <div className="rounded-full bg-muted p-4 mb-4">
-                          <MessageCircle className="size-8 text-muted-foreground" strokeWidth={1.5} />
-                        </div>
-                        <p className="font-medium">No messages yet</p>
-                        <p className="text-sm text-muted-foreground">Start a conversation</p>
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-
-              {/* Input */}
-              <div className="px-4 py-4 shrink-0 relative">
-                {session?.revert?.messageID && (
-                  <div className="absolute -top-10 right-4 z-10">
-                    <Button size="sm" variant="outline" onClick={() => unrevert.mutate({ sessionId: activeId! })} disabled={unrevert.isPending} className="bg-background/90 backdrop-blur-sm shadow-sm">
-                      {unrevert.isPending ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Restoring...</> : <><RotateCcw className="size-3.5 mr-2" />Restore</>}
-                    </Button>
-                  </div>
-                )}
-                <div className="max-w-3xl mx-auto">
-                  <ChatInput
-                    onSubmit={handleSend}
-                    disabled={send.isPending || working || busy || !connected}
-                    placeholder={!connected ? "Connecting..." : working ? "Working..." : "Ask anything..."}
-                    mode={mode}
-                    onToggleMode={() => setMode(m => m === "plan" ? "build" : "plan")}
-                    isWorking={working}
-                    onStop={() => activeId && abort.mutate({ projectId: projectId!, sessionId: activeId })}
-                    isStopping={abort.isPending}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Terminal */}
-            <TabsContent value="terminal" className="flex-1 min-h-0 m-0 p-3">
-              <TerminalWidget sandboxId={sandboxId} className="size-full rounded-lg" />
-            </TabsContent>
-          </Tabs>
-        </SidebarInset>
+          )}
+          <div className="max-w-3xl mx-auto">
+            <ChatInput
+              onSubmit={handleSend}
+              disabled={send.isPending || working || busy || !connected}
+              placeholder={!connected ? "Connecting..." : working ? "Working..." : "Ask anything..."}
+              mode={mode}
+              onToggleMode={() => setMode(m => m === "plan" ? "build" : "plan")}
+              isWorking={working}
+              onStop={() => activeId && abort.mutate({ projectId: projectId!, sessionId: activeId })}
+              isStopping={abort.isPending}
+            />
+          </div>
+        </div>
       </div>
+      )}
+
+      {/* Terminal */}
+      {tab === "terminal" && (
+      <div className="flex-1 min-h-0 p-3">
+        <TerminalWidget sandboxId={sandboxId} className="size-full rounded-lg" />
+      </div>
+      )}
 
       <SessionDiffDialog open={diffOpen} onOpenChange={setDiffOpen} diffs={session?.summary?.diffs} />
-    </SidebarProvider>
+    </div>
   );
 }

@@ -1,22 +1,35 @@
 "use client";
 
 import { WebPreview, WebPreviewNavigation, WebPreviewUrl, WebPreviewBody, WebPreviewNavigationButton } from '@/components/agent/web-preview';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ExternalLink, RefreshCw, Copy, Rocket } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ExternalLink, RefreshCw, Copy, Rocket, X } from 'lucide-react';
+import type { FileDiff } from "@opencode-ai/sdk";
 import { useDeployProject } from '@/queries/projects';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent } from '@/components/ui/tabs';
 import DeployDialog from '@/components/deploy-dialog';
- 
+import DiffView from '@/components/diff/diff-view';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+
+export interface PreviewTab {
+  id: string;
+  type: 'preview' | 'changes';
+  title: string;
+  diffs?: FileDiff[];
+  messageId?: string;
+}
 
 interface PreviewPanelProps {
   projectId?: string;
   project?: any;
   onPreviewUrl?: (url: string | null) => void;
+  tabs: PreviewTab[];
+  activeTabId: string;
+  onTabChange: (tabId: string) => void;
+  onCloseTab: (tabId: string) => void;
 }
 
-export default function PreviewPanel({ projectId, project, onPreviewUrl }: PreviewPanelProps) {
+export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, activeTabId, onTabChange, onCloseTab }: PreviewPanelProps) {
   const deployProject = useDeployProject();
 
   const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
@@ -150,77 +163,103 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl }: Previ
       </div>
   );
 
+  const activeTab = tabs.find(t => t.id === activeTabId);
+
   return (
     <div className="h-full flex flex-col relative">
-      <Tabs defaultValue="preview" className="h-full flex flex-col gap-0">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <span className="text-sm font-medium">Preview</span>
-          {headerActions}
+      {/* Tab bar */}
+      <div className="flex h-10 items-stretch border-b bg-muted/30 shrink-0">
+        <div className="flex flex-1 overflow-x-auto">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={cn(
+                "group flex items-center gap-2 px-3 text-sm border-r transition-colors",
+                activeTabId === tab.id ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
+              )}
+            >
+              <span className="truncate max-w-32">{tab.title}</span>
+              {tab.type !== 'preview' && (
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
+                  className="p-0.5 rounded hover:bg-muted-foreground/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="size-3" />
+                </span>
+              )}
+            </button>
+          ))}
         </div>
+        <div className="flex items-center px-3 shrink-0">{headerActions}</div>
+      </div>
 
-        <TabsContent value="preview" className="flex-1 bg-background min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 flex flex-col">
-            {initStatus !== 'ready' ? (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-                  <div className="h-8 w-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                  <span>Preparing preview...</span>
-                </div>
+      {/* Tab content */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {activeTab?.type === 'preview' ? (
+          initStatus !== 'ready' ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+                <div className="h-8 w-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                <span>Preparing preview...</span>
               </div>
-            ) : (
-              <WebPreview
-                key={webPreviewKey}
-                defaultUrl={previewUrl || ''}
-                onUrlChange={(u) => {
-                  setCurrentUrl(u);
-                  onPreviewUrl?.(u || null);
-                  setIsLoading(true);
-                }}
-                className="h-full border-0"
-              >
-                
-                <WebPreviewNavigation className="border-b p-2 relative">
-                  <WebPreviewNavigationButton tooltip="Reload" onClick={handleReload}>
-                    <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-                  </WebPreviewNavigationButton>
-                  <WebPreviewNavigationButton tooltip="Copy URL" onClick={handleCopy}>
-                    <Copy className="h-4 w-4" />
-                  </WebPreviewNavigationButton>
-                  <WebPreviewNavigationButton tooltip="Open in new tab" onClick={handleOpen}>
-                    <ExternalLink className="h-4 w-4" />
-                  </WebPreviewNavigationButton>
-                  <WebPreviewUrl placeholder="Enter URL..." />
-                  {isLoading && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden bg-primary/20">
-                      <div className="h-full w-full bg-primary animate-indeterminate-bar origin-left" />
-                    </div>
-                  )}
-                </WebPreviewNavigation>
-                <WebPreviewBody
-                  className="w-full h-full border-0"
-                  onLoad={handleIframeLoad}
-                  src={isWarmingUp ? 'about:blank' : undefined}
-                  overlay={
-                    isLoading || isWarmingUp ? (
-                      <div className="flex size-full flex-col items-center justify-center gap-4 bg-background/95 px-6 text-center backdrop-blur-md pointer-events-auto transition-opacity duration-300">
-                        <div className="h-12 w-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-                        <div className="flex flex-col gap-2">
-                          <div className="text-base font-semibold text-foreground">
-                            {isWarmingUp ? 'Starting sandbox...' : 'Loading preview...'}
-                          </div>
-                        </div>
+            </div>
+          ) : (
+            <WebPreview
+              key={webPreviewKey}
+              defaultUrl={previewUrl || ''}
+              onUrlChange={(u) => {
+                setCurrentUrl(u);
+                onPreviewUrl?.(u || null);
+                setIsLoading(true);
+              }}
+              className="h-full border-0"
+            >
+              <WebPreviewNavigation className="border-b p-2 relative">
+                <WebPreviewNavigationButton tooltip="Reload" onClick={handleReload}>
+                  <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                </WebPreviewNavigationButton>
+                <WebPreviewNavigationButton tooltip="Copy URL" onClick={handleCopy}>
+                  <Copy className="h-4 w-4" />
+                </WebPreviewNavigationButton>
+                <WebPreviewNavigationButton tooltip="Open in new tab" onClick={handleOpen}>
+                  <ExternalLink className="h-4 w-4" />
+                </WebPreviewNavigationButton>
+                <WebPreviewUrl placeholder="Enter URL..." />
+                {isLoading && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden bg-primary/20">
+                    <div className="h-full w-full bg-primary animate-indeterminate-bar origin-left" />
+                  </div>
+                )}
+              </WebPreviewNavigation>
+              <WebPreviewBody
+                className="w-full h-full border-0"
+                onLoad={handleIframeLoad}
+                src={isWarmingUp ? 'about:blank' : undefined}
+                overlay={
+                  isLoading || isWarmingUp ? (
+                    <div className="flex size-full flex-col items-center justify-center gap-4 bg-background/95 px-6 text-center backdrop-blur-md pointer-events-auto transition-opacity duration-300">
+                      <div className="h-12 w-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      <div className="text-base font-semibold text-foreground">
+                        {isWarmingUp ? 'Starting sandbox...' : 'Loading preview...'}
                       </div>
-                    ) : null
-                  }
-                />
-              </WebPreview>
-            )}
-          </div>
-          
-        </TabsContent>
-
-        
-      </Tabs>
+                    </div>
+                  ) : null
+                }
+              />
+            </WebPreview>
+          )
+        ) : activeTab?.diffs?.length ? (
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-4">
+              {activeTab.diffs.map((d, i) => (
+                <DiffView key={i} before={d.before} after={d.after} path={d.file} collapseUnchanged contextLines={3} />
+              ))}
+            </div>
+          </ScrollArea>
+        ) : null}
+      </div>
 
       <DeployDialog
         open={isDialogOpen}
