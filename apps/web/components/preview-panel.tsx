@@ -1,7 +1,7 @@
 "use client";
 
 import { WebPreview, WebPreviewNavigation, WebPreviewUrl, WebPreviewBody, WebPreviewNavigationButton } from '@/components/agent/web-preview';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, RefreshCw, Copy, Rocket, X } from 'lucide-react';
 import type { FileDiff } from "@opencode-ai/sdk";
 import { useDeployProject } from '@/queries/projects';
@@ -10,6 +10,7 @@ import DeployDialog from '@/components/deploy-dialog';
 import DiffView from '@/components/diff/diff-view';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { useSandbox } from '@/hooks/use-sandbox';
 
 export interface PreviewTab {
   id: string;
@@ -31,14 +32,12 @@ interface PreviewPanelProps {
 
 export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, activeTabId, onTabChange, onCloseTab }: PreviewPanelProps) {
   const deployProject = useDeployProject();
+  const connected = useSandbox(s => s.connected);
 
   const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
   const sandboxId = (project as any)?.sandbox?.id;
-  const hasSandbox = Boolean(sandboxId && proxyHost);
-  const isReady = hasSandbox;
+  const isReady = sandboxId && proxyHost && connected;
   const previewUrl = isReady ? `https://3000-${sandboxId}.${proxyHost}` : undefined;
-  const initStatus: 'idle' | 'initializing' | 'ready' | 'error' = isReady ? 'ready' : 'initializing';
-  
 
   useEffect(() => {
     if (!onPreviewUrl) return;
@@ -46,23 +45,11 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
   }, [previewUrl, onPreviewUrl]);
 
   const [currentUrl, setCurrentUrl] = useState(previewUrl || '');
-  const [reloadCount, setReloadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isWarmingUp, setIsWarmingUp] = useState(true);
-
+  const [reloadKey, setReloadKey] = useState(0);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
 
-  const webPreviewKey = useMemo(() => `${previewUrl ?? 'empty'}:${reloadCount}`, [previewUrl, reloadCount]);
-
-  const handleReload = useCallback(() => {
-    setIsLoading(true);
-    setReloadCount((c) => c + 1);
-  }, []);
-
-  const handleIframeLoad = useCallback(() => {
-    setIsLoading(false);
-  }, []);
+  const handleReload = useCallback(() => setReloadKey(k => k + 1), []);
 
   const handleCopy = useCallback(() => {
     const url = currentUrl || previewUrl || '';
@@ -84,18 +71,6 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
     } catch {}
     setIsDeploying(false);
   }, [deployProject, isDeploying, projectId]);
-
-  // Reset loading state when URL changes
-  useEffect(() => {
-    if (previewUrl) {
-      setIsLoading(true);
-      setIsWarmingUp(true);
-      const timer = setTimeout(() => setIsWarmingUp(false), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [previewUrl]);
-
-  // Removed favicon ping and auto-recovery to avoid refresh loops
 
   const headerActions = (
     <div className="flex items-center gap-3">
@@ -198,27 +173,23 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
       {/* Tab content */}
       <div className="flex-1 min-h-0 flex flex-col">
         {activeTab?.type === 'preview' ? (
-          initStatus !== 'ready' ? (
+          !isReady ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
                 <div className="h-8 w-8 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
-                <span>Preparing preview...</span>
+                <span>Starting sandbox...</span>
               </div>
             </div>
           ) : (
             <WebPreview
-              key={webPreviewKey}
+              key={`${previewUrl}:${reloadKey}`}
               defaultUrl={previewUrl || ''}
-              onUrlChange={(u) => {
-                setCurrentUrl(u);
-                onPreviewUrl?.(u || null);
-                setIsLoading(true);
-              }}
+              onUrlChange={(u) => { setCurrentUrl(u); onPreviewUrl?.(u || null); }}
               className="h-full border-0"
             >
-              <WebPreviewNavigation className="border-b p-2 relative">
+              <WebPreviewNavigation className="border-b p-2">
                 <WebPreviewNavigationButton tooltip="Reload" onClick={handleReload}>
-                  <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                  <RefreshCw className="h-4 w-4" />
                 </WebPreviewNavigationButton>
                 <WebPreviewNavigationButton tooltip="Copy URL" onClick={handleCopy}>
                   <Copy className="h-4 w-4" />
@@ -227,27 +198,8 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs, a
                   <ExternalLink className="h-4 w-4" />
                 </WebPreviewNavigationButton>
                 <WebPreviewUrl placeholder="Enter URL..." />
-                {isLoading && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 overflow-hidden bg-primary/20">
-                    <div className="h-full w-full bg-primary animate-indeterminate-bar origin-left" />
-                  </div>
-                )}
               </WebPreviewNavigation>
-              <WebPreviewBody
-                className="w-full h-full border-0"
-                onLoad={handleIframeLoad}
-                src={isWarmingUp ? 'about:blank' : undefined}
-                overlay={
-                  isLoading || isWarmingUp ? (
-                    <div className="flex size-full flex-col items-center justify-center gap-4 bg-background/95 px-6 text-center backdrop-blur-md pointer-events-auto transition-opacity duration-300">
-                      <div className="h-12 w-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-                      <div className="text-base font-semibold text-foreground">
-                        {isWarmingUp ? 'Starting sandbox...' : 'Loading preview...'}
-                      </div>
-                    </div>
-                  ) : null
-                }
-              />
+              <WebPreviewBody className="w-full h-full border-0" />
             </WebPreview>
           )
         ) : activeTab?.diffs?.length ? (

@@ -40,6 +40,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
 
   // Queries & mutations
   const sandboxId = useSandbox(s => s.sandboxId || undefined);
+  const setConnected = useSandbox(s => s.setConnected);
   const { data: sessions = [] } = useSessionsQuery(projectId);
   const create = useCreateSession(projectId);
   const send = useSendMessage(projectId);
@@ -55,6 +56,11 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     const last = messages[messages.length - 1];
     return last?.role === "assistant" && !last.time?.completed && Date.now() - (lastAt || 0) <= 15000;
   }, [messages, lastAt]);
+
+  // Sync connected state to store for preview panel
+  useEffect(() => {
+    setConnected(connected);
+  }, [connected, setConnected]);
 
   // Auto-scroll setup
   useEffect(() => {
