@@ -123,6 +123,19 @@ function Thinking({ text, streaming, open, toggle }: { text: string; streaming: 
   );
 }
 
+function FileThumb({ file }: { file: FilePart }) {
+  const isImage = file.mime?.startsWith("image/");
+  return (
+    <a href={file.url} target="_blank" rel="noreferrer" download={!isImage ? file.filename : undefined} className="block size-10 rounded-lg overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+      {isImage ? (
+        <img src={file.url} alt={file.filename || "file"} className="size-full object-cover" />
+      ) : (
+        <div className="size-full flex items-center justify-center"><FileText className="size-4 text-muted-foreground" /></div>
+      )}
+    </a>
+  );
+}
+
 function Changes({ diffs, onView }: { diffs: FileDiff[]; onView: () => void }) {
   return (
     <div className="mt-3 p-3 rounded-lg border bg-muted/30">
@@ -135,7 +148,7 @@ function Changes({ diffs, onView }: { diffs: FileDiff[]; onView: () => void }) {
             <code className="px-1.5 py-0.5 bg-muted rounded text-xs">{d.file.split(/[/\\]/).pop()}</code>
           </div>
         ))}
-            </div>
+      </div>
       <Button size="sm" variant="outline" onClick={onView}>View Diff</Button>
     </div>
   );
@@ -201,18 +214,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
             <div className="flex flex-col items-end gap-1">
               {userFiles.length > 0 && (
                 <div className="flex gap-1">
-                  {userFiles.map((fp) => {
-                    const isImage = fp.mime?.startsWith("image/");
-                    return (
-                      <a key={fp.id} href={fp.url} target="_blank" rel="noreferrer" download={!isImage ? fp.filename : undefined} className="block size-10 rounded-lg overflow-hidden bg-muted hover:opacity-80 transition-opacity">
-                        {isImage ? (
-                          <img src={fp.url} alt={fp.filename || "file"} className="size-full object-cover" />
-                        ) : (
-                          <div className="size-full flex items-center justify-center"><FileText className="size-4 text-muted-foreground" /></div>
-                        )}
-                      </a>
-                    );
-                  })}
+                  {userFiles.map((fp) => <FileThumb key={fp.id} file={fp} />)}
                 </div>
               )}
               <div className="relative max-w-[70%] rounded-xl bg-muted/50 border px-3 py-2">
@@ -257,21 +259,9 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
                 }
 
                 if (g.type === "file") {
-                  const files = g.parts as FilePart[];
                   return (
                     <div key={key} className="flex gap-1 py-1">
-                      {files.map((fp) => {
-                        const isImage = typeof fp.mime === "string" && fp.mime.startsWith("image/");
-                        return (
-                          <a key={fp.id} href={fp.url} target="_blank" rel="noreferrer" download={!isImage ? (fp.filename || "file") : undefined} className="block size-10 rounded-lg overflow-hidden bg-muted hover:opacity-80 transition-opacity">
-                            {isImage ? (
-                              <img src={fp.url} alt={fp.filename || "file"} className="size-full object-cover" />
-                            ) : (
-                              <div className="size-full flex items-center justify-center"><FileText className="size-4 text-muted-foreground" /></div>
-                            )}
-                          </a>
-                        );
-                      })}
+                      {(g.parts as FilePart[]).map((fp) => <FileThumb key={fp.id} file={fp} />)}
                     </div>
                   );
                 }

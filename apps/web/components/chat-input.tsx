@@ -3,7 +3,7 @@ import { ArrowUp, Paperclip, X, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createPreview, filesToParts, type FileAttachment, type FilePart } from "@/lib/upload";
+import { fileToDataUrl, filesToParts, type FileAttachment, type FilePart } from "@/lib/upload";
 
 export type { FilePart };
 
@@ -36,20 +36,15 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []).filter(f => f.size <= MAX_FILE_SIZE).slice(0, MAX_FILES - attachments.length);
     if (!files.length) return;
 
-    const validFiles = files
-      .filter(f => f.size <= MAX_FILE_SIZE)
-      .slice(0, MAX_FILES - attachments.length);
-
     const newAttachments: FileAttachment[] = await Promise.all(
-      validFiles.map(async (file) => ({
+      files.map(async (file) => ({
         file,
-        preview: await createPreview(file),
+        preview: file.type.startsWith("image/") ? await fileToDataUrl(file) : undefined,
       }))
     );
-
     setAttachments(prev => [...prev, ...newAttachments].slice(0, MAX_FILES));
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -93,26 +88,20 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
         {/* File previews */}
         {attachments.length > 0 && (
-          <div className="flex gap-2 p-3 pb-0 flex-wrap">
-            {attachments.map((attachment, i) => (
+          <div className="flex gap-1.5 p-3 pb-0">
+            {attachments.map((a, i) => (
               <div key={i} className="relative group">
-                {attachment.preview ? (
-                  <img
-                    src={attachment.preview}
-                    alt={attachment.file.name}
-                    className="size-16 object-cover rounded-lg border border-zinc-200 dark:border-zinc-700"
-                  />
-                ) : (
-                  <div className="size-16 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex flex-col items-center justify-center">
-                    <FileText className="size-6 text-zinc-400" />
-                    <span className="text-[10px] text-zinc-500 mt-1 max-w-14 truncate">{attachment.file.name.split('.').pop()}</span>
-                  </div>
-                )}
-                <button
-                  onClick={() => removeAttachment(i)}
-                  className="absolute -top-1.5 -right-1.5 size-5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="size-3" />
+                <div className="size-10 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                  {a.preview ? (
+                    <img src={a.preview} alt={a.file.name} className="size-full object-cover" />
+                  ) : (
+                    <div className="size-full flex items-center justify-center">
+                      <FileText className="size-4 text-zinc-400" />
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 size-4 rounded-full bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-800 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <X className="size-2.5" />
                 </button>
               </div>
             ))}

@@ -2,25 +2,12 @@ export type FilePart = {
   type: "file"
   mime: string
   filename: string
-  url: string // data URL (base64)
+  url: string
 }
 
 export type FileAttachment = {
   file: File
   preview?: string
-}
-
-export function createPreview(file: File): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) {
-      resolve(undefined)
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => resolve(undefined)
-    reader.readAsDataURL(file)
-  })
 }
 
 export function fileToDataUrl(file: File): Promise<string> {
@@ -34,11 +21,11 @@ export function fileToDataUrl(file: File): Promise<string> {
 
 export async function filesToParts(attachments: FileAttachment[]): Promise<FilePart[]> {
   return Promise.all(
-    attachments.map(async ({ file }) => ({
+    attachments.map(async ({ file, preview }) => ({
       type: "file" as const,
       mime: file.type,
       filename: file.name,
-      url: await fileToDataUrl(file),
+      url: preview || await fileToDataUrl(file),
     }))
   )
 }
