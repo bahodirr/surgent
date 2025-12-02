@@ -366,7 +366,7 @@ async function getOrCreateSandbox(options: {
   workingDirectory: string;
   sandboxId?: string;
   env?: Record<string, string>;
-}): Promise<{ sandboxId: string; previewUrl: string }> {
+}): Promise<{ sandbox: SandboxInstance; previewUrl: string }> {
   const provider = createDaytonaProvider({
     apiKey: config.daytona.apiKey,
     serverUrl: config.daytona.serverUrl,
@@ -388,10 +388,7 @@ async function getOrCreateSandbox(options: {
 
   const previewUrl = await sandbox.getHost(options.port);
 
-  return {
-    sandboxId: sandbox.sandboxId,
-    previewUrl,
-  };
+  return { sandbox, previewUrl };
 }
 
 /**
@@ -409,18 +406,11 @@ export async function initializeProject(
   const projectId = created.id;
   const workingDirectory = localWorkspacePath(projectId);
 
-  const base = await getOrCreateSandbox({
+  const { sandbox, previewUrl } = await getOrCreateSandbox({
     port: 3000,
     workingDirectory,
     env: process.env.APIFY_TOKEN ? { APIFY_TOKEN: process.env.APIFY_TOKEN } : undefined,
   });
-
-  const provider = createDaytonaProvider({
-    apiKey: config.daytona.apiKey,
-    serverUrl: config.daytona.serverUrl,
-  });
-
-  const sandbox = await provider.get(base.sandboxId);
 
   if (args.githubUrl) {
     await sandbox.git.clone(args.githubUrl, workingDirectory);
@@ -432,72 +422,20 @@ export async function initializeProject(
   let processName = `${projectId}-vite-server`;
   try {
     const buffer = await sandbox.exec(`cat ${workingDirectory}/surgent.json`, { timeoutSeconds: 10 });
-    const config = JSON.parse(stripJsonComments(buffer.result));
-
-    console.log("config", config);
-    initScript = config?.scripts?.init;
-    devScript = config?.scripts?.dev;
-    if (typeof config?.name === "string" && config.name.trim()) {
-      processName = config.name.trim();
-    }
+    const cfg = JSON.parse(stripJsonComments(buffer.result));
+    initScript = cfg?.scripts?.init;
+    devScript = cfg?.scripts?.dev;
+    if (cfg?.name?.trim()) processName = cfg.name.trim();
   } catch {
     // no surgent.json
   }
 
-  console.log("initScript", initScript);
-  console.log("devScript", devScript);
-  console.log("processName", processName);
-
   // Run init script
   if (initScript) {
-    const initResult = await sandbox.exec(
-      buildBashCommand(workingDirectory, initScript),
-      { timeoutSeconds: 30 * 60 }
-    );
-    console.log("initResult", initResult.exitCode);
+    await sandbox.exec(buildBashCommand(workingDirectory, initScript), { timeoutSeconds: 30 * 60 });
   }
 
-  // Start dev server with PM2
-  if (devScript) {
-    await ensurePm2Process(
-      sandbox,
-      workingDirectory,
-      processName,
-      devScript
-    );
-
-    // Update opencode to latest before starting the server
-    const updateResult = await sandbox.exec("bun install -g opencode-ai@latest && opencode --version", { timeoutSeconds: 120 });
-    console.log("[init] opencode", updateResult.exitCode === 0 ? "ok" : "failed", updateResult.result?.trim());
-
-    await ensurePm2Process(
-      sandbox,
-      workingDirectory,
-      "agent-opencode-server",
-      "opencode serve --hostname 0.0.0.0 --port 4096"
-    );
-
-    try {
-      const opencodeUrl = await sandbox.getHost(4096);
-      const apiKey = process.env.OPENAI_API_KEY;
-
-      // Persist API key via auth.set (server-side stored in auth.json)
-      if (apiKey) {
-        await fetch(`${opencodeUrl}/auth/openai?directory=${encodeURIComponent(workingDirectory)}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ type: "api", key: apiKey }),
-          },
-        ).catch(() => {});
-        // console.log("authResponse", authResponse);
-      }
-    } catch (err) {
-      console.log("[init] opencode provider auth/config update failed", err);
-    }
-  }
-
-  // Conditionally provision Convex dev deployment
+  // Provision Convex BEFORE starting dev server (so .env.local exists)
   let convexMetadata: any;
   if (args.initConvex) {
     const convexProject = await createProjectOnTeam({ name: args.name || "app", deploymentType: "dev" });
@@ -508,23 +446,26 @@ export async function initializeProject(
       `CONVEX_URL=${convexProject.deploymentUrl}`,
       `CONVEX_DEPLOY_KEY=${deployKey}`,
       `VITE_CONVEX_URL=${convexProject.deploymentUrl}`,
-      `VITE_APP_URL=${base.previewUrl}`,
+      `VITE_APP_URL=${previewUrl}`,
     ].join("\n") + "\n";
     
-    const writeEnvCmd = `printf %s ${shellQuote(envContent)} > .env.local`;
-    await sandbox.exec(buildBashCommand(workingDirectory, writeEnvCmd), { timeoutSeconds: 30 });
+    await sandbox.exec(buildBashCommand(workingDirectory, `printf %s ${shellQuote(envContent)} > .env.local`), { timeoutSeconds: 30 });
 
-    // Bootstrap Convex Auth env vars (JWKS, JWT_PRIVATE_KEY, SANDBOX_PREVIEW_URL)
+    // Bootstrap Convex Auth env vars
     try {
       const { jwks, privateKey } = await generateJwks();
       await setDeploymentEnvVars(convexProject.deploymentUrl, deployKey, {
         JWKS: jwks,
         JWT_PRIVATE_KEY: privateKey,
-        SANDBOX_PREVIEW_URL: base.previewUrl,
+        SANDBOX_PREVIEW_URL: previewUrl,
       });
     } catch (err) {
       console.error('[convex] env bootstrap failed', err);
     }
+
+    // Run Convex codegen and sync
+    await sandbox.exec("bun run convex:codegen", { cwd: workingDirectory, timeoutSeconds: 120 });
+    await sandbox.exec("bun run convex:once", { cwd: workingDirectory, timeoutSeconds: 180 });
 
     convexMetadata = {
       projectId: convexProject.projectId,
@@ -533,42 +474,47 @@ export async function initializeProject(
       deploymentUrl: convexProject.deploymentUrl,
       deployKey,
     };
+  }
 
-    // Run Convex codegen and sync
-    const codegen = await sandbox.exec("bun run convex:codegen", { cwd: workingDirectory, timeoutSeconds: 120 });
-    if (codegen.exitCode !== 0) {
-      console.error("[convex] codegen failed", String(codegen.result).slice(0, 500));
-    } else {
-      console.log("[convex] codegen completed");
-    }
-    const sync = await sandbox.exec("bun run convex:once", { cwd: workingDirectory, timeoutSeconds: 180 });
-    if (sync.exitCode !== 0) {
-      console.error("[convex] sync failed", String(sync.result).slice(0, 500));
-    } else {
-      console.log("[convex] sync completed");
+  // Start dev server
+  if (devScript) {
+    await ensurePm2Process(sandbox, workingDirectory, processName, devScript);
+
+    // Start opencode agent
+    await sandbox.exec("bun install -g opencode-ai@latest", { timeoutSeconds: 120 });
+    await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
+
+    // Set up opencode auth
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (apiKey) {
+      try {
+        const opencodeUrl = await sandbox.getHost(4096);
+        await fetch(`${opencodeUrl}/auth/openai?directory=${encodeURIComponent(workingDirectory)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "api", key: apiKey }),
+        });
+      } catch {}
     }
   }
 
+  // Persist state in parallel
+  await Promise.all([
+    ProjectService.updateProjectMetadata(projectId, {
+      workingDirectory,
+      processName,
+      startCommand: devScript,
+      ...(convexMetadata && { convex: convexMetadata }),
+    }),
+    ProjectService.updateProjectSandbox(projectId, {
+      id: sandbox.sandboxId,
+      previewUrl,
+      status: "started",
+      isInitialized: true,
+    }),
+  ]);
 
-  // Persist metadata
-  const current = await ProjectService.getProjectById(projectId);
-  await ProjectService.updateProjectMetadata(projectId, {
-    ...(current?.metadata as any),
-    workingDirectory,
-    processName,
-    startCommand: devScript,
-    ...(convexMetadata && { convex: convexMetadata }),
-  } as any);
-
-  // Update sandbox state
-  await ProjectService.updateProjectSandbox(projectId, {
-    id: base.sandboxId,
-    previewUrl: base.previewUrl,
-    status: "started",
-    isInitialized: true,
-  } as any);
-
-  return { projectId, sandboxId: base.sandboxId, previewUrl: base.previewUrl };
+  return { projectId, sandboxId: sandbox.sandboxId, previewUrl };
 }
 
 /**
@@ -579,51 +525,30 @@ export async function resumeProject(
 ): Promise<{ sandboxId: string; previewUrl: string }> {
   const workingDirectory = localWorkspacePath(args.projectId);
 
-  const base = await getOrCreateSandbox({
+  const { sandbox, previewUrl } = await getOrCreateSandbox({
     sandboxId: args.sandboxId,
     port: 3000,
     workingDirectory,
     env: process.env.APIFY_TOKEN ? { APIFY_TOKEN: process.env.APIFY_TOKEN } : undefined,
   });
 
-  // Start/restart app and agent processes with pm2
+  // Load project metadata and start processes
   try {
-    const provider = createDaytonaProvider({
-      apiKey: config.daytona.apiKey,
-      serverUrl: config.daytona.serverUrl,
-    });
-    const sandbox = await provider.get(base.sandboxId);
-
-    // Load project metadata
     const project = await ProjectService.getProjectById(args.projectId);
-
     const startCommand = (project?.metadata as any)?.startCommand;
     const processName = (project?.metadata as any)?.processName;
 
     if (startCommand && processName) {
-      await ensurePm2Process(
-        sandbox,
-        workingDirectory,
-        processName,
-        startCommand
-      );
+      await ensurePm2Process(sandbox, workingDirectory, processName, startCommand);
     }
 
-    // Update opencode to latest before starting the server
-    const updateResult = await sandbox.exec("bun update -g opencode-ai@latest && opencode --version", { timeoutSeconds: 120 });
-    console.log("[resume] opencode update", updateResult.exitCode === 0 ? "success" : "failed", updateResult.result?.trim());
-
-    await ensurePm2Process(
-      sandbox,
-      workingDirectory,
-      "agent-opencode-server",
-      "opencode serve --hostname 0.0.0.0 --port 4096"
-    );
+    await sandbox.exec("bun update -g opencode-ai@latest", { timeoutSeconds: 120 });
+    await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
   } catch (err) {
     console.log("resumeProject pm2 start error", err);
   }
 
-  return { sandboxId: base.sandboxId, previewUrl: base.previewUrl };
+  return { sandboxId: sandbox.sandboxId, previewUrl };
 }
 
 /**
