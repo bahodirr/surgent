@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, ChevronDown, WifiOff, Check } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import ChatInput from "./chat-input";
+import ChatInput, { type FilePart } from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
 import useAgentStream from "@/lib/use-agent-stream";
@@ -95,9 +95,9 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send]);
 
   // Handlers
-  const handleSend = (text: string, model?: string, providerID?: string) => {
-    if (!activeId || !text.trim()) return;
-    send.mutate({ sessionId: activeId, text: text.trim(), agent: mode, model, providerID });
+  const handleSend = (text: string, files?: FilePart[], model?: string, providerID?: string) => {
+    if (!activeId || (!text.trim() && !files?.length)) return;
+    send.mutate({ sessionId: activeId, text: text.trim(), agent: mode, files, model, providerID });
   };
 
   const handleRevert = async (messageId: string) => {

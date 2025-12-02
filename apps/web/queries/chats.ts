@@ -13,24 +13,40 @@ async function createSession(projectId: string): Promise<Session> {
   return data as Session
 }
 
+type FilePartInput = {
+  type: 'file'
+  mime: string
+  filename: string
+  url: string
+}
+
 async function sendMessage(
   projectId: string,
   sessionId: string,
   text: string,
   agent: 'plan' | 'build',
+  files?: FilePartInput[],
   model?: string,
   providerID?: string
 ): Promise<Message> {
-  const body: any = {
-    agent,
-    parts: [{ type: 'text', text }] as Array<Part>,
-  };
+  const parts: Array<{ type: string; text?: string; mime?: string; filename?: string; url?: string }> = []
+
+  // Add file parts first
+  if (files?.length) {
+    for (const file of files) {
+      parts.push({ type: 'file', mime: file.mime, filename: file.filename, url: file.url })
+    }
+  }
+
+  // Add text part
+  if (text) {
+    parts.push({ type: 'text', text })
+  }
+
+  const body: Record<string, unknown> = { agent, parts }
 
   if (model && model.trim()) {
-    body.model = {
-      providerID: providerID,
-      modelID: model,
-    };
+    body.model = { providerID, modelID: model }
   }
 
   const data = await http.post(`api/agent/${projectId}/session/${sessionId}/message`, {
@@ -83,9 +99,9 @@ export function useEnsureSession(projectId?: string) {
 }
 
 export function useSendMessage(projectId?: string) {
-  return useMutation<Message, unknown, { sessionId: string; text: string; agent: 'plan' | 'build'; model?: string; providerID?: string }>({
-    mutationFn: ({ sessionId, text, agent, model, providerID }) =>
-      sendMessage(projectId as string, sessionId, text, agent, model, providerID),
+  return useMutation<Message, unknown, { sessionId: string; text: string; agent: 'plan' | 'build'; files?: FilePartInput[]; model?: string; providerID?: string }>({
+    mutationFn: ({ sessionId, text, agent, files, model, providerID }) =>
+      sendMessage(projectId as string, sessionId, text, agent, files, model, providerID),
   })
 }
 

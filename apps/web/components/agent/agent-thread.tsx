@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import type { Message, Part, ToolPart, TextPart, ReasoningPart, FileDiff } from "@opencode-ai/sdk";
+import type { Message, Part, ToolPart, TextPart, ReasoningPart, FileDiff, FilePart } from "@opencode-ai/sdk";
 import { ChevronDown, Undo2, CheckCircle2, Eye, FileText, FilePenLine, Trash2, Terminal, Search, Globe, ListTodo, Play, Loader2 } from "lucide-react";
 import { ShimmeringText } from "@/components/ui/shimmer-text";
 import { Button } from "@/components/ui/button";
@@ -158,11 +158,12 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
   const userMessages = visible.filter(m => m.role === "user");
 
   const getText = (m: Message) => partsMap[m.id]?.filter((p): p is TextPart => p.type === "text").map(p => p.text).join("\n") ?? "";
+  const getFiles = (m: Message) => partsMap[m.id]?.filter((p): p is FilePart => p.type === "file") ?? [];
 
   const groupParts = (parts: Part[]) => {
     const groups: Array<{ type: string; parts: Part[] }> = [];
     for (const p of parts) {
-      const type = p.type === "tool" ? "tool" : p.type === "reasoning" ? "reasoning" : "text";
+      const type = p.type === "tool" ? "tool" : p.type === "reasoning" ? "reasoning" : p.type === "file" ? "file" : "text";
       const last = groups[groups.length - 1];
       if (last?.type === type) last.parts.push(p);
       else groups.push({ type, parts: [p] });
@@ -177,16 +178,17 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
         const msgIdx = messages.findIndex(m => m.id === userMsg.id);
         const nextUserIdx = messages.slice(msgIdx + 1).findIndex(m => m.role === "user");
         const assistants = messages.slice(msgIdx + 1, nextUserIdx === -1 ? undefined : msgIdx + 1 + nextUserIdx).filter(m => m.role === "assistant");
-        const timeline = assistants.flatMap(m => partsMap[m.id] || []).filter(p => ["reasoning", "tool", "text"].includes(p.type));
+        const timeline = assistants.flatMap(m => partsMap[m.id] || []).filter(p => ["reasoning", "tool", "text", "file"].includes(p.type));
         const groups = groupParts(timeline);
 
         const text = getText(userMsg);
+        const userFiles = getFiles(userMsg);
         const diffs = userMsg.summary?.diffs;
         const isLast = idx === userMessages.length - 1;
         const lastAssistant = assistants[assistants.length - 1];
         const working = lastAssistant && !lastAssistant.time?.completed;
         const hasActivity = timeline.some(p => 
-          p.type === "text" || 
+          p.type === "text" || p.type === "file" ||
           (p.type === "tool" && ((p as ToolPart).state.status === "running" || (p as ToolPart).state.status === "pending")) ||
           (p.type === "reasoning" && !(p as ReasoningPart).time?.end)
         );
@@ -196,19 +198,35 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
         return (
           <div key={userMsg.id} className="space-y-3">
             {/* User bubble */}
-            <div className="flex justify-end">
+            <div className="flex flex-col items-end gap-1">
+              {userFiles.length > 0 && (
+                <div className="flex gap-1">
+                  {userFiles.map((fp) => {
+                    const isImage = fp.mime?.startsWith("image/");
+                    return (
+                      <a key={fp.id} href={fp.url} target="_blank" rel="noreferrer" download={!isImage ? fp.filename : undefined} className="block size-10 rounded-lg overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+                        {isImage ? (
+                          <img src={fp.url} alt={fp.filename || "file"} className="size-full object-cover" />
+                        ) : (
+                          <div className="size-full flex items-center justify-center"><FileText className="size-4 text-muted-foreground" /></div>
+                        )}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
               <div className="relative max-w-[70%] rounded-xl bg-muted/50 border px-3 py-2">
                 <div className="whitespace-pre-wrap text-[15px] pr-6">{text}</div>
-              {onRevert && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                {onRevert && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <Button size="icon" variant="ghost" className="absolute top-1.5 right-1.5 size-6 text-muted-foreground/40 hover:text-muted-foreground" onClick={() => onRevert(userMsg.id)} disabled={reverting}>
                         {reverting && revertingMessageId === userMsg.id ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
-                    </Button>
-                  </TooltipTrigger>
+                      </Button>
+                    </TooltipTrigger>
                     <TooltipContent>Undo</TooltipContent>
-                </Tooltip>
-              )}
+                  </Tooltip>
+                )}
               </div>
             </div>
 
@@ -236,6 +254,26 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
                     return <Todos key={key} part={todoPart} />;
                   }
                   return <div key={key}>{g.parts.map(p => <Tool key={p.id} part={p as ToolPart} />)}</div>;
+                }
+
+                if (g.type === "file") {
+                  const files = g.parts as FilePart[];
+                  return (
+                    <div key={key} className="flex gap-1 py-1">
+                      {files.map((fp) => {
+                        const isImage = typeof fp.mime === "string" && fp.mime.startsWith("image/");
+                        return (
+                          <a key={fp.id} href={fp.url} target="_blank" rel="noreferrer" download={!isImage ? (fp.filename || "file") : undefined} className="block size-10 rounded-lg overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+                            {isImage ? (
+                              <img src={fp.url} alt={fp.filename || "file"} className="size-full object-cover" />
+                            ) : (
+                              <div className="size-full flex items-center justify-center"><FileText className="size-4 text-muted-foreground" /></div>
+                            )}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  );
                 }
 
                 const content = g.parts.map(p => (p as TextPart).text?.trim()).filter(Boolean).join("\n\n");

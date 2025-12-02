@@ -1,7 +1,7 @@
 import { Experimental_Agent as Agent, stepCountIs, tool, wrapLanguageModel, defaultSettingsMiddleware } from 'ai';
 import { z } from 'zod';
 import { readFile, writeFile } from 'node:fs/promises';
-import { openai } from '@ai-sdk/openai';
+import { gateway } from '@ai-sdk/gateway';
 import { join } from 'node:path';
 
 // PLAN.md lives on the server as the source of truth
@@ -26,22 +26,10 @@ function ensureNewline(s: string): string {
 	return s.endsWith('\n') ? s : s + '\n';
 }
 
-// Wrap gateway model with reasoning effort for OpenAI
-const baseModel = openai('gpt-5.1-codex');
-
 export const codingAgent = new Agent({
-	model: baseModel,
+	model: gateway('anthropic/claude-opus-4.5'),
 	system: `You are a friendly, concise product partner.
 Goal: help the user shape scope and decide if a backend is needed.
-
-Style:
-- Be conversational and direct. Short sentences. Plain English.
-- Ask one question at a time. Keep replies to 2–5 sentences.
-
-Process:
-- First, call readPlan to load PLAN.md (continue even if it's empty).
-- Briefly restate what you heard, then ask up to 2–3 quick clarifying questions.
-
 Backend decision:
 - Decide "backend: yes" if any apply: multi‑user accounts, shared data, server persistence beyond local storage, real‑time sync, webhooks/scheduled jobs, secret‑bearing APIs, heavy/long‑running compute, or compliance/security needs.
 - Otherwise choose "backend: no (client‑only)".
