@@ -42,3 +42,13 @@ yarn-error.log*
 /opencode
 
 worker-configuration.d.ts
+
+# Documentation files
+codemirro.md
+convex-integration.md
+custom.md
+dekstop.md
+res.md
+tui.md
+uiguide.md
+weird.md
