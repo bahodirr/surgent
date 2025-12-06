@@ -18,7 +18,7 @@ const templates = [
     title: 'Landing Page',
     description: 'Beautiful, responsive landing page with modern design. Great for product launches.',
     image: '/landing-template.png',
-    gitRepo: 'https://github.com/bahodirr/surgent-template-landing',
+    gitRepo: 'https://github.com/bahodirr/web-landing-starter',
     initConvex: false,
   },
   {
@@ -98,7 +98,7 @@ export default function Index() {
       console.log('projectType', projectType, isFullstack);
       const githubUrl = isFullstack
         ? 'https://github.com/bahodirr/worker-vite-react-template'
-        : 'https://github.com/bahodirr/worker-vite-react-simple-template';
+        : 'https://github.com/bahodirr/web-landing-starter';
       create.mutate(
         { 
           name: `${isFullstack ? 'Fullstack' : 'Simple'} Website ${new Date().toLocaleDateString()}`, 

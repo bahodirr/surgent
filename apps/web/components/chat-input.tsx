@@ -22,7 +22,7 @@ type Props = {
 const TIERS = {
   intern: { model: "big-pickle", provider: "opencode", label: "Intern", badge: "Free", badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200" },
   engineer: { model: "glm-4.6", provider: "zai", label: "Engineer", badge: "Paid", badgeClass: "bg-amber-100 text-amber-700 border-amber-200" },
-  en: { model: "gpt-5.1-codex", provider: "openai", label: "Cracked Dev", badge: "Pro", badgeClass: "bg-violet-100 text-violet-700 border-violet-200" },
+  en: { model: "gpt-5.1-codex-max", provider: "openai", label: "Cracked Dev", badge: "Pro", badgeClass: "bg-violet-100 text-violet-700 border-violet-200" },
 } as const;
 
 const MAX_FILES = 5;
