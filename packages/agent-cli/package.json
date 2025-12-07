@@ -1,0 +1,16 @@
+{
+  "name": "surgent-plugin",
+  "version": "0.1.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "latest",
+    "apify-client": "^2.9.0"
+  }
+}

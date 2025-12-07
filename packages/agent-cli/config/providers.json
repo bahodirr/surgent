@@ -1,0 +1,10 @@
+{
+  "apiKeyEnvVar": "SURGENT_API_KEY",
+  "providers": [
+    "anthropic",
+    "openai",
+    "google",
+    "vercel",
+    "xai"
+  ]
+}

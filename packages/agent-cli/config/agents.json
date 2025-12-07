@@ -1,0 +1,25 @@
+{
+  "build": {
+    "model": "anthropic/claude-sonnet-4-20250514"
+  },
+  "plan": {
+    "model": "anthropic/claude-sonnet-4-20250514"
+  },
+  "gemini": {
+    "model": "google/gemini-3-pro"
+  },
+  "codex": {
+    "model": "gpt-5.1-codex",
+    "reasoningEffort": "high",
+    "reasoningSummary": "true",
+    "textVerbosity": "low"
+  },
+
+  "claude-thinking": {
+    "model": "anthropic/claude-sonnet-4-5-20250929",
+    "thinking": {
+      "type": "enabled",
+      "budgetTokens": 16000
+    }
+  }
+}
