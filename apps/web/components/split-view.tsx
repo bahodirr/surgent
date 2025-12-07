@@ -23,8 +23,11 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
   const lastActivatedId = useRef<string | undefined>(undefined);
   const isMobile = useIsMobile();
   
-  const [tabs, setTabs] = useState<PreviewTab[]>([{ id: 'preview', type: 'preview', title: 'Preview' }]);
-  const [activeTabId, setActiveTabId] = useState('preview');
+  const [tabs, setTabs] = useState<PreviewTab[]>([
+    { id: 'telegram', type: 'telegram', title: 'Telegram' },
+    { id: 'preview', type: 'preview', title: 'Preview' },
+  ]);
+  const [activeTabId, setActiveTabId] = useState('telegram');
   const tabCounter = useRef(0);
 
   const handleViewChanges = useCallback((diffs: FileDiff[], messageId?: string) => {
@@ -41,7 +44,7 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
 
   const handleCloseTab = useCallback((tabId: string) => {
     setTabs(t => t.filter(tab => tab.id !== tabId));
-    setActiveTabId(prev => prev === tabId ? 'preview' : prev);
+    setActiveTabId(prev => prev === tabId ? 'telegram' : prev);
   }, []);
 
   // Activate project sandbox on mount

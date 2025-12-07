@@ -175,6 +175,7 @@ export function ChatComposer({
               <SelectContent>
                 <SelectItem value="fullstack">Full Stack App</SelectItem>
                 <SelectItem value="landing">Landing Page</SelectItem>
+                <SelectItem value="telegram-bot">Telegram Bot</SelectItem>
               </SelectContent>
             </Select>
           </div>

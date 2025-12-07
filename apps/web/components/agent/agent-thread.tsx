@@ -43,7 +43,7 @@ function Tool({ part }: { part: ToolPart }) {
 
   if (running) return (
     <div className="flex items-center gap-1.5 py-1 text-sm text-muted-foreground">
-      <ShimmeringText text={cfg.doing} duration={1.5} />
+      <ShimmeringText text={cfg.doing} duration={0.4} />
       {target && <code className="px-1.5 py-0.5 bg-muted rounded text-xs truncate max-w-48">{target}</code>}
     </div>
   );
@@ -116,7 +116,7 @@ function Thinking({ text, streaming, open, toggle }: { text: string; streaming: 
       {open && (
         <div className="pl-5 pt-1.5 text-sm text-muted-foreground border-l-2 border-muted ml-1.5">
           {text ? <Markdown className="prose prose-sm max-w-none prose-muted">{text}</Markdown>
-            : streaming ? <ShimmeringText text="Thinking..." duration={1} /> : null}
+            : streaming ? <ShimmeringText text="Thinking..." duration={0.3} /> : null}
         </div>
       )}
         </div>
@@ -235,7 +235,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
             {/* Assistant content */}
             <div className="space-y-1">
               {(isLast && groups.length === 0) && (
-                <ShimmeringText text="Thinking next steps..." duration={1.5} className="text-sm text-muted-foreground py-1" />
+                <ShimmeringText text="Thinking next steps..." duration={0.4} className="text-sm text-muted-foreground py-1" />
               )}
 
               {groups.map((g, i) => {
@@ -272,7 +272,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
               })}
 
               {showWaiting && (
-                <ShimmeringText text="Thinking next steps..." duration={1.5} className="text-sm text-muted-foreground py-1" />
+                <ShimmeringText text="Thinking next steps..." duration={0.4} className="text-sm text-muted-foreground py-1" />
               )}
             </div>
 

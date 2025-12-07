@@ -45,6 +45,14 @@ const templates = [
     gitRepo: 'https://github.com/bahodirr/surgent-template-utility',
     initConvex: true,
   },
+  {
+    id: 'telegram-bot',
+    title: 'Telegram Bot',
+    description: 'Minimal Telegram bot starter using grammY webhooks and Bun. Perfect for building chat bots and automation.',
+    image: '/globe.svg',
+    gitRepo: 'https://github.com/bahodirr/telegram-starter',
+    initConvex: false,
+  },
 ];
 
 // Simple Template Card Component
@@ -95,13 +103,19 @@ export default function Index() {
       // show loading toast and start project creation
       toast.loading('Creating your project…', { id: 'create-project' });
       const isFullstack = projectType === 'fullstack';
-      console.log('projectType', projectType, isFullstack);
-      const githubUrl = isFullstack
+      const isTelegramBot = projectType === 'telegram-bot';
+      console.log('projectType', projectType, isFullstack, isTelegramBot);
+      const githubUrl = isTelegramBot
+        ? 'https://github.com/bahodirr/telegram-starter'
+        : isFullstack
         ? 'https://github.com/bahodirr/worker-vite-react-template'
         : 'https://github.com/bahodirr/web-landing-starter';
+      const projectName = isTelegramBot
+        ? `Telegram Bot ${new Date().toLocaleDateString()}`
+        : `${isFullstack ? 'Fullstack' : 'Simple'} Website ${new Date().toLocaleDateString()}`;
       create.mutate(
         { 
-          name: `${isFullstack ? 'Fullstack' : 'Simple'} Website ${new Date().toLocaleDateString()}`, 
+          name: projectName, 
           githubUrl,
           initConvex: isFullstack 
         },
@@ -295,7 +309,7 @@ export default function Index() {
                   <Github className="h-5 w-5" />
                 </a>
                 <a
-                  href="https://twitter.com/benrov_"
+                  href="https://twitter.com/benroff_"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Twitter"

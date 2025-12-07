@@ -20,9 +20,11 @@ type Props = {
 };
 
 const TIERS = {
-  intern: { model: "big-pickle", provider: "opencode", label: "Intern", badge: "Free", badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  engineer: { model: "glm-4.6", provider: "zai", label: "Engineer", badge: "Paid", badgeClass: "bg-amber-100 text-amber-700 border-amber-200" },
-  en: { model: "gpt-5.1-codex-max", provider: "openai", label: "Cracked Dev", badge: "Pro", badgeClass: "bg-violet-100 text-violet-700 border-violet-200" },
+  intern: { model: "big-pickle", provider: "opencode", label: "Intern", badge: "Free", badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200", skills: ["Quick Tasks"] },
+  engineer: { model: "glm-4.6", provider: "zai", label: "Engineer", badge: "Paid", badgeClass: "bg-amber-100 text-amber-700 border-amber-200", skills: ["Reliable", "Fast"] },
+  xai: { model: "grok-4-1-fast", provider: "xai", label: "Best Coder", badge: "xAI", badgeClass: "bg-sky-100 text-sky-700 border-sky-200", skills: ["Coding", "Speed"] },
+  gemini: { model: "gemini-3-pro-preview", provider: "google", label: "Gemini Pro", badge: "Google", badgeClass: "bg-blue-100 text-blue-700 border-blue-200", skills: ["Design", "Problem Solving"] },
+  en: { model: "gpt-5.1-codex-max", provider: "openai", label: "Cracked Dev", badge: "Pro", badgeClass: "bg-violet-100 text-violet-700 border-violet-200", skills: ["Problem Solving", "Reasoning"] },
 } as const;
 
 const MAX_FILES = 5;
@@ -156,15 +158,25 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
 
             <Select value={tier} onValueChange={v => setTier(v as keyof typeof TIERS)}>
               <SelectTrigger size="sm" className="h-7 rounded-full border-zinc-200 dark:border-zinc-700 px-3 text-xs w-auto">
-                <SelectValue />
+                <span className="flex items-center gap-1.5">
+                  {TIERS[tier].label}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${TIERS[tier].badgeClass}`}>{TIERS[tier].badge}</span>
+                </span>
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(TIERS).map(([k, v]) => (
                   <SelectItem key={k} value={k}>
-                    <span className="flex items-center gap-1.5">
-                      {v.label}
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${v.badgeClass}`}>{v.badge}</span>
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className="flex items-center gap-1.5">
+                        {v.label}
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${v.badgeClass}`}>{v.badge}</span>
+                      </span>
+                      <span className="flex gap-1">
+                        {v.skills.map(skill => (
+                          <span key={skill} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">{skill}</span>
+                        ))}
+                      </span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
