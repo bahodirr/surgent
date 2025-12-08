@@ -14,14 +14,13 @@ import { useSandbox } from '@/hooks/use-sandbox';
 
 export interface PreviewTab {
   id: string;
-  type: 'preview' | 'changes' | 'telegram';
+  type: 'preview' | 'changes';
   title: string;
   diffs?: FileDiff[];
   messageId?: string;
 }
 
 const DEFAULT_TABS: PreviewTab[] = [
-  { id: 'telegram', type: 'telegram', title: 'Telegram' },
   { id: 'preview', type: 'preview', title: 'Preview' },
 ];
 
@@ -35,7 +34,7 @@ interface PreviewPanelProps {
   onCloseTab?: (tabId: string) => void;
 }
 
-export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = DEFAULT_TABS, activeTabId = 'telegram', onTabChange, onCloseTab }: PreviewPanelProps) {
+export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = DEFAULT_TABS, activeTabId = 'preview', onTabChange, onCloseTab }: PreviewPanelProps) {
   const deployProject = useDeployProject();
   const connected = useSandbox(s => s.connected);
 
@@ -214,16 +213,6 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
               <WebPreviewBody className="w-full h-full border-0" />
             </WebPreview>
           )
-        ) : activeTab?.type === 'telegram' ? (
-          <div className="h-full w-full flex items-center justify-center bg-muted/20 p-4">
-            <div className="w-[375px] h-full max-h-[812px] rounded-[2.5rem] bg-zinc-900 p-2 shadow-2xl ring-4 ring-zinc-900/50">
-              <iframe
-                src={process.env.NEXT_PUBLIC_TELEGRAM_APP_URL}
-                className="w-full h-full rounded-[1.75rem] bg-white"
-                title="Telegram Mini App Preview"
-              />
-            </div>
-          </div>
         ) : activeTab?.diffs?.length ? (
           <ScrollArea className="h-full">
             <div className="p-4 space-y-4">
