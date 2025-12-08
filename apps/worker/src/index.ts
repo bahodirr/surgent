@@ -20,6 +20,11 @@ const app = new Hono<AppContext>({
     // Never rewrite server container routes
     if (path.startsWith('/server')) return path
 
+    // AI proxy subdomain (ai.surgent.dev)
+    if (subdomain === 'ai') {
+      return `/proxy${path}`
+    }
+
     if (subdomain && isPreviewSubdomain(subdomain)) {
       return `/preview${path}`
     }
@@ -78,11 +83,13 @@ app.get('/api/session', (c) => {
 app.route('/api/projects', projects)
 app.route('/api/agent', agent)
 app.route('/api/proxy', proxy)
+app.route('/proxy', proxy)  // ai.surgent.dev subdomain
 app.route('/preview', preview)
 
 
 // Forward to Server durable object
-app.all('/server/*', requireAuth, async (c) => {
+app.all('/server/*', async (c) => {
+  console.log("server route:", c.req.url)
   const container = getContainer(c.env.SERVER)
   if (!container) return c.text('Server not found', 500)
 

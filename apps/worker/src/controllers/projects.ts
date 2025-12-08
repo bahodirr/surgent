@@ -10,6 +10,7 @@ import { buildDeploymentConfig, parseWranglerConfig, deployToDispatch } from "@/
 import { createProjectOnTeam, createDeployKey, setDeploymentEnvVars } from "@/apis/convex";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
 import { parse as parseDotEnv } from "dotenv";
+import { auth } from "@/lib/auth";
 
 // ============================================================================
 // Types
@@ -20,6 +21,7 @@ export interface InitializeProjectArgs {
   userId: string;
   name?: string;
   initConvex?: boolean;
+  headers?: Headers;
 }
 
 export interface ResumeProjectArgs {
@@ -406,10 +408,20 @@ export async function initializeProject(
   const projectId = created.id;
   const workingDirectory = localWorkspacePath(projectId);
 
+  // Create Surgent API key for the user
+  const apiKeyResult = await auth.api.createApiKey({
+    body: { name: `p-${projectId.slice(0, 8)}` },
+    headers: args.headers,
+  });
+
   const { sandbox, previewUrl } = await getOrCreateSandbox({
     port: 3000,
     workingDirectory,
-    env: process.env.APIFY_TOKEN ? { APIFY_TOKEN: process.env.APIFY_TOKEN } : undefined,
+    env: {
+      ...(process.env.APIFY_TOKEN && { APIFY_TOKEN: process.env.APIFY_TOKEN }),
+      SURGENT_API_KEY: apiKeyResult.key,
+      SURGENT_AI_BASE_URL: "https://ai.surgent.dev",
+    },
   });
 
   if (args.githubUrl) {
@@ -484,18 +496,6 @@ export async function initializeProject(
     await sandbox.exec("bun install -g opencode-ai@latest", { timeoutSeconds: 120 });
     await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
 
-    // Set up opencode auth
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
-      try {
-        const opencodeUrl = await sandbox.getHost(4096);
-        await fetch(`${opencodeUrl}/auth/openai?directory=${encodeURIComponent(workingDirectory)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "api", key: apiKey }),
-        });
-      } catch {}
-    }
   }
 
   // Persist state in parallel

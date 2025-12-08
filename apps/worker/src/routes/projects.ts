@@ -65,6 +65,7 @@ projects.post(
       userId: c.get('user')!.id,
       name,
       initConvex,
+      headers: c.req.raw.headers,
     })
 
     return c.json({ id: result.projectId })
