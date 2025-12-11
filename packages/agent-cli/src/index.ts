@@ -2,11 +2,11 @@ import { Plugin } from "@opencode-ai/plugin"
 import { SurgentDeployPlugin } from "./tools"
 
 const PROVIDERS = ["anthropic", "openai", "google", "vercel", "xai", "zai-org", "moonshotai"]
-const API_KEY_ENV = "SURGENT_API_KEY"
-const BASE_URL = "https://ai.surgent.dev"
 
 export const SurgentPlugin: Plugin = async (ctx) => {
   const deployPlugin = await SurgentDeployPlugin(ctx)
+  const baseUrl = process.env.SURGENT_AI_BASE_URL
+  const apiKey = process.env.SURGENT_API_KEY
 
   return {
     async config(config) {
@@ -16,8 +16,8 @@ export const SurgentPlugin: Plugin = async (ctx) => {
           ...config.provider[id],
           options: {
             ...config.provider[id]?.options,
-            apiKey: `{env:${API_KEY_ENV}}`,
-            baseURL: `${BASE_URL}/${id}`,
+            apiKey,
+            baseURL: `${baseUrl}/${id}`,
           },
         }
       }
