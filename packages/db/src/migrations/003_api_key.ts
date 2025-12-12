@@ -2,7 +2,7 @@ import { Kysely } from 'kysely'
 
 export async function up(db: Kysely<any>): Promise<void> {
   await db.schema
-    .createTable('apiKey')
+    .createTable('apikey')
     .addColumn('id', 'text', (col) => col.primaryKey())
     .addColumn('name', 'text')
     .addColumn('start', 'text')
@@ -28,5 +28,5 @@ export async function up(db: Kysely<any>): Promise<void> {
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
-  await db.schema.dropTable('apiKey').execute()
+  await db.schema.dropTable('apikey').execute()
 }
