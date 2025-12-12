@@ -517,38 +517,38 @@ export async function initializeProject(
                 apiKey: apiKeyResult.key,
                 baseURL: "https://ai.surgent.dev/openai",
               },
-            },
-              google: {
-                options: {
-                  apiKey: apiKeyResult.key,
-                  baseURL: "https://ai.surgent.dev/google",
-                },
-              },
-              anthropic: {
-                options: {
-                  apiKey: apiKeyResult.key,
-                  baseURL: "https://ai.surgent.dev/anthropic",
-                },
-              },
-              vercel: {
-                options: {
-                  apiKey: apiKeyResult.key,
-                  baseURL: "https://ai.surgent.dev/vercel",
-                },
-              },
-              xai: {
-                options: {
-                  apiKey: apiKeyResult.key,
-                  baseURL: "https://ai.surgent.dev/xai",
-                },
-              },
-              'zai-org': {
-                options: {
-                  apiKey: apiKeyResult.key,
-                  baseURL: "https://ai.surgent.dev/zai-org",
-                },
+            },  
+            google: {
+              options: {
+                apiKey: apiKeyResult.key,
+                baseURL: "https://ai.surgent.dev/google",
               },
             },
+            anthropic: {
+              options: {
+                apiKey: apiKeyResult.key,
+                baseURL: "https://ai.surgent.dev/anthropic",
+              },
+            },
+            vercel: {
+              options: {
+                apiKey: apiKeyResult.key,
+                baseURL: "https://ai.surgent.dev/vercel",
+              },
+            },
+            xai: {
+              options: {
+                apiKey: apiKeyResult.key,
+                baseURL: "https://ai.surgent.dev/xai",
+              },
+            },
+            'zai-org': {
+              options: {
+                apiKey: apiKeyResult.key,
+                baseURL: "https://ai.surgent.dev/zai-org",
+              },
+            },
+          },
         }),
       });
       if (!res.ok) console.error("[opencode] config failed:", res.status, await res.text());
