@@ -33,62 +33,29 @@ export async function createProject(args: {
   return { id: created.id as string };
 }
 
-export async function updateProjectMetadata(
+export async function updateProject(
   projectId: string,
-  metadata: any
-): Promise<void> {
+  data: { metadata?: any; sandbox?: any; deployment?: any }
+) {
   await db
     .updateTable("project")
-    .set({
-      metadata,
-      updatedAt: new Date(),
-    })
+    .set({ ...data, updatedAt: new Date() })
     .where("id", "=", projectId)
     .execute();
 }
 
-export async function updateProjectSandbox(
-  projectId: string,
-  sandbox: any
-): Promise<void> {
-  await db
-    .updateTable("project")
-    .set({
-      sandbox,
-      updatedAt: new Date(),
-    })
-    .where("id", "=", projectId)
-    .execute();
-}
-
-export async function updateDeploymentStatus(
-  projectId: string,
-  status: string,
-  name?: string
-): Promise<void> {
-  const project = await db
-    .selectFrom("project")
-    .selectAll()
-    .where("id", "=", projectId)
-    .executeTakeFirst();
-
+export async function updateDeploymentStatus(projectId: string, status: string, name?: string) {
+  const project = await getProjectById(projectId);
   if (!project) return;
 
-  const deployment = {
-    ...((project as any).deployment || {}),
-    status,
-    ...(name ? { name } : {}),
-    updatedAt: new Date(),
-  };
-
-  await db
-    .updateTable("project")
-    .set({
-      deployment,
+  await updateProject(projectId, {
+    deployment: {
+      ...(project.deployment || {}),
+      status,
+      ...(name ? { name } : {}),
       updatedAt: new Date(),
-    })
-    .where("id", "=", projectId)
-    .execute();
+    },
+  });
 }
 
 

@@ -47,7 +47,7 @@ export class GitHubService {
         return {
             name: request.username || GitHubService.DEFAULT_BOT_NAME,
             email: request.email || GitHubService.DEFAULT_BOT_EMAIL,
-            ...(timestamp && { date: timestamp })
+            ...(timestamp ? { date: timestamp } : {})
         };
     }
 

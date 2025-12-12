@@ -149,8 +149,10 @@ export async function deployProject(
     await deployToDispatch({ ...deployConfig, dispatchNamespace: config.cloudflare.dispatchNamespace! }, fileContents, undefined, wrangler.assets);
 
     step = "status:deployed";
-    await ProjectService.updateProjectSandbox(args.projectId, { ...(project.sandbox as any), deployed: true, deployName: normalizedDeployName } as any);
-    await ProjectService.updateDeploymentStatus(args.projectId, "deployed");
+    await ProjectService.updateProject(args.projectId, {
+      sandbox: { ...project.sandbox, deployed: true, deployName: normalizedDeployName },
+      deployment: { ...(project.deployment || {}), status: "deployed", updatedAt: new Date() },
+    });
 
     console.log("[deploy] success", { projectId: args.projectId });
   } catch (err: any) {
@@ -502,23 +504,74 @@ export async function initializeProject(
     await sandbox.exec("bun install -g opencode-ai@latest", { timeoutSeconds: 120 });
     await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
 
+    const opencodeUrl = await sandbox.getHost(4096);
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      const res = await fetch(`${opencodeUrl}/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: {
+            openai: {
+              options: {
+                apiKey: apiKeyResult.key,
+                baseURL: "https://ai.surgent.dev/openai",
+              },
+            },
+              google: {
+                options: {
+                  apiKey: apiKeyResult.key,
+                  baseURL: "https://ai.surgent.dev/google",
+                },
+              },
+              anthropic: {
+                options: {
+                  apiKey: apiKeyResult.key,
+                  baseURL: "https://ai.surgent.dev/anthropic",
+                },
+              },
+              vercel: {
+                options: {
+                  apiKey: apiKeyResult.key,
+                  baseURL: "https://ai.surgent.dev/vercel",
+                },
+              },
+              xai: {
+                options: {
+                  apiKey: apiKeyResult.key,
+                  baseURL: "https://ai.surgent.dev/xai",
+                },
+              },
+              'zai-org': {
+                options: {
+                  apiKey: apiKeyResult.key,
+                  baseURL: "https://ai.surgent.dev/zai-org",
+                },
+              },
+            },
+        }),
+      });
+      if (!res.ok) console.error("[opencode] config failed:", res.status, await res.text());
+    } catch (err) {
+      console.error("[opencode] config error:", err);
+    }
   }
 
-  // Persist state in parallel
-  await Promise.all([
-    ProjectService.updateProjectMetadata(projectId, {
+  // Persist state (single DB update)
+  await ProjectService.updateProject(projectId, {
+    metadata: {
       workingDirectory,
       processName,
       startCommand: devScript,
-      ...(convexMetadata && { convex: convexMetadata }),
-    }),
-    ProjectService.updateProjectSandbox(projectId, {
+      ...(convexMetadata ? { convex: convexMetadata } : {}),
+    },
+    sandbox: {
       id: sandbox.sandboxId,
       previewUrl,
       status: "started",
       isInitialized: true,
-    }),
-  ]);
+    },
+  });
 
   return { projectId, sandboxId: sandbox.sandboxId, previewUrl };
 }
@@ -583,7 +636,7 @@ export async function deployConvexProd(args: { projectId: string }): Promise<voi
 
   const provider = createDaytonaProvider({ apiKey: config.daytona.apiKey, serverUrl: config.daytona.serverUrl });
   const sandbox = await provider.resume(sandboxId);
-  const cwd = (project.metadata as any)?.workingDirectory || localWorkspacePath(args.projectId);
+  const cwd = project.metadata?.workingDirectory || localWorkspacePath(args.projectId);
 
   const res = await sandbox.exec('bunx convex deploy -y', { cwd, timeoutSeconds: 180_000 });
   if (res.exitCode !== 0) {
