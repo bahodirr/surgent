@@ -1,5 +1,4 @@
 import { type Plugin, tool } from "@opencode-ai/plugin"
-import { ApifyClient } from "apify-client"
 
 type SurgentConfig = {
   name?: string
@@ -104,35 +103,6 @@ export const SurgentDeployPlugin: Plugin = async ({ $, directory }) => {
             return out
           } catch (error) {
             return `Log fetch failed: ${(error as Error).message} JSON: ${JSON.stringify(error)}`
-          }
-        },
-      }),
-
-      linkedin: tool({
-        description: "Fetch a LinkedIn profile via Apify. Args: linkedinUrl (required).",
-        args: {
-          linkedinUrl: tool.schema.string()
-        },
-        async execute(args): Promise<string> {
-          try {
-            const linkedinUrl = (args.linkedinUrl ?? "").trim()
-            if (!linkedinUrl) {
-              return `Missing linkedinUrl`
-            }
-            const token = process.env.APIFY_TOKEN
-            const client = new ApifyClient({ token })
-            const run = await client.actor('2SyF0bVxmgGr8IVCZ').call({
-              profileUrls: [linkedinUrl],
-            })
-            const { items } = await client.dataset(run.defaultDatasetId).listItems()
-            const first = items?.[0]
-            if (!first) {
-              return `No result found`
-            }
-            return JSON.stringify({ success: true, data: first })
-          } catch (error) {
-            const err = error as Error
-            return `Apify request failed: ${err.message}`
           }
         },
       }),

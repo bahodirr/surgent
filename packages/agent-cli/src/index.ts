@@ -11,6 +11,13 @@ export const SurgentPlugin: Plugin = async (ctx) => {
       const baseUrl = process.env.SURGENT_AI_BASE_URL
       const apiKey = process.env.SURGENT_API_KEY
 
+      console.log("[SurgentPlugin] config hook called", { baseUrl, apiKey: apiKey ? "***" : undefined })
+
+      if (!baseUrl || !apiKey) {
+        console.log("[SurgentPlugin] Missing env vars, skipping provider config")
+        return
+      }
+
       config.provider ??= {}
       for (const id of PROVIDERS) {
         config.provider[id] = {
@@ -22,6 +29,7 @@ export const SurgentPlugin: Plugin = async (ctx) => {
           },
         }
       }
+      console.log("[SurgentPlugin] Configured providers:", PROVIDERS)
     },
     tool: deployPlugin.tool
   }
