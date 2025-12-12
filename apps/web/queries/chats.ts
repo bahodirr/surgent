@@ -99,7 +99,7 @@ export function useEnsureSession(projectId?: string) {
 }
 
 export function useSendMessage(projectId?: string) {
-  return useMutation<void, unknown, { sessionId: string; text: string; agent: 'plan' | 'build'; files?: FilePartInput[]; model?: string; providerID?: string }>({
+  return useMutation<Message, unknown, { sessionId: string; text: string; agent: 'plan' | 'build'; files?: FilePartInput[]; model?: string; providerID?: string }>({
     mutationFn: ({ sessionId, text, agent, files, model, providerID }) =>
       sendMessage(projectId as string, sessionId, text, agent, files, model, providerID),
   })
