@@ -20,8 +20,7 @@ type Props = {
 };
 
 const TIERS = {
-  gemini: { model: "gemini-3-pro-preview", provider: "google", label: "Gemini Pro", badge: "Google", badgeClass: "bg-blue-100 text-blue-700 border-blue-200", skills: ["Design", "Problem Solving"] },
-  openai: { model: "gpt-5.1-codex-max", provider: "openai", label: "GPT-5.1 Codex Max", badge: "OpenAI", badgeClass: "bg-violet-100 text-violet-700 border-violet-200", skills: ["Problem Solving", "Reasoning"] },
+  openai: { model: "openai/gpt-5.1-codex-max", provider: "vercel", label: "GPT-5.1 Codex", badge: "OpenAI", badgeClass: "bg-violet-100 text-violet-700 border-violet-200", skills: ["Problem Solving", "Reasoning"] },
 } as const;
 
 const MAX_FILES = 5;

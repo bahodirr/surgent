@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import type { Message, Part, ToolPart, TextPart, ReasoningPart, FileDiff, FilePart } from "@opencode-ai/sdk";
-import { ChevronDown, Undo2, CheckCircle2, Eye, FileText, FilePenLine, Trash2, Terminal, Search, Globe, ListTodo, Play, Loader2 } from "lucide-react";
+import { ChevronDown, Undo2, CheckCircle2, Eye, FileText, FilePenLine, Trash2, Terminal, Search, Globe, ListTodo, Play, Loader2, AlertCircle } from "lucide-react";
 import { ShimmeringText } from "@/components/ui/shimmer-text";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -154,6 +154,15 @@ function Changes({ diffs, onView }: { diffs: FileDiff[]; onView: () => void }) {
   );
 }
 
+function ApiError({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-2 py-2 text-sm text-destructive">
+      <AlertCircle className="size-4 shrink-0" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 // Main
 export function AgentThread({ messages, partsMap, onRevert, revertMessageId, reverting, revertingMessageId, onViewChanges }: {
   sessionId: string;
@@ -234,6 +243,13 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
 
             {/* Assistant content */}
             <div className="space-y-1">
+              {/* API errors */}
+              {assistants.map((m) => {
+                const err = (m as any).info?.error;
+                if (!err) return null;
+                return <ApiError key={m.id} message={err.data?.message || err.name || "Request failed"} />;
+              })}
+
               {(isLast && groups.length === 0) && (
                 <ShimmeringText text="Thinking next steps..." duration={0.4} className="text-sm text-muted-foreground py-1" />
               )}
