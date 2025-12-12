@@ -21,6 +21,7 @@ type Props = {
 
 const TIERS = {
   openai: { model: "openai/gpt-5", provider: "vercel", label: "GPT-5", badge: "All-in-One", badgeClass: "bg-violet-100 text-violet-700 border-violet-200"},
+  directOpenai: { model: "gpt-5", provider: "openai", label: "GPT-5 (Fast)", badge: "Direct", badgeClass: "bg-violet-100 text-violet-700 border-violet-200"},
   gemini: { model: "google/gemini-3-pro-preview", provider: "vercel", label: "Gemini 3 Pro", badge: "Multimodal", badgeClass: "bg-blue-100 text-blue-700 border-blue-200"},
   glm: { model: "zai/glm-4.6", provider: "vercel", label: "GLM-4.6", badge: "Daily", badgeClass: "bg-blue-100 text-blue-700 border-blue-200"},
   claude: { model: "anthropic/claude-opus-4.5", provider: "vercel", label: "Claude Opus 4.5", badge: "Reasoning", badgeClass: "bg-orange-100 text-orange-700 border-orange-200"},
