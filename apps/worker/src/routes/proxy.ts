@@ -7,7 +7,8 @@ const proxy = new Hono<AppContext>()
 // TODO: Re-enable auth check later
 proxy.all('/:provider/*', (c) => {
   const provider = c.req.param('provider')
-  const pathSuffix = c.req.path.split('/').slice(2).join('/')
+  const url = new URL(c.req.url)
+  const pathSuffix = url.pathname.split('/').slice(2).join('/')
   return handleProxy(c, provider, pathSuffix)
 })
 

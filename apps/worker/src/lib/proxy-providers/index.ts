@@ -17,8 +17,9 @@ export async function handleProxy(c: Context<AppContext>, provider: string, path
     return c.json({ error: `Provider '${provider}' not supported` }, 400)
   }
 
+  const incomingUrl = new URL(c.req.url)
   const suffix = pathSuffix ? (pathSuffix.startsWith('/') ? pathSuffix : `/${pathSuffix}`) : ''
-  const url = `${baseUrl}${suffix}`
+  const url = `${baseUrl}${suffix}${incomingUrl.search}`
 
   const headers = new Headers(c.req.raw.headers)
   headers.delete('host')
@@ -30,12 +31,13 @@ export async function handleProxy(c: Context<AppContext>, provider: string, path
     if (provider === 'anthropic') {
       headers.set('x-api-key', apiKey)
       headers.set('anthropic-version', '2023-06-01')
+    } else if (provider === 'google') {
+      headers.set('x-goog-api-key', apiKey)
+      headers.delete('authorization')
     } else {
       headers.set('Authorization', `Bearer ${apiKey}`)
     }
   }
-  console.log("outgoing url:", url)
-  console.log("api key:", apiKey?.slice(0, 8) + '...')
 
   const response = await fetch(url, {
     method: c.req.method,
@@ -43,7 +45,11 @@ export async function handleProxy(c: Context<AppContext>, provider: string, path
     body: c.req.raw.body,
   })
 
-  return new Response(response.body, response)
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
 }
 
 function getProviderKey(env: AppContext['Bindings'], provider: string): string | undefined {

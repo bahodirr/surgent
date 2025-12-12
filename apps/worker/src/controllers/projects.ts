@@ -504,57 +504,6 @@ export async function initializeProject(
     await sandbox.exec("bun install -g opencode-ai@latest", { timeoutSeconds: 120 });
     await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
 
-    const opencodeUrl = await sandbox.getHost(4096);
-    await new Promise((r) => setTimeout(r, 500));
-    try {
-      const res = await fetch(`${opencodeUrl}/config`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: {
-            openai: {
-              options: {
-                apiKey: apiKeyResult.key,
-                baseURL: "https://ai.surgent.dev/openai",
-              },
-            },  
-            google: {
-              options: {
-                apiKey: apiKeyResult.key,
-                baseURL: "https://ai.surgent.dev/google",
-              },
-            },
-            anthropic: {
-              options: {
-                apiKey: apiKeyResult.key,
-                baseURL: "https://ai.surgent.dev/anthropic",
-              },
-            },
-            vercel: {
-              options: {
-                apiKey: apiKeyResult.key,
-                baseURL: "https://ai.surgent.dev/vercel",
-              },
-            },
-            xai: {
-              options: {
-                apiKey: apiKeyResult.key,
-                baseURL: "https://ai.surgent.dev/xai",
-              },
-            },
-            'zai-org': {
-              options: {
-                apiKey: apiKeyResult.key,
-                baseURL: "https://ai.surgent.dev/zai-org",
-              },
-            },
-          },
-        }),
-      });
-      if (!res.ok) console.error("[opencode] config failed:", res.status, await res.text());
-    } catch (err) {
-      console.error("[opencode] config error:", err);
-    }
   }
 
   // Persist state (single DB update)
