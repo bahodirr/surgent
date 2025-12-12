@@ -20,11 +20,8 @@ type Props = {
 };
 
 const TIERS = {
-  intern: { model: "big-pickle", provider: "opencode", label: "Intern", badge: "Free", badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200", skills: ["Quick Tasks"] },
-  engineer: { model: "glm-4.6", provider: "zai", label: "Engineer", badge: "Paid", badgeClass: "bg-amber-100 text-amber-700 border-amber-200", skills: ["Reliable", "Fast"] },
-  xai: { model: "grok-4-1-fast", provider: "xai", label: "Best Coder", badge: "xAI", badgeClass: "bg-sky-100 text-sky-700 border-sky-200", skills: ["Coding", "Speed"] },
   gemini: { model: "gemini-3-pro-preview", provider: "google", label: "Gemini Pro", badge: "Google", badgeClass: "bg-blue-100 text-blue-700 border-blue-200", skills: ["Design", "Problem Solving"] },
-  en: { model: "gpt-5.1-codex-max", provider: "openai", label: "Cracked Dev", badge: "Pro", badgeClass: "bg-violet-100 text-violet-700 border-violet-200", skills: ["Problem Solving", "Reasoning"] },
+  openai: { model: "gpt-5.2", provider: "openai", label: "OpenAI GPT-5.2", badge: "Pro", badgeClass: "bg-violet-100 text-violet-700 border-violet-200", skills: ["Problem Solving", "Reasoning"] },
 } as const;
 
 const MAX_FILES = 5;
@@ -32,7 +29,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anything...", className, mode = "plan", onToggleMode, isWorking, onStop, isStopping }: Props) {
   const [value, setValue] = useState("");
-  const [tier, setTier] = useState<keyof typeof TIERS>("en");
+  const [tier, setTier] = useState<keyof typeof TIERS>("openai");
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -87,7 +84,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
 
   return (
     <div className={cn("w-full", className)}>
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
         {/* File previews */}
         {attachments.length > 0 && (
           <div className="flex gap-1.5 p-3 pb-0">
@@ -118,7 +115,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
           placeholder={placeholder}
           rows={1}
         />
-        <div className="flex items-center justify-between px-3 py-2 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+        <div className="flex items-center justify-between px-2 py-2">
           <div className="flex items-center gap-2">
             {/* File attach button */}
             <input
@@ -135,7 +132,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={attachments.length >= MAX_FILES || uploading}
-              className="h-7 w-7 p-0 rounded-full text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              className="size-8 rounded-full text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800"
             >
               <Paperclip className="size-4" />
             </Button>
@@ -146,10 +143,10 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
               size="sm"
               onClick={onToggleMode}
               className={cn(
-                "h-7 px-3 rounded-full text-xs font-medium border",
+                "h-8 px-3 rounded-full text-xs font-medium transition-colors",
                 mode === "plan"
-                  ? "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/50"
-                  : "text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  ? "bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/30"
+                  : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
               )}
             >
               <span className={cn("mr-1.5 size-1.5 rounded-full", mode === "plan" ? "bg-violet-600 dark:bg-violet-400" : "bg-zinc-400")} />
@@ -157,7 +154,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
             </Button>
 
             <Select value={tier} onValueChange={v => setTier(v as keyof typeof TIERS)}>
-              <SelectTrigger size="sm" className="h-7 rounded-full border-zinc-200 dark:border-zinc-700 px-3 text-xs w-auto">
+              <SelectTrigger size="sm" className="h-8 rounded-full border-0 bg-transparent px-3 text-xs w-auto hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors shadow-none focus:ring-0">
                 <span className="flex items-center gap-1.5">
                   {TIERS[tier].label}
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${TIERS[tier].badgeClass}`}>{TIERS[tier].badge}</span>
@@ -190,18 +187,18 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
             variant={isWorking ? "outline" : "default"}
             size="sm"
             className={cn(
-              "h-7 rounded-full",
+              "rounded-full transition-all duration-200",
               isWorking
-                ? "px-3 text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
-                : "size-7 p-0 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200"
+                ? "h-8 px-3 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 bg-transparent"
+                : "size-8 p-0 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-sm"
             )}
           >
             {uploading ? (
               <Loader2 className="size-4 animate-spin" />
             ) : isWorking ? (
               <span className="flex items-center gap-1.5 text-xs">
-                {isStopping ? <span className="size-3 rounded-full border-2 border-red-600/40 border-t-red-600 animate-spin" /> : <span className="size-1.5 rounded-full bg-red-600 animate-pulse" />}
-                {isStopping ? "Stopping" : "Stop"}
+                {isStopping ? <span className="size-2 rounded-full bg-red-600 animate-spin" /> : <span className="size-2 rounded-full bg-red-600 animate-pulse" />}
+                <span className="sr-only">Stop</span>
               </span>
             ) : <ArrowUp className="size-4" />}
           </Button>
