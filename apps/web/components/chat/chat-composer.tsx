@@ -41,7 +41,7 @@ export function ChatComposer({
   const value = controlledValue !== undefined ? controlledValue : internalValue;
   const setValue = onValueChange || setInternalValue;
   const [files, setFiles] = useState<File[]>([]);
-  const [projectType, setProjectType] = useState<string>('landing');
+  const [projectType, setProjectType] = useState<string>('simple');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clearFiles = () => {
@@ -175,6 +175,7 @@ export function ChatComposer({
               <SelectContent>
                 <SelectItem value="fullstack">Full Stack App</SelectItem>
                 <SelectItem value="landing">Landing Page</SelectItem>
+                <SelectItem value="simple">Utility App</SelectItem>
               </SelectContent>
             </Select>
           </div>

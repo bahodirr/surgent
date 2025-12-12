@@ -88,23 +88,26 @@ export default function Index() {
     load();
   }, []);
 
-  const handlePromptSend = (text: string, files?: FileList, projectType?: string) => {
+  const projectTypes: Record<string, { name: string; githubUrl: string; initConvex: boolean }> = {
+    fullstack: { name: 'Fullstack', githubUrl: 'https://github.com/bahodirr/worker-vite-react-template', initConvex: true },
+    landing: { name: 'Landing', githubUrl: 'https://github.com/bahodirr/web-landing-starter', initConvex: false },
+    simple: { name: 'Utility', githubUrl: 'https://github.com/bahodirr/worker-vite-react-simple-template', initConvex: false },
+  };
+
+  const handlePromptSend = (text: string, files?: FileList, projectType = 'simple') => {
     const initial = text.trim();
     if (!initial) return;
     
     if (isLoggedIn) {
-      // show loading toast and start project creation
       toast.loading('Creating your project…', { id: 'create-project' });
-      const isFullstack = projectType === 'fullstack';
-      console.log('projectType', projectType, isFullstack);
-      const githubUrl = isFullstack
-        ? 'https://github.com/bahodirr/worker-vite-react-template'
-        : 'https://github.com/bahodirr/web-landing-starter';
+      const config = projectTypes[projectType] || projectTypes.simple!;
+      const { name, githubUrl, initConvex } = config;
+      
       create.mutate(
         { 
-          name: `${isFullstack ? 'Fullstack' : 'Simple'} Website ${new Date().toLocaleDateString()}`, 
+          name: `${name} Website ${new Date().toLocaleDateString()}`, 
           githubUrl,
-          initConvex: isFullstack 
+          initConvex 
         },
         {
           onSuccess: ({ id }) => {

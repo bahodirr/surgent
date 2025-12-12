@@ -37,6 +37,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const [diffOpen, setDiffOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string>();
   const [revertingId, setRevertingId] = useState<string>();
+  const [aborted, setAborted] = useState(false);
 
   // Queries & mutations
   const sandboxId = useSandbox(s => s.sandboxId || undefined);
@@ -53,9 +54,10 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const { messages, parts, session, lastAt, connected } = useAgentStream({ projectId, sessionId: activeId });
 
   const working = useMemo(() => {
+    if (aborted) return false;
     const last = messages[messages.length - 1];
     return last?.role === "assistant" && !last.time?.completed && Date.now() - (lastAt || 0) <= 15000;
-  }, [messages, lastAt]);
+  }, [messages, lastAt, aborted]);
 
   // Sync connected state to store for preview panel
   useEffect(() => {
@@ -94,10 +96,15 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     } catch {}
   }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send]);
 
-  // Handlers
   const handleSend = (text: string, files?: FilePart[], model?: string, providerID?: string) => {
     if (!activeId || (!text.trim() && !files?.length)) return;
+    setAborted(false);
     send.mutate({ sessionId: activeId, text: text.trim(), agent: mode, files, model, providerID });
+  };
+
+  const handleAbort = () => {
+    if (!activeId || !projectId) return;
+    abort.mutate({ projectId, sessionId: activeId }, { onSuccess: () => setAborted(true) });
   };
 
   const handleRevert = async (messageId: string) => {
@@ -223,7 +230,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
               mode={mode}
               onToggleMode={() => setMode(m => m === "plan" ? "build" : "plan")}
               isWorking={working}
-              onStop={() => activeId && abort.mutate({ projectId: projectId!, sessionId: activeId })}
+              onStop={handleAbort}
               isStopping={abort.isPending}
             />
           </div>
