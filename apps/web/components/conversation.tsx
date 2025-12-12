@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { FileDiff } from "@opencode-ai/sdk";
+import type { FileDiff, Part, ToolPart, ReasoningPart } from "@opencode-ai/sdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -51,13 +51,34 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
 
   const activeId = sessionId || sessions[0]?.id;
   const busy = revert.isPending || unrevert.isPending;
-  const { messages, parts, session, lastAt, connected } = useAgentStream({ projectId, sessionId: activeId });
+  const { messages, parts, session, activityAt, connected } = useAgentStream({ projectId, sessionId: activeId });
+  const [working, setWorking] = useState(false);
 
-  const working = useMemo(() => {
-    if (aborted) return false;
+  useEffect(() => {
     const last = messages[messages.length - 1];
-    return last?.role === "assistant" && !last.time?.completed && Date.now() - (lastAt || 0) <= 15000;
-  }, [messages, lastAt, aborted]);
+    const isAssistant = last?.role === "assistant";
+    const completed = !!(last?.time && "completed" in last.time && last.time.completed);
+    const lastParts = isAssistant ? parts[last.id] || [] : [];
+    const hasActiveParts = lastParts.some(p => {
+      if (p.type === "tool") {
+        const tp = p as ToolPart;
+        return tp.state.status === "running" || tp.state.status === "pending";
+      }
+      if (p.type === "reasoning") {
+        const rp = p as ReasoningPart;
+        return !rp.time?.end;
+      }
+      return false;
+    });
+
+    if (aborted || !isAssistant) { setWorking(false); return; }
+    if (completed) { setWorking(false); return; }
+    if (hasActiveParts) { setWorking(true); return; }
+
+    setWorking(true);
+    const id = setTimeout(() => setWorking(false), 3000);
+    return () => clearTimeout(id);
+  }, [messages, parts, activityAt, aborted]);
 
   // Sync connected state to store for preview panel
   useEffect(() => {
@@ -199,6 +220,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
                   reverting={busy}
                   revertingMessageId={revertingId}
                   onViewChanges={onViewChanges}
+                  isWorking={working}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center min-h-[400px] text-center">

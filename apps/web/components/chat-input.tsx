@@ -20,7 +20,11 @@ type Props = {
 };
 
 const TIERS = {
-  openai: { model: "openai/gpt-5.1-codex-max", provider: "vercel", label: "GPT-5.1 Codex", badge: "OpenAI", badgeClass: "bg-violet-100 text-violet-700 border-violet-200", skills: ["Problem Solving", "Reasoning"] },
+  openai: { model: "openai/gpt-5", provider: "vercel", label: "GPT-5", badge: "All-in-One", badgeClass: "bg-violet-100 text-violet-700 border-violet-200"},
+  gemini: { model: "google/gemini-3-pro-preview", provider: "vercel", label: "Gemini 3 Pro", badge: "Multimodal", badgeClass: "bg-blue-100 text-blue-700 border-blue-200"},
+  glm: { model: "zai/glm-4.6", provider: "vercel", label: "GLM-4.6", badge: "Daily", badgeClass: "bg-blue-100 text-blue-700 border-blue-200"},
+  claude: { model: "anthropic/claude-opus-4.5", provider: "vercel", label: "Claude Opus 4.5", badge: "Reasoning", badgeClass: "bg-orange-100 text-orange-700 border-orange-200"},
+  xai: { model: "big-pickle", provider: "opencode", label: "Grok", badge: "free", badgeClass: "bg-green-100 text-green-700 border-green-200"},
 } as const;
 
 const MAX_FILES = 5;
@@ -166,11 +170,6 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
                       <span className="flex items-center gap-1.5">
                         {v.label}
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${v.badgeClass}`}>{v.badge}</span>
-                      </span>
-                      <span className="flex gap-1">
-                        {v.skills.map(skill => (
-                          <span key={skill} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">{skill}</span>
-                        ))}
                       </span>
                     </div>
                   </SelectItem>

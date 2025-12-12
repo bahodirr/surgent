@@ -9,12 +9,13 @@ type State = {
   parts: Record<string, Part[]>;
   session?: Session;
   lastAt: number;
+  activityAt: number;
   connected: boolean;
 };
 
 type StreamEvent = Event | { type: string; properties?: Record<string, any> };
 
-const initialState: State = { messages: [], parts: {}, lastAt: 0, connected: false };
+const initialState: State = { messages: [], parts: {}, lastAt: 0, activityAt: 0, connected: false };
 
 function upsertMessage(list: Message[], incoming: Message): Message[] {
   const idx = list.findIndex((m) => m.id === incoming.id);
@@ -37,7 +38,7 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
   
   if (!props) {
     return event.type === "session.deleted" 
-      ? { ...state, session: undefined, messages: [], parts: {}, lastAt: now }
+      ? { ...state, session: undefined, messages: [], parts: {}, lastAt: now, activityAt: now }
       : { ...state, lastAt: now };
   }
   
@@ -45,32 +46,32 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     case "session.updated": {
       const info = props.info as Session;
       if (info.id !== currentSessionId) return state;
-      return { ...state, session: info, lastAt: now };
+      return { ...state, session: info, lastAt: now, activityAt: now };
     }
     case "session.deleted": {
       if (props.sessionID !== currentSessionId) return state;
-      return { ...state, session: undefined, messages: [], parts: {}, lastAt: now };
+      return { ...state, session: undefined, messages: [], parts: {}, lastAt: now, activityAt: now };
     }
     case "message.updated": {
       const info = props.info as Message;
       if (info.sessionID !== currentSessionId) return state;
-      return { ...state, messages: upsertMessage(state.messages, info), lastAt: now };
+      return { ...state, messages: upsertMessage(state.messages, info), lastAt: now, activityAt: now };
     }
     case "message.removed": {
       const parts = { ...state.parts };
       delete parts[props.messageID];
-      return { ...state, messages: state.messages.filter((m) => m.id !== props.messageID), parts, lastAt: now };
+      return { ...state, messages: state.messages.filter((m) => m.id !== props.messageID), parts, lastAt: now, activityAt: now };
     }
     case "message.part.updated": {
       const part = props.part as Part;
-      return { ...state, parts: { ...state.parts, [part.messageID]: upsertPart(state.parts[part.messageID], part) }, lastAt: now };
+      return { ...state, parts: { ...state.parts, [part.messageID]: upsertPart(state.parts[part.messageID], part) }, lastAt: now, activityAt: now };
     }
     case "message.part.removed": {
       const parts = { ...state.parts };
       const filtered = parts[props.messageID]?.filter((p) => p.id !== props.partID);
       if (filtered) parts[props.messageID] = filtered;
       else delete parts[props.messageID];
-      return { ...state, parts, lastAt: now };
+      return { ...state, parts, lastAt: now, activityAt: now };
     }
     case "server.connected":
       return { ...state, connected: true, lastAt: now };

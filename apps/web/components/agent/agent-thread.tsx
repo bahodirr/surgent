@@ -164,7 +164,7 @@ function ApiError({ message }: { message: string }) {
 }
 
 // Main
-export function AgentThread({ messages, partsMap, onRevert, revertMessageId, reverting, revertingMessageId, onViewChanges }: {
+export function AgentThread({ messages, partsMap, onRevert, revertMessageId, reverting, revertingMessageId, onViewChanges, isWorking }: {
   sessionId: string;
   messages: Message[];
   partsMap: Record<string, Part[]>;
@@ -173,6 +173,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
   reverting?: boolean;
   revertingMessageId?: string;
   onViewChanges?: (diffs: FileDiff[], messageId?: string) => void;
+  isWorking?: boolean;
 }) {
   const [openThoughts, setOpenThoughts] = useState<Record<string, boolean>>({});
 
@@ -208,7 +209,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
         const diffs = userMsg.summary?.diffs;
         const isLast = idx === userMessages.length - 1;
         const lastAssistant = assistants[assistants.length - 1];
-        const working = lastAssistant && !lastAssistant.time?.completed;
+        const working = isLast && isWorking !== undefined ? isWorking : (lastAssistant && !lastAssistant.time?.completed);
         const hasActivity = timeline.some(p => 
           p.type === "text" || p.type === "file" ||
           (p.type === "tool" && ((p as ToolPart).state.status === "running" || (p as ToolPart).state.status === "pending")) ||
@@ -251,7 +252,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
               })}
 
               {(isLast && groups.length === 0) && (
-                <ShimmeringText text="Thinking next steps..." duration={0.4} className="text-sm text-muted-foreground py-1" />
+                <ShimmeringText text="Planning next steps..." duration={0.4} className="text-sm text-muted-foreground py-1" />
               )}
 
               {groups.map((g, i) => {
