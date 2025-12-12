@@ -353,10 +353,14 @@ async function ensurePm2Process(
   sandbox: SandboxInstance,
   cwd: string,
   name: string,
-  command: string
+  command: string,
+  forceRestart = false
 ): Promise<void> {
   const online = await isPm2Online(sandbox, cwd, name);
   if (online) {
+    if (forceRestart) {
+      await sandbox.exec(`pm2 restart ${name} --update-env`, { timeoutSeconds: 60, cwd });
+    }
     return;
   }
   const startCmd = `pm2 start "${command}" --name ${name} --update-env`;
@@ -368,6 +372,7 @@ async function getOrCreateSandbox(options: {
   workingDirectory: string;
   sandboxId?: string;
   env?: Record<string, string>;
+  name?: string;
 }): Promise<{ sandbox: SandboxInstance; previewUrl: string }> {
   const provider = createDaytonaProvider({
     apiKey: config.daytona.apiKey,
@@ -382,10 +387,10 @@ async function getOrCreateSandbox(options: {
       sandbox = await provider.resume(options.sandboxId);
     } catch (error) {
       console.log("Failed to resume sandbox, creating new one", error);
-      sandbox = await provider.create(options.env, options.workingDirectory);
+      sandbox = await provider.create(options.env, options.workingDirectory, options.name);
     }
   } else {
-    sandbox = await provider.create(options.env, options.workingDirectory);
+    sandbox = await provider.create(options.env, options.workingDirectory, options.name);
   }
 
   const previewUrl = await sandbox.getHost(options.port);
@@ -407,6 +412,7 @@ export async function initializeProject(
 
   const projectId = created.id;
   const workingDirectory = localWorkspacePath(projectId);
+  const sandboxName = "server"
 
   // Create Surgent API key for the user
   const apiKeyResult = await auth.api.createApiKey({
@@ -417,8 +423,8 @@ export async function initializeProject(
   const { sandbox, previewUrl } = await getOrCreateSandbox({
     port: 3000,
     workingDirectory,
+    name: sandboxName,
     env: {
-      ...(process.env.APIFY_TOKEN && { APIFY_TOKEN: process.env.APIFY_TOKEN }),
       SURGENT_API_KEY: apiKeyResult.key,
       SURGENT_AI_BASE_URL: "https://ai.surgent.dev",
     },
@@ -492,7 +498,7 @@ export async function initializeProject(
   if (devScript) {
     await ensurePm2Process(sandbox, workingDirectory, processName, devScript);
 
-    // Start opencode agent
+    // Start opencode agent with config
     await sandbox.exec("bun install -g opencode-ai@latest", { timeoutSeconds: 120 });
     await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
 
@@ -529,7 +535,7 @@ export async function resumeProject(
     sandboxId: args.sandboxId,
     port: 3000,
     workingDirectory,
-    env: process.env.APIFY_TOKEN ? { APIFY_TOKEN: process.env.APIFY_TOKEN } : undefined,
+    name: "server",
   });
 
   // Load project metadata and start processes
@@ -543,7 +549,7 @@ export async function resumeProject(
     }
 
     await sandbox.exec("bun update -g opencode-ai@latest", { timeoutSeconds: 120 });
-    await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
+    await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096", true);
   } catch (err) {
     console.log("resumeProject pm2 start error", err);
   }

@@ -32,7 +32,7 @@ export interface SandboxInstance {
 }
 
 export interface SandboxProvider {
-	create(envs?: Record<string, string>, workingDirectory?: string): Promise<SandboxInstance>;
+	create(envs?: Record<string, string>, workingDirectory?: string, name?: string): Promise<SandboxInstance>;
 	resume(id: string): Promise<SandboxInstance>;
 	get(id: string): Promise<SandboxInstance>;
 	stop(id: string): Promise<void>;
@@ -104,7 +104,7 @@ export class DaytonaSandboxProvider implements SandboxProvider {
 		return this.client!;
 	}
 
-	async create(envs?: Record<string, string>, _workingDirectory?: string): Promise<SandboxInstance> {
+	async create(envs?: Record<string, string>, _workingDirectory?: string, name?: string): Promise<SandboxInstance> {
 		const client = this.getClient();
 		const params: any = {
 			snapshot: this.config.snapshot || "default-env:1.0.0",
@@ -112,6 +112,7 @@ export class DaytonaSandboxProvider implements SandboxProvider {
 			public: true,
 			autoStopInterval: 15,
 		};
+		if (name) params.name = name;
 		const sandbox = await client.create(params);
 		return new DaytonaSandboxInstance(sandbox, client);
 	}
