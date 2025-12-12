@@ -83,8 +83,8 @@ app.get('/api/session', (c) => {
 app.route('/api/projects', projects)
 app.route('/api/agent', agent)
 app.route('/api/proxy', proxy)
-app.route('/proxy', proxy)  // ai.surgent.dev subdomain
 app.route('/preview', preview)
+app.route('/proxy', proxy)  // ai.surgent.dev subdomain
 
 
 // Forward to Server durable object

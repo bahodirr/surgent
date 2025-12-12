@@ -60,7 +60,6 @@ export async function deployProject(
     const sandboxId = project.sandbox!.id;
     if (!sandboxId) throw new Error("Project sandbox is not initialized");
 
-    const hasConvex = !!(project.metadata as any)?.convex;
     const normalizedDeployName = args.deployName ? sanitizeScriptName(args.deployName) : undefined;
 
     step = "status:starting";
@@ -504,6 +503,21 @@ export async function initializeProject(
     await sandbox.exec("bun install -g opencode-ai@latest", { timeoutSeconds: 120 });
     await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096");
 
+    // Configure OpenAI API key and base URL for opencode
+    try {
+      const opencodeUrl = await sandbox.getHost(4096);
+      const apiKey = config.vercel.apiKey;
+
+      if (apiKey) {
+        await fetch(`${opencodeUrl}/auth/vercel?directory=${encodeURIComponent(workingDirectory)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "api", key: apiKey }),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.log("[init] opencode OpenAI auth configuration failed", err);
+    }
   }
 
   // Persist state (single DB update)
@@ -552,6 +566,21 @@ export async function resumeProject(
 
     await sandbox.exec("bun update -g opencode-ai@latest", { timeoutSeconds: 120 });
     await ensurePm2Process(sandbox, workingDirectory, "agent-opencode-server", "opencode serve --hostname 0.0.0.0 --port 4096", true);
+
+    try {
+      const opencodeUrl = await sandbox.getHost(4096);
+      const apiKey = config.vercel.apiKey;
+
+      if (apiKey) {
+        await fetch(`${opencodeUrl}/auth/vercel?directory=${encodeURIComponent(workingDirectory)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "api", key: apiKey }),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.log("[resume] opencode OpenAI auth configuration failed", err);
+    }
   } catch (err) {
     console.log("resumeProject pm2 start error", err);
   }

@@ -16,4 +16,10 @@ export const config = {
     teamId: process.env.CONVEX_TEAM_ID,
     teamToken: process.env.CONVEX_TEAM_TOKEN,
   },
+  helicone: {
+    apiKey: process.env.HELICONE_API_KEY!,
+  },
+  vercel: {
+    apiKey: process.env.VERCEL_AI_GATEWAY_API_KEY!,
+  },
 } as const;
