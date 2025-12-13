@@ -17,6 +17,7 @@ const TOOLS: Record<string, { icon: React.ElementType; done: string; doing: stri
   bash: { icon: Terminal, done: "Ran", doing: "Running..." },
   grep: { icon: Search, done: "Searched", doing: "Searching..." },
   glob: { icon: Search, done: "Searched", doing: "Searching..." },
+  list: { icon: Search, done: "Listed", doing: "Listing..." },
   webfetch: { icon: Globe, done: "Fetched", doing: "Fetching..." },
   todowrite: { icon: ListTodo, done: "Todos", doing: "Updating..." },
   todoread: { icon: ListTodo, done: "Todos", doing: "Loading..." },
@@ -30,6 +31,8 @@ function getTarget(part: ToolPart): string | undefined {
   if (["read", "write", "edit"].includes(part.tool)) return String(input.filePath || "").split(/[/\\]/).pop();
   if (["bash", "dev"].includes(part.tool)) return String(input.command || "");
   if (part.tool === "grep") return String(input.pattern || "");
+  if (part.tool === "glob") return String(input.pattern || "");
+  if (part.tool === "list") return String(input.path || "/");
   if (part.tool === "webfetch") try { return new URL(String(input.url)).hostname; } catch { return String(input.url); }
 }
 
@@ -69,6 +72,9 @@ function Tool({ part }: { part: ToolPart }) {
 function Todos({ part }: { part: ToolPart }) {
   const loading = part.state.status === "running" || part.state.status === "pending";
   const todos = useMemo(() => {
+    // Read from input.todos (like opencode) for todowrite, fallback to output
+    const input = part.state.status !== "pending" ? (part.state.input as Record<string, unknown>) : {};
+    if (Array.isArray(input?.todos)) return input.todos;
     if (part.state.status !== "completed") return [];
     try {
       const val = typeof part.state.output === "string" ? JSON.parse(part.state.output) : part.state.output;
@@ -182,27 +188,49 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
 
   const getText = (m: Message) => partsMap[m.id]?.filter((p): p is TextPart => p.type === "text").map(p => p.text).join("\n") ?? "";
   const getFiles = (m: Message) => partsMap[m.id]?.filter((p): p is FilePart => p.type === "file") ?? [];
-
-  const groupParts = (parts: Part[]) => {
-    const groups: Array<{ type: string; parts: Part[] }> = [];
-    for (const p of parts) {
-      const type = p.type === "tool" ? "tool" : p.type === "reasoning" ? "reasoning" : p.type === "file" ? "file" : "text";
-      const last = groups[groups.length - 1];
-      if (last?.type === type) last.parts.push(p);
-      else groups.push({ type, parts: [p] });
+  const renderPart = (p: Part) => {
+    if (p.type === "reasoning") {
+      const text = (p as ReasoningPart).text?.replace("[REDACTED]", "").trim() || "";
+      const streaming = !(p as ReasoningPart).time?.end;
+      if (!text && !streaming) return null;
+      const key = p.id;
+      return (
+        <Thinking
+          key={key}
+          text={text}
+          streaming={streaming}
+          open={openThoughts[key] ?? streaming}
+          toggle={() => setOpenThoughts(s => ({ ...s, [key]: !s[key] }))}
+        />
+      );
     }
-    return groups;
+    if (p.type === "tool") {
+      const toolPart = p as ToolPart;
+      // Hide todoread like opencode does
+      if (toolPart.tool === "todoread") return null;
+      // Render todowrite with Todos component
+      if (toolPart.tool === "todowrite") return <Todos key={p.id} part={toolPart} />;
+      return <Tool key={p.id} part={toolPart} />;
+    }
+    if (p.type === "file") return <div key={p.id} className="flex gap-1 py-1"><FileThumb file={p as FilePart} /></div>;
+    if (p.type === "step-start" || p.type === "step-finish") return null;
+    if (p.type === "patch") return null;
+    if (p.type === "text") {
+      const content = (p as TextPart).text?.trim();
+      if (!content) return null;
+      return <Markdown key={p.id} className="prose prose-sm max-w-none dark:prose-invert">{content}</Markdown>;
+    }
+    return null;
   };
 
   return (
     <div className="space-y-6">
       {userMessages.map((userMsg, idx) => {
-        // Get assistant responses for this user message
-        const msgIdx = messages.findIndex(m => m.id === userMsg.id);
-        const nextUserIdx = messages.slice(msgIdx + 1).findIndex(m => m.role === "user");
-        const assistants = messages.slice(msgIdx + 1, nextUserIdx === -1 ? undefined : msgIdx + 1 + nextUserIdx).filter(m => m.role === "assistant");
-        const timeline = assistants.flatMap(m => partsMap[m.id] || []).filter(p => ["reasoning", "tool", "text", "file"].includes(p.type));
-        const groups = groupParts(timeline);
+        // Get assistant responses for this user message (use visible to respect revert)
+        const msgIdx = visible.findIndex(m => m.id === userMsg.id);
+        const nextUserIdx = visible.slice(msgIdx + 1).findIndex(m => m.role === "user");
+        const assistants = visible.slice(msgIdx + 1, nextUserIdx === -1 ? undefined : msgIdx + 1 + nextUserIdx).filter(m => m.role === "assistant");
+        const timeline = assistants.flatMap(m => partsMap[m.id] || []);
 
         const text = getText(userMsg);
         const userFiles = getFiles(userMsg);
@@ -210,13 +238,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
         const isLast = idx === userMessages.length - 1;
         const lastAssistant = assistants[assistants.length - 1];
         const working = isLast && isWorking !== undefined ? isWorking : (lastAssistant && !lastAssistant.time?.completed);
-        const hasActivity = timeline.some(p => 
-          p.type === "text" || p.type === "file" ||
-          (p.type === "tool" && ((p as ToolPart).state.status === "running" || (p as ToolPart).state.status === "pending")) ||
-          (p.type === "reasoning" && !(p as ReasoningPart).time?.end)
-        );
-
-        const showWaiting = isLast && working && !hasActivity && groups.length > 0;
+        const showPlanning = isLast && !!working;
 
         return (
           <div key={userMsg.id} className="space-y-3">
@@ -251,45 +273,10 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
                 return <ApiError key={m.id} message={err.data?.message || err.name || "Request failed"} />;
               })}
 
-              {(isLast && groups.length === 0) && (
-                <ShimmeringText text="Planning next steps..." duration={0.4} className="text-sm text-muted-foreground py-1" />
-              )}
+              {timeline.map(renderPart)}
 
-              {groups.map((g, i) => {
-                const key = `${g.type}-${i}`;
-
-                if (g.type === "reasoning") {
-                  const content = g.parts.map(p => (p as ReasoningPart).text?.trim()).filter(Boolean).join("\n\n");
-                  const streaming = g.parts.some(p => !(p as ReasoningPart).time?.end);
-                  if (!content && !streaming) return null;
-                  return <Thinking key={key} text={content} streaming={streaming} open={openThoughts[key] ?? streaming} toggle={() => setOpenThoughts(s => ({ ...s, [key]: !s[key] }))} />;
-                }
-
-                if (g.type === "tool") {
-                  const todoPart = g.parts.find(p => ["todowrite", "todoread"].includes((p as ToolPart).tool)) as ToolPart | undefined;
-                  if (todoPart) {
-                    const input = todoPart.state.status !== "pending" ? todoPart.state.input as { merge?: boolean } : {};
-                    if (todoPart.tool === "todowrite" && input.merge) return <p key={key} className="text-xs text-muted-foreground py-0.5">Updated todos</p>;
-                    return <Todos key={key} part={todoPart} />;
-                  }
-                  return <div key={key}>{g.parts.map(p => <Tool key={p.id} part={p as ToolPart} />)}</div>;
-                }
-
-                if (g.type === "file") {
-                  return (
-                    <div key={key} className="flex gap-1 py-1">
-                      {(g.parts as FilePart[]).map((fp) => <FileThumb key={fp.id} file={fp} />)}
-                    </div>
-                  );
-                }
-
-                const content = g.parts.map(p => (p as TextPart).text?.trim()).filter(Boolean).join("\n\n");
-                if (!content) return null;
-                return <Markdown key={key} className="prose prose-sm max-w-none dark:prose-invert">{content}</Markdown>;
-              })}
-
-              {showWaiting && (
-                <ShimmeringText text="Thinking next steps..." duration={0.4} className="text-sm text-muted-foreground py-1" />
+              {showPlanning && (
+                <ShimmeringText text="Working..." duration={0.4} className="text-sm text-muted-foreground py-1" />
               )}
             </div>
 

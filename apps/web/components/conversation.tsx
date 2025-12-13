@@ -37,8 +37,6 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const [diffOpen, setDiffOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string>();
   const [revertingId, setRevertingId] = useState<string>();
-  const [aborted, setAborted] = useState(false);
-
   // Queries & mutations
   const sandboxId = useSandbox(s => s.sandboxId || undefined);
   const setConnected = useSandbox(s => s.setConnected);
@@ -51,34 +49,9 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
 
   const activeId = sessionId || sessions[0]?.id;
   const busy = revert.isPending || unrevert.isPending;
-  const { messages, parts, session, activityAt, connected } = useAgentStream({ projectId, sessionId: activeId });
-  const [working, setWorking] = useState(false);
-
-  useEffect(() => {
-    const last = messages[messages.length - 1];
-    const isAssistant = last?.role === "assistant";
-    const completed = !!(last?.time && "completed" in last.time && last.time.completed);
-    const lastParts = isAssistant ? parts[last.id] || [] : [];
-    const hasActiveParts = lastParts.some(p => {
-      if (p.type === "tool") {
-        const tp = p as ToolPart;
-        return tp.state.status === "running" || tp.state.status === "pending";
-      }
-      if (p.type === "reasoning") {
-        const rp = p as ReasoningPart;
-        return !rp.time?.end;
-      }
-      return false;
-    });
-
-    if (aborted || !isAssistant) { setWorking(false); return; }
-    if (completed) { setWorking(false); return; }
-    if (hasActiveParts) { setWorking(true); return; }
-
-    setWorking(true);
-    const id = setTimeout(() => setWorking(false), 3000);
-    return () => clearTimeout(id);
-  }, [messages, parts, activityAt, aborted]);
+  const { messages, parts, session, connected, status } = useAgentStream({ projectId, sessionId: activeId });
+  const statusBusy = status?.type !== undefined && status.type !== "idle";
+  const working = statusBusy;
 
   // Sync connected state to store for preview panel
   useEffect(() => {
@@ -101,9 +74,9 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     }
   }, [messages.length]);
 
-  // Seed initial prompt
+  // Seed initial prompt (only after connected + idle)
   useEffect(() => {
-    if (!initialPrompt || seededRef.current || !activeId || messages.length) return;
+    if (!initialPrompt || seededRef.current || !activeId || messages.length || !connected || statusBusy) return;
     const text = initialPrompt.trim();
     if (!text) return;
     seededRef.current = true;
@@ -115,17 +88,16 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         router.replace(params.toString() ? `${pathname}?${params}` : pathname, { scroll: false });
       }
     } catch {}
-  }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send]);
+  }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send, connected, statusBusy]);
 
   const handleSend = (text: string, files?: FilePart[], model?: string, providerID?: string) => {
-    if (!activeId || (!text.trim() && !files?.length)) return;
-    setAborted(false);
+    if (!activeId || (!text.trim() && !files?.length) || statusBusy) return;
     send.mutate({ sessionId: activeId, text: text.trim(), agent: mode, files, model, providerID });
   };
 
   const handleAbort = () => {
     if (!activeId || !projectId) return;
-    abort.mutate({ projectId, sessionId: activeId }, { onSuccess: () => setAborted(true) });
+    abort.mutate({ projectId, sessionId: activeId });
   };
 
   const handleRevert = async (messageId: string) => {
@@ -247,8 +219,16 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
           <div className="max-w-3xl mx-auto">
             <ChatInput
               onSubmit={handleSend}
-              disabled={send.isPending || working || busy || !connected}
-              placeholder={!connected ? "Connecting..." : working ? "Working..." : "Ask anything..."}
+              disabled={send.isPending || working || busy || !connected || statusBusy}
+              placeholder={
+                !connected
+                  ? "Connecting..."
+                  : statusBusy
+                    ? "Agent busy, please wait..."
+                    : working
+                      ? "Working..."
+                      : "Ask anything..."
+              }
               mode={mode}
               onToggleMode={() => setMode(m => m === "plan" ? "build" : "plan")}
               isWorking={working}
