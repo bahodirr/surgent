@@ -45,7 +45,7 @@ app.use(
       return origin && trustedOrigins.includes(origin) ? origin : trustedOrigins[0]
     },
     allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ['POST', 'GET', 'OPTIONS'],
+    allowMethods: ['POST', 'GET', 'OPTIONS', 'PATCH', 'DELETE'],
     exposeHeaders: ['Content-Length'],
     maxAge: 600,
     credentials: true,

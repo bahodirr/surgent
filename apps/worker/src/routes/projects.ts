@@ -16,6 +16,20 @@ projects.use('*', async (c, next) => {
   return next()
 })
 
+// Helper to fetch project and verify ownership
+async function getOwnedProject(id: string, userId: string) {
+  const project = await db
+    .selectFrom('project')
+    .selectAll()
+    .where('id', '=', id)
+    .executeTakeFirst()
+
+  if (!project) return { error: 'Project not found', status: 404 as const }
+  if (project.userId !== userId) return { error: 'Forbidden', status: 403 as const }
+
+  return { project }
+}
+
 function sanitizeDeployName(input: string): string {
   return input
     .toLowerCase()
@@ -47,6 +61,51 @@ projects.get('/:id', zValidator('param', idParam), async (c) => {
   if (row.userId !== c.get('user')!.id) return c.json({ error: 'Forbidden' }, 403)
   return c.json(row)
 })
+
+// PATCH /projects/:id - Rename project
+projects.patch(
+  '/:id',
+  zValidator('param', idParam),
+  zValidator('json', z.object({ name: z.string().min(1) })),
+  async (c) => {
+    const { id } = c.req.valid('param')
+    const { name } = c.req.valid('json')
+
+    const result = await getOwnedProject(id, c.get('user')!.id)
+    if ('error' in result) {
+      return c.json({ error: result.error }, result.status)
+    }
+
+    await db
+      .updateTable('project')
+      .set({ name, updatedAt: new Date() })
+      .where('id', '=', id)
+      .execute()
+
+    return c.json({ updated: true })
+  }
+)
+
+// DELETE /projects/:id - Delete project
+projects.delete(
+  '/:id',
+  zValidator('param', idParam),
+  async (c) => {
+    const { id } = c.req.valid('param')
+
+    const result = await getOwnedProject(id, c.get('user')!.id)
+    if ('error' in result) {
+      return c.json({ error: result.error }, result.status)
+    }
+
+    await db
+      .deleteFrom('project')
+      .where('id', '=', id)
+      .execute()
+
+    return c.json({ deleted: true })
+  }
+)
 
 // POST /projects - Create + Initialize project (no id provided by client)
 projects.post(
