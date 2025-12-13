@@ -20,9 +20,7 @@ export interface PreviewTab {
   messageId?: string;
 }
 
-const DEFAULT_TABS: PreviewTab[] = [
-  { id: 'preview', type: 'preview', title: 'Preview' },
-];
+const DEFAULT_TABS: PreviewTab[] = [{ id: 'preview', type: 'preview', title: 'Preview' }];
 
 interface PreviewPanelProps {
   projectId?: string;
@@ -39,115 +37,44 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
   const connected = useSandbox(s => s.connected);
 
   const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
-  const sandboxId = (project as any)?.sandbox?.id;
+  const sandboxId = project?.sandbox?.id;
   const isReady = sandboxId && proxyHost && connected;
   const previewUrl = isReady ? `https://3000-${sandboxId}.${proxyHost}` : undefined;
 
-  useEffect(() => {
-    if (!onPreviewUrl) return;
-    onPreviewUrl(previewUrl ?? null);
-  }, [previewUrl, onPreviewUrl]);
-
-  const [currentUrl, setCurrentUrl] = useState(previewUrl || '');
+  const [currentUrl, setCurrentUrl] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
 
-  const handleReload = useCallback(() => setReloadKey(k => k + 1), []);
+  useEffect(() => {
+    onPreviewUrl?.(previewUrl ?? null);
+  }, [previewUrl, onPreviewUrl]);
 
-  const handleCopy = useCallback(() => {
-    const url = currentUrl || previewUrl || '';
-    if (!url) return;
-    navigator.clipboard?.writeText(url).catch(() => {});
+  useEffect(() => {
+    if (!previewUrl) return;
+    if (currentUrl) return;
+    setCurrentUrl(previewUrl);
   }, [currentUrl, previewUrl]);
 
-  const handleOpenDeployment = useCallback(() => {
-    const name = project?.deployment?.name;
-    if (!name) return;
-    window.open(`https://${name}.surgent.dev`, '_blank', 'noopener,noreferrer');
-  }, [project]);
+  const deployment = project?.deployment;
+  const deploymentName = deployment?.name;
+  const status = deployment?.status ?? '';
 
-  const handleOpenPreview = useCallback(() => {
-    const url = currentUrl || previewUrl;
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }, [currentUrl, previewUrl]);
+  const isDeployed = status === 'deployed';
+  const isFailed = status === 'build_failed' || status === 'deploy_failed';
+  const isInProgress = ['queued', 'starting', 'resuming', 'building', 'uploading'].includes(status);
 
-  const handleConfirmDeploy = useCallback(async (sanitizedName: string) => {
+  const dotColor = isDeployed ? 'bg-green-500' : isFailed ? 'bg-red-500' : isInProgress ? 'bg-blue-500 animate-pulse' : 'bg-muted-foreground/50';
+
+  const handleConfirmDeploy = useCallback(async (name: string) => {
     if (!projectId || isDeploying) return;
     setIsDeploying(true);
     try {
-      await deployProject.mutateAsync({ id: projectId, deployName: sanitizedName });
+      await deployProject.mutateAsync({ id: projectId, deployName: name });
       setIsDialogOpen(false);
     } catch {}
     setIsDeploying(false);
   }, [deployProject, isDeploying, projectId]);
-
-  const headerActions = (
-    <div className="flex items-center gap-3">
-        {(project as any)?.deployment?.status ? (
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground capitalize">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                String((project as any)?.deployment?.status || '') === 'deployed'
-                  ? 'bg-green-500'
-                  : ['build_failed','deploy_failed'].includes(String((project as any)?.deployment?.status || ''))
-                  ? 'bg-red-500'
-                  : ['queued','starting','resuming','building','uploading'].includes(String((project as any)?.deployment?.status || ''))
-                  ? 'bg-blue-500 animate-pulse'
-                  : 'bg-muted-foreground/50'
-              }`}
-            />
-            {String((project as any)?.deployment?.status).replace('_', ' ')}
-          </span>
-        ) : null}
-        {String((project as any)?.deployment?.status || '') === 'deployed' ? (
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              className="cursor-pointer"
-              onClick={() => {
-                setIsDialogOpen(true);
-              }}
-            >
-              <span className="inline-flex items-center gap-1">
-                <Rocket className="h-4 w-4" /> Redeploy
-              </span>
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="cursor-pointer"
-              disabled={!project?.deployment?.name}
-              onClick={handleOpenDeployment}
-            >
-              <ExternalLink className="h-4 w-4" /> Open
-            </Button>
-          </div>
-        ) : ['queued','starting','resuming','building','uploading'].includes(String((project as any)?.deployment?.status || '')) ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="cursor-pointer"
-            disabled={!project?.deployment?.name}
-            onClick={handleOpenDeployment}
-          >
-            <ExternalLink className="h-4 w-4" /> Open
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            className="cursor-pointer"
-            disabled={!projectId || isDeploying}
-            onClick={() => setIsDialogOpen(true)}
-          >
-            <span className="inline-flex items-center gap-1">
-              <Rocket className="h-4 w-4" /> Deploy
-            </span>
-          </Button>
-        )}
-      </div>
-  );
 
   const activeTab = tabs.find(t => t.id === activeTabId);
 
@@ -178,7 +105,31 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
             </button>
           ))}
         </div>
-        <div className="flex items-center px-3 shrink-0">{headerActions}</div>
+
+        {/* Header actions */}
+        <div className="flex items-center gap-3 px-3 shrink-0">
+          {status && (
+            <span className={cn("inline-flex items-center gap-1.5 text-xs capitalize", isFailed ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+              <span className={cn("h-2 w-2 rounded-full", dotColor)} />
+              {status.replaceAll('_', ' ')}
+            </span>
+          )}
+
+          {isDeployed ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="cursor-pointer" onClick={() => setIsDialogOpen(true)}>
+                <Rocket className="h-4 w-4" /> Redeploy
+              </Button>
+              <Button size="sm" variant="secondary" className="cursor-pointer" onClick={() => deploymentName && window.open(`https://${deploymentName}.surgent.dev`, '_blank', 'noopener,noreferrer')}>
+                <ExternalLink className="h-4 w-4" /> Open
+              </Button>
+            </div>
+          ) : !isInProgress && (
+            <Button size="sm" className="cursor-pointer" disabled={!projectId || isDeploying} onClick={() => setIsDialogOpen(true)}>
+              <Rocket className="h-4 w-4" /> {isFailed ? 'Retry Deploy' : 'Deploy'}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tab content */}
@@ -199,13 +150,13 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
               className="h-full border-0"
             >
               <WebPreviewNavigation className="border-b p-2">
-                <WebPreviewNavigationButton tooltip="Reload" onClick={handleReload}>
+                <WebPreviewNavigationButton tooltip="Reload" onClick={() => setReloadKey(k => k + 1)}>
                   <RefreshCw className="h-4 w-4" />
                 </WebPreviewNavigationButton>
-                <WebPreviewNavigationButton tooltip="Copy URL" onClick={handleCopy}>
+                <WebPreviewNavigationButton tooltip="Copy URL" onClick={() => navigator.clipboard?.writeText(currentUrl || previewUrl || '').catch(() => {})}>
                   <Copy className="h-4 w-4" />
                 </WebPreviewNavigationButton>
-                <WebPreviewNavigationButton tooltip="Open in new tab" onClick={handleOpenPreview}>
+                <WebPreviewNavigationButton tooltip="Open in new tab" onClick={() => (currentUrl || previewUrl) && window.open(currentUrl || previewUrl, '_blank', 'noopener,noreferrer')}>
                   <ExternalLink className="h-4 w-4" />
                 </WebPreviewNavigationButton>
                 <WebPreviewUrl placeholder="Enter URL..." />
@@ -227,12 +178,10 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
       <DeployDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        defaultName={(project as any)?.deployment?.name}
+        defaultName={deploymentName}
         onConfirm={handleConfirmDeploy}
         isSubmitting={isDeploying}
       />
     </div>
   );
 }
-
-
