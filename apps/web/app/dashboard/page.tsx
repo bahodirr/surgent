@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const createProject = () => {
     toast.loading('Creating your project…', { id: 'create-project' });
     create.mutate(
-      { name: `Project ${new Date().toLocaleDateString()}`, githubUrl: 'https://github.com/bahodirr/worker-vite-react-template', initConvex: true },
+      { name: `Project ${new Date().toLocaleDateString()}`, githubUrl: 'https://github.com/bahodirr/worker-vite-react-simple-template', initConvex: true },
       {
         onSuccess: ({ id }) => {
           toast.success('Project created!', { id: 'create-project' });
