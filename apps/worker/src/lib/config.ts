@@ -2,7 +2,7 @@
 export const config = {
   daytona: {
     apiKey: process.env.DAYTONA_API_KEY,
-    serverUrl: process.env.DAYTONA_SERVER_URL || "https://app.daytona.io/api",
+    serverUrl: process.env.DAYTONA_SERVER_URL,
     snapshot: process.env.DAYTONA_SNAPSHOT || "default-env:1.0.0",
   },
   cloudflare: {
@@ -20,6 +20,6 @@ export const config = {
     apiKey: process.env.HELICONE_API_KEY!,
   },
   vercel: {
-    apiKey: process.env.VERCEL_AI_GATEWAY_API_KEY!,
+    apiKey: process.env.VERCEL_API_KEY!,
   },
 } as const;

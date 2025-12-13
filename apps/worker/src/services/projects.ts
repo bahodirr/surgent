@@ -44,7 +44,12 @@ export async function updateProject(
     .execute();
 }
 
-export async function updateDeploymentStatus(projectId: string, status: string, name?: string) {
+export async function updateDeploymentStatus(
+  projectId: string,
+  status: string,
+  name?: string,
+  meta?: { step?: string; error?: string }
+) {
   const project = await getProjectById(projectId);
   if (!project) return;
 
@@ -53,6 +58,8 @@ export async function updateDeploymentStatus(projectId: string, status: string, 
       ...(project.deployment || {}),
       status,
       ...(name ? { name } : {}),
+      ...(meta?.step ? { step: meta.step } : {}),
+      ...(meta?.error ? { error: meta.error } : {}),
       updatedAt: new Date(),
     },
   });

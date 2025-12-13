@@ -93,7 +93,7 @@ projects.post('/:id/deploy', zValidator('param', idParam), zValidator('json', z.
 
     c.executionCtx.waitUntil(
       deployProject({ projectId: id, deployName: name }).catch((err) => {
-        console.error('[deploy] background failed', { projectId: id, error: err?.message ?? String(err) })
+        console.error('[deploy] background failed', { projectId: id, error: err?.stack ?? err?.message ?? String(err) })
       })
     )
 

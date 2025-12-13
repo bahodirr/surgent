@@ -41,6 +41,7 @@
     }
   ],
   "vars": {
+    "CLIENT_ORIGIN": "https://surgent.dev",
     "DISPATCH_NAMESPACE_NAME": "default-surgent-namespace",
     "CLOUDFLARE_ACCOUNT_ID": "44756fda18d37b7accae2ce6baf0ac6a",
     // Daytona preview proxy defaults (do NOT store secrets here)
