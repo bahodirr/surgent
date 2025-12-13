@@ -80,4 +80,33 @@ export function useDeployProject() {
   })
 }
 
+// Rename project
+async function renameProjectReq({ id, name }: { id: string; name: string }) {
+  await http.patch(`api/projects/${id}`, { json: { name } }).json()
+}
 
+export function useRenameProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: renameProjectReq,
+    onSuccess: (_res, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['project', vars.id] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+// Delete project
+async function deleteProjectReq({ id }: { id: string }) {
+  await http.delete(`api/projects/${id}`).json()
+}
+
+export function useDeleteProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: deleteProjectReq,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}

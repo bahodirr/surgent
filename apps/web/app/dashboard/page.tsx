@@ -16,8 +16,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, MoreVertical, Code2, Clock, Activity, CreditCard } from 'lucide-react';
-import { useProjectsQuery, useCreateProject } from '@/queries/projects';
+import { Plus, MoreVertical, Code2, Clock, Activity, CreditCard, Pencil, Trash2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { useProjectsQuery, useRenameProject, useDeleteProject } from '@/queries/projects';
 import type { Project } from '@/types/project';
 import { useCustomer } from 'autumn-js/react';
 
@@ -33,9 +41,14 @@ interface User {
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const { data: projects = [], isLoading, error: queryError } = useProjectsQuery();
-  const create = useCreateProject();
+  const { data: projects = [], isLoading } = useProjectsQuery();
+  const rename = useRenameProject();
+  const deleteProject = useDeleteProject();
   const { customer } = useCustomer();
+
+  const [projectToRename, setProjectToRename] = useState<Project | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [newName, setNewName] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -50,20 +63,6 @@ export default function DashboardPage() {
     setUser(data.user as User);
   };
 
-  const createProject = () => {
-    toast.loading('Creating your project…', { id: 'create-project' });
-    create.mutate(
-      { name: `Project ${new Date().toLocaleDateString()}`, githubUrl: 'https://github.com/bahodirr/worker-vite-react-simple-template', initConvex: true },
-      {
-        onSuccess: ({ id }) => {
-          toast.success('Project created!', { id: 'create-project' });
-          router.push(`/project/${id}`);
-        },
-        onError: () => toast.error('Failed to create project. Please try again.', { id: 'create-project' }),
-      }
-    );
-  };
-
   const handleSignOut = async () => {
     await authClient.signOut();
     router.push('/login');
@@ -75,6 +74,28 @@ export default function DashboardPage() {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const handleRename = () => {
+    if (!projectToRename || !newName.trim()) return;
+    rename.mutate(
+      { id: projectToRename.id, name: newName.trim() },
+      {
+        onSuccess: () => { toast.success('Project renamed'); setProjectToRename(null); },
+        onError: () => toast.error('Failed to rename project'),
+      }
+    );
+  };
+
+  const handleDelete = () => {
+    if (!projectToDelete) return;
+    deleteProject.mutate(
+      { id: projectToDelete.id },
+      {
+        onSuccess: () => { toast.success('Project deleted'); setProjectToDelete(null); },
+        onError: () => toast.error('Failed to delete project'),
+      }
+    );
   };
 
   if (isLoading) {
@@ -175,21 +196,11 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium">Your Projects</h3>
             <Button 
-              onClick={createProject} 
-              disabled={create.isPending}
+              onClick={() => router.push('/')}
               className="flex items-center gap-2 rounded-full"
             >
-              {create.isPending ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-brand-foreground border-t-transparent rounded-full animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" />
-                  New Project
-                </>
-              )}
+              <Plus className="h-4 w-4" />
+              New Project
             </Button>
           </div>
 
@@ -204,21 +215,11 @@ export default function DashboardPage() {
                   Create your first project to get started
                 </p>
                 <Button 
-                  onClick={createProject} 
-                  disabled={create.isPending}
+                  onClick={() => router.push('/')}
                   className="flex items-center gap-2 rounded-full"
                 >
-                  {create.isPending ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-brand-foreground border-t-transparent rounded-full animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4" />
-                      Create Project
-                    </>
-                  )}
+                  <Plus className="h-4 w-4" />
+                  Create Project
                 </Button>
               </div>
             </div>
@@ -244,30 +245,13 @@ export default function DashboardPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/project/${project.id}`);
-                          }}
-                        >
-                          Open
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // TODO: Implement rename
-                          }}
-                        >
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setNewName(project.name); setProjectToRename(project); }}>
+                          <Pencil className="mr-2 h-4 w-4" />
                           Rename
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // TODO: Implement delete
-                          }}
-                        >
+                        <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); setProjectToDelete(project); }}>
+                          <Trash2 className="mr-2 h-4 w-4" />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -298,6 +282,41 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Rename Dialog */}
+      <Dialog open={!!projectToRename} onOpenChange={(open) => !open && setProjectToRename(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Project</DialogTitle>
+          </DialogHeader>
+          <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Project name" onKeyDown={(e) => e.key === 'Enter' && handleRename()} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProjectToRename(null)}>Cancel</Button>
+            <Button onClick={handleRename} disabled={rename.isPending || !newName.trim()}>
+              {rename.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={!!projectToDelete} onOpenChange={(open) => !open && setProjectToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete <span className="font-medium text-foreground">{projectToDelete?.name}</span>? This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProjectToDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteProject.isPending}>
+              {deleteProject.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Toaster position="top-right" />
     </div>
   );
