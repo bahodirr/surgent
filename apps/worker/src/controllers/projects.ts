@@ -197,13 +197,13 @@ async function getOrCreateSandbox(opts: { port: number; workingDirectory: string
 }
 
 async function configureOpencode(sandbox: SandboxInstance, cwd: string) {
-  const apiKey = config.vercel.apiKey;
+  const apiKey = config.llms.openaiKey;
   if (!apiKey) return;
 
   try {
     const url = await sandbox.getHost(4096);
     await waitForServer(url);
-    await fetch(`${url}/auth/vercel?directory=${encodeURIComponent(cwd)}`, {
+    await fetch(`${url}/auth/openai?directory=${encodeURIComponent(cwd)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "api", key: apiKey }),

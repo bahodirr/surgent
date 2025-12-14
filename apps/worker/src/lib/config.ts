@@ -16,8 +16,9 @@ export const config = {
     teamId: process.env.CONVEX_TEAM_ID,
     teamToken: process.env.CONVEX_TEAM_TOKEN,
   },
-  helicone: {
-    apiKey: process.env.HELICONE_API_KEY!,
+  llms: {
+    openaiKey: process.env.OPENAI_API_KEY!,
+    heliconeKey: process.env.HELICONE_API_KEY!,
   },
   vercel: {
     apiKey: process.env.VERCEL_API_KEY!,
