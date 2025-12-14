@@ -3,7 +3,7 @@ export const config = {
   daytona: {
     apiKey: process.env.DAYTONA_API_KEY,
     serverUrl: process.env.DAYTONA_SERVER_URL,
-    snapshot: process.env.DAYTONA_SNAPSHOT || "default-env:1.0.0",
+    snapshot: process.env.DAYTONA_SNAPSHOT || "default-env:1.0.1",
   },
   cloudflare: {
     accountId: process.env.CLOUDFLARE_ACCOUNT_ID,

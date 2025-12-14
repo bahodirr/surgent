@@ -27,9 +27,9 @@ async function createSnapshot(): Promise<void> {
     await daytona.snapshot.create({
       name: SNAPSHOT_NAME,
       resources: {
-        cpu: 4,
-        memory: 8,
-        disk: 10,
+        cpu: 2,
+        memory: 4,
+        disk: 5,
       },
       image,
     }, {
