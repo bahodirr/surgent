@@ -84,10 +84,6 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
     onSubmit(text, fileParts, t.model, t.provider);
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-  };
-
   const canSubmit = !uploading && !disabled && (value.trim() || attachments.length);
 
   return (
@@ -119,7 +115,6 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
           className="w-full p-4 resize-none outline-none text-sm min-h-[48px] max-h-72 bg-transparent text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
           value={value}
           onChange={e => setValue(e.target.value)}
-          onKeyDown={onKeyDown}
           onPaste={handlePaste}
           placeholder={placeholder}
           rows={1}
