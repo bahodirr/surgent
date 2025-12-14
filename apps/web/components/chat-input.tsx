@@ -37,18 +37,27 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter(f => f.size <= MAX_FILE_SIZE).slice(0, MAX_FILES - attachments.length);
-    if (!files.length) return;
+  const addFiles = async (files: File[]) => {
+    const valid = files.filter(f => f.size <= MAX_FILE_SIZE).slice(0, MAX_FILES - attachments.length);
+    if (!valid.length) return;
 
     const newAttachments: FileAttachment[] = await Promise.all(
-      files.map(async (file) => ({
+      valid.map(async (file) => ({
         file,
         preview: file.type.startsWith("image/") ? await fileToDataUrl(file) : undefined,
       }))
     );
     setAttachments(prev => [...prev, ...newAttachments].slice(0, MAX_FILES));
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await addFiles(Array.from(e.target.files || []));
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
+    if (files.length) { e.preventDefault(); addFiles(files); }
   };
 
   const removeAttachment = (index: number) => {
@@ -115,6 +124,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={handlePaste}
           placeholder={placeholder}
           rows={1}
         />
