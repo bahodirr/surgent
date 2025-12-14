@@ -55,6 +55,20 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
   }
   
   switch (event.type) {
+    // Batch load for initial messages - single dispatch instead of N+M
+    case "batch.load": {
+      const items = props.messages as Array<{ info: Message; parts: Part[] }>;
+      if (!items?.length) return state;
+      const messages: Message[] = [];
+      const parts: Record<string, Part[]> = {};
+      for (const { info, parts: msgParts } of items) {
+        if (info.sessionID !== currentSessionId) continue;
+        messages.push(info);
+        if (msgParts?.length) parts[info.id] = msgParts;
+      }
+      messages.sort((a, b) => a.id.localeCompare(b.id));
+      return { ...state, messages, parts, lastAt: now };
+    }
     case "session.updated": {
       const info = props.info as Session;
       if (info.id !== currentSessionId) return state;
@@ -93,16 +107,31 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
       if (props.sessionID !== currentSessionId) return state;
       return { ...state, status: props.status as State["status"], lastAt: now };
     }
+    case "session.idle": {
+      if (props.sessionID !== currentSessionId) return state;
+      return { ...state, status: { type: "idle" }, lastAt: now };
+    }
     default:
-      return { ...state, lastAt: now };
+      return state;
   }
 }
 
 export default function useAgentStream({ projectId, sessionId }: { projectId?: string; sessionId?: string }) {
-  const [state, dispatch] = useReducer((state: State, event: StreamEvent) => reducer(state, event, sessionId), initialState);
+  // Use ref to avoid stale closure
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+
+  const [state, dispatch] = useReducer(
+    (state: State, event: StreamEvent) => reducer(state, event, sessionIdRef.current),
+    initialState
+  );
   const esRef = useRef<EventSource | null>(null);
   const closedRef = useRef(false);
   const currentSessionRef = useRef(sessionId);
+
+  // SSE batching - queue events and flush once per frame
+  const queueRef = useRef<StreamEvent[]>([]);
+  const rafRef = useRef<number | null>(null);
 
   // Load initial messages
   useEffect(() => {
@@ -118,10 +147,9 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
     http.get(`api/agent/${projectId}/session/${sessionId}/message`, { signal: controller.signal })
       .json<Array<{ info: Message; parts: Part[] }>>()
       .then((items) => {
-        items?.forEach(({ info, parts }) => {
-          dispatch({ type: "message.updated", properties: { info } } as any);
-          parts.forEach(part => dispatch({ type: "message.part.updated", properties: { part } } as any));
-        });
+        if (items?.length) {
+          dispatch({ type: "batch.load", properties: { messages: items } } as any);
+        }
       })
       .catch((err) => {
         if (err.name !== "AbortError") console.error(err);
@@ -160,9 +188,20 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
       esRef.current?.close();
       const es = new EventSource(url, { withCredentials: true });
       esRef.current = es;
+      es.onopen = () => {
+        dispatch({ type: "server.connected" });
+      };
       es.onmessage = (evt) => {
         try {
-          dispatch(JSON.parse(evt.data));
+          queueRef.current.push(JSON.parse(evt.data));
+          if (!rafRef.current) {
+            rafRef.current = requestAnimationFrame(() => {
+              const events = queueRef.current;
+              queueRef.current = [];
+              rafRef.current = null;
+              events.forEach(e => dispatch(e));
+            });
+          }
         } catch {}
       };
       es.onerror = () => {
