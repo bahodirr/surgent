@@ -51,6 +51,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const busy = revert.isPending || unrevert.isPending;
   const { messages, parts, session, connected, status } = useAgentStream({ projectId, sessionId: activeId });
   const statusBusy = status?.type !== undefined && status.type !== "idle";
+  const sandboxReady = connected && status?.type === "idle";
   const working = statusBusy;
 
   // Sync connected state to store for preview panel
@@ -74,9 +75,9 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     }
   }, [messages.length]);
 
-  // Seed initial prompt (only after connected + idle)
+  // Seed initial prompt (only after sandbox is ready = connected + status idle)
   useEffect(() => {
-    if (!initialPrompt || seededRef.current || !activeId || messages.length || !connected || statusBusy) return;
+    if (!initialPrompt || seededRef.current || !activeId || messages.length || !sandboxReady) return;
     const text = initialPrompt.trim();
     if (!text) return;
     seededRef.current = true;
@@ -88,7 +89,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         router.replace(params.toString() ? `${pathname}?${params}` : pathname, { scroll: false });
       }
     } catch {}
-  }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send, connected, statusBusy]);
+  }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send, sandboxReady]);
 
   const handleSend = (text: string, files?: FilePart[], model?: string, providerID?: string) => {
     if (!activeId || (!text.trim() && !files?.length) || statusBusy) return;
