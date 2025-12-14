@@ -186,7 +186,13 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
   const visible = revertMessageId ? messages.filter(m => m.id < revertMessageId) : messages;
   const userMessages = visible.filter(m => m.role === "user");
 
-  const getText = (m: Message) => partsMap[m.id]?.filter((p): p is TextPart => p.type === "text").map(p => p.text).join("\n") ?? "";
+  const getText = (m: Message) => {
+    const fromParts = partsMap[m.id]?.filter((p): p is TextPart => p.type === "text").map(p => p.text).join("\n") ?? "";
+    if (fromParts) return fromParts;
+    const summary = m.summary;
+    if (!summary || typeof summary !== "object") return "";
+    return summary.body || summary.title || "";
+  };
   const getFiles = (m: Message) => partsMap[m.id]?.filter((p): p is FilePart => p.type === "file") ?? [];
   const renderPart = (p: Part) => {
     if (p.type === "reasoning") {
@@ -250,8 +256,10 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
                 </div>
               )}
               <div className="relative max-w-[70%] rounded-xl bg-muted/50 border px-3 py-2">
-                <div className="whitespace-pre-wrap text-[15px] pr-6">{text}</div>
-                {onRevert && (
+                <div className="whitespace-pre-wrap text-[15px] pr-6">
+                  {text || <span className="text-muted-foreground italic">Sending...</span>}
+                </div>
+                {onRevert && text && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button size="icon" variant="ghost" className="absolute top-1.5 right-1.5 size-6 text-muted-foreground/40 hover:text-muted-foreground" onClick={() => onRevert(userMsg.id)} disabled={reverting}>

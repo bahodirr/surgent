@@ -31,14 +31,12 @@ async function sendMessage(
 ): Promise<Message> {
   const parts: Array<{ type: string; text?: string; mime?: string; filename?: string; url?: string }> = []
 
-  // Add file parts first
   if (files?.length) {
     for (const file of files) {
       parts.push({ type: 'file', mime: file.mime, filename: file.filename, url: file.url })
     }
   }
 
-  // Add text part
   if (text) {
     parts.push({ type: 'text', text })
   }
@@ -49,6 +47,7 @@ async function sendMessage(
     body.model = { providerID, modelID: model }
   }
 
+  // Retry on 5xx (agent might still be starting)
   const data = await http.post(`api/agent/${projectId}/session/${sessionId}/message`, {
     json: body,
   }).json()

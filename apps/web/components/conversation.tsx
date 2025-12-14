@@ -50,9 +50,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const activeId = sessionId || sessions[0]?.id;
   const busy = revert.isPending || unrevert.isPending;
   const { messages, parts, session, connected, status } = useAgentStream({ projectId, sessionId: activeId });
-  const statusBusy = status?.type !== undefined && status.type !== "idle";
-  const sandboxReady = connected && status?.type === "idle";
-  const working = statusBusy;
+  const working = status?.type !== undefined && status.type !== "idle";
 
   // Sync connected state to store for preview panel
   useEffect(() => {
@@ -75,13 +73,13 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     }
   }, [messages.length]);
 
-  // Seed initial prompt (only after sandbox is ready = connected + status idle)
+  // Seed initial prompt: wait for SSE connected, then send
   useEffect(() => {
-    if (!initialPrompt || seededRef.current || !activeId || messages.length || !sandboxReady) return;
+    if (!initialPrompt || seededRef.current || !activeId || !connected) return;
     const text = initialPrompt.trim();
     if (!text) return;
     seededRef.current = true;
-    send.mutate({ sessionId: activeId, text, agent: "build" });
+    send.mutate({ sessionId: activeId, text, agent: "plan", model: "gpt-5.2", providerID: "openai" });
     try {
       const params = new URLSearchParams(searchParams?.toString?.() || "");
       if (params.has("initial")) {
@@ -89,10 +87,10 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         router.replace(params.toString() ? `${pathname}?${params}` : pathname, { scroll: false });
       }
     } catch {}
-  }, [initialPrompt, activeId, messages.length, pathname, router, searchParams, send, sandboxReady]);
+  }, [initialPrompt, activeId, connected, pathname, router, searchParams, send]);
 
   const handleSend = (text: string, files?: FilePart[], model?: string, providerID?: string) => {
-    if (!activeId || (!text.trim() && !files?.length) || statusBusy) return;
+    if (!activeId || (!text.trim() && !files?.length) || working) return;
     send.mutate({ sessionId: activeId, text: text.trim(), agent: mode, files, model, providerID });
   };
 
@@ -220,11 +218,11 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
           <div className="max-w-3xl mx-auto">
             <ChatInput
               onSubmit={handleSend}
-              disabled={send.isPending || working || busy || !connected || statusBusy}
+              disabled={send.isPending || working || busy || !connected || working}
               placeholder={
                 !connected
                   ? "Connecting..."
-                  : statusBusy
+                  : working
                     ? "Agent busy, please wait..."
                     : working
                       ? "Working..."

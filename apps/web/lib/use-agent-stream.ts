@@ -144,21 +144,22 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
 
     const controller = new AbortController();
 
-    http.get(`api/agent/${projectId}/session/${sessionId}/message`, { signal: controller.signal })
+    http.get(`api/agent/${projectId}/session/${sessionId}/message`, {
+      signal: controller.signal,
+      retry: { limit: 5, statusCodes: [502, 503, 504], delay: () => 1000 },
+    })
       .json<Array<{ info: Message; parts: Part[] }>>()
       .then((items) => {
         if (items?.length) {
           dispatch({ type: "batch.load", properties: { messages: items } } as any);
         }
       })
-      .catch((err) => {
-        if (err.name !== "AbortError") console.error(err);
-      });
+      .catch(() => {});
 
     return () => controller.abort();
   }, [projectId, sessionId]);
 
-  // Load initial status
+  // Load initial status (best-effort, SSE events will also update status)
   useEffect(() => {
     if (!projectId || !sessionId) return;
 
@@ -170,9 +171,7 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
         const status = items?.[sessionId];
         if (status) dispatch({ type: "session.status", properties: { sessionID: sessionId, status } } as any);
       })
-      .catch((err) => {
-        if (err.name !== "AbortError") console.error(err);
-      });
+      .catch(() => {});
 
     return () => controller.abort();
   }, [projectId, sessionId]);

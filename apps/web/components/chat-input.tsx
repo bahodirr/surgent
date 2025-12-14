@@ -116,6 +116,11 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
           value={value}
           onChange={e => setValue(e.target.value)}
           onPaste={handlePaste}
+          onKeyDown={e => {
+            if (e.key !== "Enter" || e.shiftKey) return;
+            e.preventDefault();
+            isWorking ? onStop?.() : handleSubmit();
+          }}
           placeholder={placeholder}
           rows={1}
         />
