@@ -48,13 +48,14 @@ export type MessageContentProps = {
   children: React.ReactNode
   markdown?: boolean
   className?: string
-} & React.ComponentProps<typeof Markdown> &
-  React.HTMLProps<HTMLDivElement>
+  isAnimating?: boolean
+} & React.HTMLProps<HTMLDivElement>
 
 const MessageContent = ({
   children,
   markdown = false,
   className,
+  isAnimating,
   ...props
 }: MessageContentProps) => {
   const classNames = cn(
@@ -63,7 +64,7 @@ const MessageContent = ({
   )
 
   return markdown ? (
-    <Markdown className={classNames} {...props}>
+    <Markdown className={classNames} isAnimating={isAnimating}>
       {children as string}
     </Markdown>
   ) : (

@@ -19,7 +19,7 @@ export function ChatMessage({ role, parts }: ChatMessageProps) {
     <Message
       className={cn('items-start w-full', role === 'user' ? 'justify-end' : 'justify-start')}
     >
-      <div className={cn('flex w-full flex-col gap-2', role === 'user' ? 'w-fit' : 'w-full')}>
+      <div className={cn('flex w-full flex-col gap-1.5 sm:gap-2', role === 'user' ? 'w-fit max-w-[90%] sm:max-w-[80%] md:max-w-[70%]' : 'w-full')}>
         {parts.map((part, index) => {
           if (part.type === 'text' && 'text' in part) {
             return (
@@ -27,10 +27,10 @@ export function ChatMessage({ role, parts }: ChatMessageProps) {
                 key={index}
                 markdown
                 className={cn(
-                  'prose prose-sm dark:prose-invert max-w-none',
+                  'prose prose-sm dark:prose-invert max-w-none break-words overflow-x-auto [&_p]:text-[13px] [&_p]:sm:text-sm [&_li]:text-[13px] [&_li]:sm:text-sm',
                   role === 'assistant'
                     ? 'bg-white w-full'
-                    : 'bg-foreground/4 border border-border'
+                    : 'bg-foreground/4 border border-border text-[13px] sm:text-sm'
                 )}
               >
                 {(part as { text: string }).text}

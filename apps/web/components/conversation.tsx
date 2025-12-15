@@ -113,13 +113,13 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   return (
     <div className="flex flex-col h-svh w-full">
       {/* Header */}
-      <header className="flex h-10 items-stretch border-b bg-muted/30 shrink-0">
+      <header className="flex h-10 items-stretch border-b bg-muted/30 shrink-0 overflow-hidden">
         {/* Session dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 px-4 text-sm border-r hover:bg-muted/50 transition-colors">
-              <span className="truncate max-w-40">{activeSession?.title || "Untitled"}</span>
-              <ChevronDown className="size-3.5 text-muted-foreground" />
+            <button className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 text-sm border-r hover:bg-muted/50 transition-colors min-w-0 shrink-0">
+              <span className="truncate max-w-20 sm:max-w-40">{activeSession?.title || "Untitled"}</span>
+              <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
@@ -140,37 +140,41 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         </DropdownMenu>
 
         {/* Tabs */}
-        <div className="flex flex-1 overflow-x-auto">
+        <div className="flex flex-1 overflow-x-auto min-w-0">
           <button
             onClick={() => setTab("chat")}
             className={cn(
-              "flex items-center gap-2 px-4 text-sm border-r transition-colors",
+              "flex items-center gap-1 sm:gap-2 px-2 sm:px-4 text-sm border-r transition-colors shrink-0",
               tab === "chat" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
             )}
           >
-            <MessagesSquare className="size-4" />Chat
+            <MessagesSquare className="size-4" />
+            <span className="hidden sm:inline">Chat</span>
           </button>
           <button
             onClick={() => setTab("terminal")}
             className={cn(
-              "flex items-center gap-2 px-4 text-sm border-r transition-colors",
+              "flex items-center gap-1 sm:gap-2 px-2 sm:px-4 text-sm border-r transition-colors shrink-0",
               tab === "terminal" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
             )}
           >
-            <Terminal className="size-4" />Terminal
+            <Terminal className="size-4" />
+            <span className="hidden sm:inline">Terminal</span>
           </button>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3 px-4">
+        <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-4 shrink-0">
           {!connected && projectId && (
-            <div className="flex items-center gap-2 text-sm text-amber-500">
+            <div className="flex items-center gap-1 sm:gap-2 text-sm text-amber-500">
               <WifiOff className="size-4" />
               <span className="hidden sm:inline">Reconnecting...</span>
             </div>
           )}
           {session?.summary?.diffs?.length ? (
-            <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)}>View Diff</Button>
+            <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)} className="text-xs sm:text-sm px-2 sm:px-3">
+              <span className="hidden sm:inline">View </span>Diff
+            </Button>
           ) : null}
         </div>
       </header>
@@ -180,7 +184,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
       <div className="flex flex-col flex-1 min-h-0">
         <div ref={scrollRef} className="flex-1 min-h-0">
           <ScrollArea className="h-full">
-            <div className="max-w-3xl mx-auto px-4 py-6">
+            <div className="max-w-3xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
               {messages.length ? (
                 <AgentThread
                   sessionId={activeId!}
@@ -194,12 +198,12 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
                   isWorking={working}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-                  <div className="rounded-full bg-muted p-4 mb-4">
-                    <MessageCircle className="size-8 text-muted-foreground" strokeWidth={1.5} />
+                <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[400px] text-center px-4">
+                  <div className="rounded-full bg-muted p-3 sm:p-4 mb-3 sm:mb-4">
+                    <MessageCircle className="size-6 sm:size-8 text-muted-foreground" strokeWidth={1.5} />
                   </div>
-                  <p className="font-medium">No messages yet</p>
-                  <p className="text-sm text-muted-foreground">Start a conversation</p>
+                  <p className="font-medium text-sm sm:text-base">No messages yet</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Start a conversation</p>
                 </div>
               )}
             </div>
@@ -207,11 +211,11 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         </div>
 
         {/* Input */}
-        <div className="px-4 py-4 shrink-0 relative">
+        <div className="px-2 sm:px-4 py-2 sm:py-4 shrink-0 relative">
           {session?.revert?.messageID && (
-            <div className="absolute -top-10 right-4 z-10">
-              <Button size="sm" variant="outline" onClick={() => unrevert.mutate({ sessionId: activeId! })} disabled={unrevert.isPending} className="bg-background/90 backdrop-blur-sm shadow-sm">
-                {unrevert.isPending ? <><Loader2 className="size-3.5 mr-2 animate-spin" />Restoring...</> : <><RotateCcw className="size-3.5 mr-2" />Restore</>}
+            <div className="absolute -top-10 right-2 sm:right-4 z-10">
+              <Button size="sm" variant="outline" onClick={() => unrevert.mutate({ sessionId: activeId! })} disabled={unrevert.isPending} className="bg-background/90 backdrop-blur-sm shadow-sm text-xs sm:text-sm">
+                {unrevert.isPending ? <><Loader2 className="size-3 sm:size-3.5 mr-1 sm:mr-2 animate-spin" />Restoring...</> : <><RotateCcw className="size-3 sm:size-3.5 mr-1 sm:mr-2" />Restore</>}
               </Button>
             </div>
           )}

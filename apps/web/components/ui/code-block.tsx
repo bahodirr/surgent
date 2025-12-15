@@ -13,7 +13,7 @@ function CodeBlock({ children, className, ...props }: CodeBlockProps) {
   return (
     <div
       className={cn(
-        "not-prose flex w-full flex-col overflow-clip border",
+        "not-prose flex w-full min-w-0 flex-col overflow-hidden border",
         "border-border bg-card text-card-foreground rounded-xl",
         className
       )}
@@ -36,59 +36,34 @@ function CodeBlockCode({
   language = "tsx",
   theme = "github-light",
   className,
+  style,
   ...props
 }: CodeBlockCodeProps) {
-  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
+  const [html, setHtml] = useState<string | null>(null)
 
   useEffect(() => {
-    async function highlight() {
-      if (!code) {
-        setHighlightedHtml("<pre><code></code></pre>")
-        return
-      }
-
-      const html = await codeToHtml(code, { lang: language, theme })
-      setHighlightedHtml(html)
-    }
-    highlight()
+    if (!code) return setHtml("<pre><code></code></pre>")
+    codeToHtml(code, { lang: language, theme }).then(setHtml)
   }, [code, language, theme])
 
-  const classNames = cn(
-    "w-full overflow-x-auto text-[13px] [&>pre]:px-4 [&>pre]:py-4",
-    className
-  )
-
-  // SSR fallback: render plain code if not hydrated yet
-  return highlightedHtml ? (
-    <div
-      className={classNames}
-      dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-      {...props}
-    />
-  ) : (
-    <div className={classNames} {...props}>
-      <pre>
-        <code>{code}</code>
-      </pre>
-    </div>
-  )
-}
-
-export type CodeBlockGroupProps = React.HTMLAttributes<HTMLDivElement>
-
-function CodeBlockGroup({
-  children,
-  className,
-  ...props
-}: CodeBlockGroupProps) {
   return (
     <div
-      className={cn("flex items-center justify-between", className)}
+      className={cn(
+        "w-full overflow-x-auto font-mono",
+        "[&>pre]:p-3 [&_pre]:font-mono [&_pre]:!text-[inherit] [&_code]:!text-[inherit]",
+        className
+      )}
+      style={{
+        ...style,
+        fontSize: "clamp(10px, 1.8vw, 13px)",
+        lineHeight: 1.5,
+      }}
+      dangerouslySetInnerHTML={html ? { __html: html } : undefined}
       {...props}
     >
-      {children}
+      {!html && <pre><code>{code}</code></pre>}
     </div>
   )
 }
 
-export { CodeBlockGroup, CodeBlockCode, CodeBlock }
+export { CodeBlock, CodeBlockCode }

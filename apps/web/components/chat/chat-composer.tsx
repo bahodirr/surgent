@@ -96,10 +96,10 @@ export function ChatComposer({
       />
 
       {files.length > 0 && (
-        <div className="mb-2 p-2 border border-border rounded-xl bg-foreground/3 flex items-center gap-2">
-          <div className="flex items-center gap-2 overflow-x-auto flex-1">
+        <div className="mb-2 p-1.5 sm:p-2 border border-border rounded-xl bg-foreground/3 flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto flex-1">
             {files.map((file, idx) => (
-              <div key={idx} className="relative h-16 w-16 rounded-lg overflow-hidden border border-border shrink-0">
+              <div key={idx} className="relative h-12 w-12 sm:h-16 sm:w-16 rounded-lg overflow-hidden border border-border shrink-0">
                 <img
                   src={URL.createObjectURL(file)}
                   alt={file.name}
@@ -110,9 +110,9 @@ export function ChatComposer({
                   size="icon-sm"
                   variant="default"
                   onClick={() => removeFile(idx)}
-                  className="absolute top-0.5 right-0.5 h-5 w-5 rounded-full bg-black  text-white cursor-pointer"
+                  className="absolute top-0.5 right-0.5 h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-black text-white cursor-pointer"
                 >
-                  <X className="h-2.5 w-2.5 text-white" />
+                  <X className="h-2 w-2 sm:h-2.5 sm:w-2.5 text-white" />
                 </Button>
               </div>
             ))}
@@ -122,7 +122,7 @@ export function ChatComposer({
             variant="ghost"
             size="sm"
             onClick={clearFiles}
-            className="shrink-0 cursor-pointer"
+            className="shrink-0 cursor-pointer text-xs sm:text-sm px-2 sm:px-3"
           >
             Clear
           </Button>
@@ -139,14 +139,14 @@ export function ChatComposer({
           id="chat-message-input"
           placeholder={placeholder}
           className={cn(
-            'min-h-[48px] max-h-[200px] overflow-hidden',
-            'text-[16px] leading-7 placeholder:text-foreground/40',
-            'px-1'
+            'min-h-[44px] sm:min-h-[48px] max-h-[150px] sm:max-h-[200px] overflow-hidden',
+            'text-sm sm:text-[16px] leading-6 sm:leading-7 placeholder:text-foreground/40',
+            'px-0.5 sm:px-1'
           )}
         />
 
-        <PromptInputActions className="pt-2">
-          <div className="flex items-center gap-1.5">
+        <PromptInputActions className="pt-1.5 sm:pt-2">
+          <div className="flex items-center gap-1 sm:gap-1.5">
             <PromptInputAction
               tooltip={
                 files.length >= MAX_PHOTOS
@@ -162,14 +162,14 @@ export function ChatComposer({
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || files.length >= MAX_PHOTOS}
-                className="h-8 w-8 rounded-full cursor-pointer"
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-full cursor-pointer"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </PromptInputAction>
 
             <Select value={projectType} onValueChange={setProjectType}>
-              <SelectTrigger size="sm" className="h-8 rounded-xl border border-border bg-background">
+              <SelectTrigger size="sm" className="h-7 sm:h-8 rounded-xl border border-border bg-background text-xs sm:text-sm px-2 sm:px-3">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -180,7 +180,7 @@ export function ChatComposer({
             </Select>
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
             {/* <PromptInputAction tooltip="Voice input">
               <Button
                 type="button"
@@ -202,13 +202,13 @@ export function ChatComposer({
                 onClick={handleSend}
                 disabled={disabled || (!value.trim() && !files.length)}
                 className={cn(
-                  'h-8 w-8 rounded-full bg-brand text-brand-foreground hover:opacity-90 shadow-sm transition-opacity',
+                  'h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-brand text-brand-foreground hover:opacity-90 shadow-sm transition-opacity',
                   disabled || (!value.trim() && !files.length)
                     ? 'opacity-50 cursor-not-allowed'
                     : 'cursor-pointer'
                 )}
               >
-                <ArrowUp className="h-5 w-5" />
+                <ArrowUp className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </PromptInputAction>
           </div>

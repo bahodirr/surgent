@@ -50,13 +50,13 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
   );
 
   return (
-    <div className="h-screen w-full bg-background flex flex-col pl-1 pr-1">
+    <div className="h-screen w-full bg-background flex flex-col">
       <ScrollArea className="flex-1 overflow-x-hidden">
-        <div className="w-full mx-auto min-h-full flex flex-col px-4 sm:px-6 lg:px-16 max-w-4xl">
-          <div className="flex flex-col gap-4 p-4">
-            <div className="px-1 sm:px-0 py-4 space-y-3 pr-8">
+        <div className="w-full mx-auto min-h-full flex flex-col px-2 sm:px-4 md:px-6 lg:px-16 max-w-4xl">
+          <div className="flex flex-col gap-3 sm:gap-4 p-2 sm:p-4">
+            <div className="py-3 sm:py-4 space-y-2 sm:space-y-3">
               {messages.length === 0 ? (
-                <div className="text-center text-sm text-foreground/50 py-24">
+                <div className="text-center text-xs sm:text-sm text-foreground/50 py-16 sm:py-24">
                   Start a conversation.
                 </div>
               ) : (
@@ -68,7 +68,7 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
             </div>
 
             {error && (
-              <div className="py-2 px-4 bg-destructive/10 text-destructive rounded-lg text-sm">
+              <div className="py-2 px-3 sm:px-4 bg-destructive/10 text-destructive rounded-lg text-xs sm:text-sm">
                 <span>An error occurred. Please try again.</span>
               </div>
             )}
@@ -79,16 +79,17 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
       {/* Fixed stop button above composer */}
       {isLoading && (
         <div className="w-full">
-          <div className="w-full mx-auto px-4 sm:px-6 lg:px-16 pt-2 max-w-4xl">
+          <div className="w-full mx-auto px-2 sm:px-4 md:px-6 lg:px-16 pt-2 max-w-4xl">
             <div className="flex justify-center">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={stop}
-                className="gap-2"
+                className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
               >
-                <StopCircle className="h-4 w-4" />
-                Stop generating
+                <StopCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Stop generating</span>
+                <span className="sm:hidden">Stop</span>
               </Button>
             </div>
           </div>
@@ -97,7 +98,7 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
 
       {/* Composer (fixed position at bottom area) */}
       <div className="w-full">
-        <div className="w-full mx-auto px-4 sm:px-6 lg:px-16 py-4 max-w-4xl">
+        <div className="w-full mx-auto px-2 sm:px-4 md:px-6 lg:px-16 py-2 sm:py-4 max-w-4xl">
           <ChatComposer
             onSend={handleSend}
             disabled={isLoading || error !== undefined}

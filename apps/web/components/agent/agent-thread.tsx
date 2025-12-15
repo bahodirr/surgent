@@ -45,26 +45,26 @@ function Tool({ part }: { part: ToolPart }) {
   const error = part.state.status === "error";
 
   if (running) return (
-    <div className="flex items-center gap-1.5 py-1 text-sm text-muted-foreground">
-      <ShimmeringText text={cfg.doing} duration={0.4} />
-      {target && <code className="px-1.5 py-0.5 bg-muted rounded text-xs truncate max-w-48">{target}</code>}
+    <div className="flex items-center gap-1 sm:gap-1.5 py-0.5 sm:py-1 text-[11px] sm:text-sm text-muted-foreground flex-wrap min-w-0">
+      <ShimmeringText text={cfg.doing} duration={0.4} className="text-[11px] sm:text-sm" />
+      {target && <code className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs truncate max-w-24 sm:max-w-48">{target}</code>}
     </div>
   );
 
   if (error) return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="py-0.5 text-xs text-muted-foreground/60 cursor-help">Skipped {target || cfg.done}</div>
+        <div className="py-0.5 text-[11px] sm:text-xs text-muted-foreground/60 cursor-help truncate">Skipped {target || cfg.done}</div>
       </TooltipTrigger>
       <TooltipContent><p className="text-xs">{part.state.status === "error" ? String(part.state.error) : "Failed"}</p></TooltipContent>
     </Tooltip>
   );
 
     return (
-    <div className="flex items-center gap-1.5 py-1 text-sm text-muted-foreground">
-      <Icon className="size-3.5" />
+    <div className="flex items-center gap-1 py-0.5 sm:py-1 text-[11px] sm:text-sm text-muted-foreground flex-wrap min-w-0">
+      <Icon className="size-2.5 sm:size-3.5 shrink-0" />
       <span>{cfg.done}</span>
-      {target && <code className="px-1.5 py-0.5 bg-muted rounded text-xs truncate max-w-48">{target}</code>}
+      {target && <code className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs truncate max-w-24 sm:max-w-48">{target}</code>}
       </div>
     );
   }
@@ -85,28 +85,28 @@ function Todos({ part }: { part: ToolPart }) {
   const done = todos.filter((t: { status?: string }) => t.status === "completed").length;
 
   return (
-    <div className="my-2 p-3 rounded-xl bg-muted/50 border">
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
-        <ListTodo className="size-4" />
+    <div className="my-1.5 sm:my-2 p-2 sm:p-3 rounded-xl bg-muted/50 border w-full min-w-0">
+      <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-sm text-muted-foreground mb-1.5 sm:mb-2">
+        <ListTodo className="size-3 sm:size-4 shrink-0" />
         <span className="font-medium">{done}/{todos.length} done</span>
-        {loading && <Loader2 className="size-3 animate-spin ml-1" />}
+        {loading && <Loader2 className="size-2.5 sm:size-3 animate-spin ml-1" />}
       </div>
       {todos.length > 0 ? (
-        <div className="space-y-1.5">
+        <div className="space-y-1 sm:space-y-1.5">
           {todos.map((t: { id?: string; content?: string; status?: string }, i: number) => {
             const isDone = t.status === "completed";
               return (
-              <div key={t.id || i} className={`flex items-start gap-2 text-sm ${isDone ? "opacity-50" : ""}`}>
-                <div className={`size-4 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0 ${isDone ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
-                  {isDone && <CheckCircle2 className="size-2.5 text-primary-foreground" />}
+              <div key={t.id || i} className={`flex items-start gap-1 sm:gap-2 text-[11px] sm:text-sm ${isDone ? "opacity-50" : ""}`}>
+                <div className={`size-3 sm:size-4 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0 ${isDone ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+                  {isDone && <CheckCircle2 className="size-1.5 sm:size-2.5 text-primary-foreground" />}
                 </div>
-                <span className={isDone ? "line-through text-muted-foreground" : ""}>{t.content}</span>
+                <span className={`break-words min-w-0 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.content}</span>
                 </div>
               );
             })}
           </div>
       ) : (
-        <p className="text-xs text-muted-foreground">No tasks yet</p>
+        <p className="text-[11px] sm:text-xs text-muted-foreground">No tasks yet</p>
       )}
     </div>
   );
@@ -115,13 +115,13 @@ function Todos({ part }: { part: ToolPart }) {
 function Thinking({ text, streaming, open, toggle }: { text: string; streaming: boolean; open: boolean; toggle: () => void }) {
   return (
     <div className="my-1">
-      <button onClick={toggle} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ChevronDown className={`size-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
+      <button onClick={toggle} className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <ChevronDown className={`size-2.5 sm:size-3.5 transition-transform shrink-0 ${open ? "" : "-rotate-90"}`} />
         <span className="font-medium">{streaming ? "Thinking..." : "Thoughts"}</span>
       </button>
       {open && (
-        <div className="pl-5 pt-1.5 text-sm text-muted-foreground border-l-2 border-muted ml-1.5">
-          {text ? <Markdown className="prose prose-sm max-w-none prose-muted">{text}</Markdown>
+        <div className="pl-2 sm:pl-5 pt-1 sm:pt-1.5 text-[11px] sm:text-sm text-muted-foreground border-l-2 border-muted ml-1 sm:ml-1.5 overflow-x-auto min-w-0">
+          {text ? <Markdown className="prose prose-sm max-w-none prose-muted [&_*]:text-[11px] sm:[&_*]:text-sm">{text}</Markdown>
             : streaming ? <ShimmeringText text="Thinking..." duration={0.3} /> : null}
         </div>
       )}
@@ -132,11 +132,11 @@ function Thinking({ text, streaming, open, toggle }: { text: string; streaming: 
 function FileThumb({ file }: { file: FilePart }) {
   const isImage = file.mime?.startsWith("image/");
   return (
-    <a href={file.url} target="_blank" rel="noreferrer" download={!isImage ? file.filename : undefined} className="block size-10 rounded-lg overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+    <a href={file.url} target="_blank" rel="noreferrer" download={!isImage ? file.filename : undefined} className="block size-8 sm:size-10 rounded-lg overflow-hidden bg-muted hover:opacity-80 transition-opacity shrink-0">
       {isImage ? (
         <img src={file.url} alt={file.filename || "file"} className="size-full object-cover" />
       ) : (
-        <div className="size-full flex items-center justify-center"><FileText className="size-4 text-muted-foreground" /></div>
+        <div className="size-full flex items-center justify-center"><FileText className="size-3 sm:size-4 text-muted-foreground" /></div>
       )}
     </a>
   );
@@ -144,27 +144,27 @@ function FileThumb({ file }: { file: FilePart }) {
 
 function Changes({ diffs, onView }: { diffs: FileDiff[]; onView: () => void }) {
   return (
-    <div className="mt-3 p-3 rounded-lg border bg-muted/30">
-      <div className="font-medium text-sm mb-2">Changes</div>
-      <div className="space-y-1 mb-3">
+    <div className="mt-1.5 sm:mt-3 p-1.5 sm:p-3 rounded-lg border bg-muted/30 w-full min-w-0">
+      <div className="font-medium text-[11px] sm:text-sm mb-1.5 sm:mb-2">Changes</div>
+      <div className="space-y-0.5 sm:space-y-1 mb-1.5 sm:mb-3">
         {diffs.map(d => (
-          <div key={d.file} className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <div className="size-1.5 rounded-full bg-muted-foreground/50" />
-            <span>{!d.deletions ? "Created" : !d.additions ? "Deleted" : "Edited"}</span>
-            <code className="px-1.5 py-0.5 bg-muted rounded text-xs">{d.file.split(/[/\\]/).pop()}</code>
+          <div key={d.file} className="flex items-center gap-1 text-[11px] sm:text-sm text-muted-foreground flex-wrap min-w-0">
+            <div className="size-1 sm:size-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
+            <span className="shrink-0">{!d.deletions ? "Created" : !d.additions ? "Deleted" : "Edited"}</span>
+            <code className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs truncate max-w-[50%] sm:max-w-[60%]">{d.file.split(/[/\\]/).pop()}</code>
           </div>
         ))}
       </div>
-      <Button size="sm" variant="outline" onClick={onView}>View Diff</Button>
+      <Button size="sm" variant="outline" onClick={onView} className="text-[11px] sm:text-sm h-7 sm:h-8 px-2 sm:px-3">View Diff</Button>
     </div>
   );
 }
 
 function ApiError({ message }: { message: string }) {
   return (
-    <div className="flex items-center gap-2 py-2 text-sm text-destructive">
-      <AlertCircle className="size-4 shrink-0" />
-      <span>{message}</span>
+    <div className="flex items-center gap-1 sm:gap-2 py-1 sm:py-2 text-[11px] sm:text-sm text-destructive min-w-0">
+      <AlertCircle className="size-3 sm:size-4 shrink-0" />
+      <span className="break-words min-w-0">{message}</span>
     </div>
   );
 }
@@ -224,13 +224,13 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
     if (p.type === "text") {
       const content = (p as TextPart).text?.trim();
       if (!content) return null;
-      return <Markdown key={p.id} className="prose prose-sm max-w-none dark:prose-invert">{content}</Markdown>;
+      return <Markdown key={p.id} className="prose prose-sm max-w-none dark:prose-invert break-words overflow-x-auto [&_p]:text-[13px] [&_p]:sm:text-sm [&_li]:text-[13px] [&_li]:sm:text-sm">{content}</Markdown>;
     }
     return null;
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {userMessages.map((userMsg, idx) => {
         // Get assistant responses for this user message (use visible to respect revert)
         const msgIdx = visible.findIndex(m => m.id === userMsg.id);
@@ -247,23 +247,23 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
         const showPlanning = isLast && !!working;
 
         return (
-          <div key={userMsg.id} className="space-y-3">
+          <div key={userMsg.id} className="space-y-2 sm:space-y-3">
             {/* User bubble */}
             <div className="flex flex-col items-end gap-1">
               {userFiles.length > 0 && (
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap justify-end">
                   {userFiles.map((fp) => <FileThumb key={fp.id} file={fp} />)}
                 </div>
               )}
-              <div className="relative max-w-[70%] rounded-xl bg-muted/50 border px-3 py-2">
-                <div className="whitespace-pre-wrap text-[15px] pr-6">
+              <div className="relative max-w-[90%] sm:max-w-[80%] md:max-w-[70%] rounded-xl bg-muted/50 border px-2.5 sm:px-3 py-2">
+                <div className="whitespace-pre-wrap text-sm sm:text-[15px] pr-5 sm:pr-6 break-words">
                   {text || <span className="text-muted-foreground italic">Sending...</span>}
                 </div>
                 {onRevert && text && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button size="icon" variant="ghost" className="absolute top-1.5 right-1.5 size-6 text-muted-foreground/40 hover:text-muted-foreground" onClick={() => onRevert(userMsg.id)} disabled={reverting}>
-                        {reverting && revertingMessageId === userMsg.id ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
+                      <Button size="icon" variant="ghost" className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 size-5 sm:size-6 text-muted-foreground/40 hover:text-muted-foreground" onClick={() => onRevert(userMsg.id)} disabled={reverting}>
+                        {reverting && revertingMessageId === userMsg.id ? <Loader2 className="size-3 sm:size-3.5 animate-spin" /> : <Undo2 className="size-3 sm:size-3.5" />}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Undo</TooltipContent>
@@ -273,7 +273,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
             </div>
 
             {/* Assistant content */}
-            <div className="space-y-1">
+            <div className="space-y-1 overflow-x-hidden">
               {/* API errors */}
               {assistants.map((m) => {
                 const err = (m as any).info?.error;
@@ -284,7 +284,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
               {timeline.map(renderPart)}
 
               {showPlanning && (
-                <ShimmeringText text="Working..." duration={0.4} className="text-sm text-muted-foreground py-1" />
+                <ShimmeringText text="Working..." duration={0.4} className="text-xs sm:text-sm text-muted-foreground py-1" />
               )}
             </div>
 
