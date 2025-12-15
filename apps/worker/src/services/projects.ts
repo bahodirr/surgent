@@ -8,6 +8,15 @@ export async function getProjectById(projectId: string) {
     .executeTakeFirst();
 }
 
+export async function countProjectsByUserId(userId: string): Promise<number> {
+  const result = await db
+    .selectFrom("project")
+    .select(db.fn.countAll().as("count"))
+    .where("userId", "=", userId)
+    .executeTakeFirst();
+  return Number(result?.count ?? 0);
+}
+
 export async function createProject(args: {
   userId: string;
   name: string;
