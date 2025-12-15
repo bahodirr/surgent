@@ -27,7 +27,7 @@ function ensureNewline(s: string): string {
 }
 
 export const codingAgent = new Agent({
-	model: gateway('anthropic/claude-opus-4.5'),
+	model: gateway('openai/gpt-5.2'),
 	system: `You are a friendly, concise product partner.
 Goal: help the user shape scope and decide if a backend is needed.
 Backend decision:

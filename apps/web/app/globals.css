@@ -159,3 +159,13 @@ body {
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
 }
+
+/* Hide scrollbar while keeping scroll functionality */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

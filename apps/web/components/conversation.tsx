@@ -6,8 +6,7 @@ import type { FileDiff, Part, ToolPart, ReasoningPart } from "@opencode-ai/sdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, ChevronDown, WifiOff, Check } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, WifiOff } from "lucide-react";
 import ChatInput, { type FilePart } from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -113,38 +112,13 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   return (
     <div className="flex flex-col h-full w-full">
       {/* Header */}
-      <header className="flex h-10 items-stretch border-b bg-muted/30 shrink-0 overflow-hidden">
-        {/* Session dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 text-sm border-r hover:bg-muted/50 transition-colors min-w-0 shrink-0">
-              <span className="truncate max-w-20 sm:max-w-40">{activeSession?.title || "Untitled"}</span>
-              <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuItem onClick={handleCreate} disabled={create.isPending}>
-              {create.isPending ? <Loader2 className="size-4 mr-2 animate-spin" /> : <Plus className="size-4 mr-2" />}
-              New Session
-            </DropdownMenuItem>
-            {sessions.length > 0 && <DropdownMenuSeparator />}
-            <ScrollArea className={sessions.length > 8 ? "h-64" : ""}>
-              {sessions.map(s => (
-                <DropdownMenuItem key={s.id} onClick={() => setSessionId(s.id)} className="justify-between">
-                  <span className="truncate">{s.title || "Untitled"}</span>
-                  {s.id === activeId && <Check className="size-4 text-muted-foreground" />}
-                </DropdownMenuItem>
-              ))}
-            </ScrollArea>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Tabs */}
-        <div className="flex flex-1 overflow-x-auto min-w-0">
+      <header className="flex flex-col border-b bg-muted/30 shrink-0">
+        {/* Top row: Tabs + Actions */}
+        <div className="flex h-10 items-stretch border-b">
           <button
             onClick={() => setTab("chat")}
             className={cn(
-              "flex items-center gap-1 sm:gap-2 px-2 sm:px-4 text-sm border-r transition-colors shrink-0",
+              "flex items-center gap-1 sm:gap-2 px-3 sm:px-4 text-sm border-r transition-colors shrink-0",
               tab === "chat" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
             )}
           >
@@ -154,28 +128,51 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
           <button
             onClick={() => setTab("terminal")}
             className={cn(
-              "flex items-center gap-1 sm:gap-2 px-2 sm:px-4 text-sm border-r transition-colors shrink-0",
+              "flex items-center gap-1 sm:gap-2 px-3 sm:px-4 text-sm border-r transition-colors shrink-0",
               tab === "terminal" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
             )}
           >
             <Terminal className="size-4" />
             <span className="hidden sm:inline">Terminal</span>
           </button>
+          <div className="flex-1" />
+          {/* Actions */}
+          <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-4 shrink-0">
+            {!connected && projectId && (
+              <div className="flex items-center gap-1 sm:gap-2 text-sm text-amber-500">
+                <WifiOff className="size-4" />
+                <span className="hidden sm:inline">Reconnecting...</span>
+              </div>
+            )}
+            {session?.summary?.diffs?.length ? (
+              <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)} className="text-xs sm:text-sm px-2 sm:px-3">
+                <span className="hidden sm:inline">View </span>Diff
+              </Button>
+            ) : null}
+          </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-4 shrink-0">
-          {!connected && projectId && (
-            <div className="flex items-center gap-1 sm:gap-2 text-sm text-amber-500">
-              <WifiOff className="size-4" />
-              <span className="hidden sm:inline">Reconnecting...</span>
-            </div>
-          )}
-          {session?.summary?.diffs?.length ? (
-            <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)} className="text-xs sm:text-sm px-2 sm:px-3">
-              <span className="hidden sm:inline">View </span>Diff
-            </Button>
-          ) : null}
+        {/* Bottom row: Sessions */}
+        <div className="flex h-9 items-stretch overflow-x-auto scrollbar-none">
+          {sessions.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setSessionId(s.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 sm:px-4 text-sm border-r transition-colors shrink-0 max-w-32 sm:max-w-40",
+                s.id === activeId ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
+              )}
+            >
+              <span className="truncate">{s.title || "Untitled"}</span>
+            </button>
+          ))}
+          <button
+            onClick={handleCreate}
+            disabled={create.isPending}
+            className="flex items-center gap-1 px-2 sm:px-3 text-sm text-muted-foreground hover:bg-muted/50 transition-colors shrink-0"
+          >
+            {create.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+          </button>
         </div>
       </header>
 
