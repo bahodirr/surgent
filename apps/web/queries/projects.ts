@@ -110,3 +110,23 @@ export function useDeleteProject() {
     },
   })
 }
+
+// Convex dashboard credentials
+export interface ConvexDashboardCredentials {
+  adminKey: string
+  deploymentUrl: string
+  deploymentName: string
+}
+
+async function fetchConvexDashboard(id: string): Promise<ConvexDashboardCredentials> {
+  return http.get(`api/projects/${id}/convex/dashboard`).json()
+}
+
+export function useConvexDashboardQuery(id?: string, enabled = true) {
+  return useQuery({
+    queryKey: ['convex-dashboard', id],
+    queryFn: () => fetchConvexDashboard(id!),
+    enabled: Boolean(id) && enabled,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  })
+}

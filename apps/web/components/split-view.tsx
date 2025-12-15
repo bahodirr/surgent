@@ -23,11 +23,22 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
   const lastActivatedId = useRef<string | undefined>(undefined);
   const isMobile = useIsMobile();
   
+  const hasConvex = Boolean((project?.metadata as any)?.convex);
+  const convexTabAdded = useRef(false);
+  
   const [tabs, setTabs] = useState<PreviewTab[]>([
     { id: 'preview', type: 'preview', title: 'Preview' },
   ]);
   const [activeTabId, setActiveTabId] = useState('preview');
   const tabCounter = useRef(0);
+  
+  // Add Convex tab once when project has Convex enabled
+  useEffect(() => {
+    if (hasConvex && !convexTabAdded.current) {
+      convexTabAdded.current = true;
+      setTabs(prev => [...prev, { id: 'convex', type: 'convex', title: 'Database' }]);
+    }
+  }, [hasConvex]);
 
   const handleViewChanges = useCallback((diffs: FileDiff[], messageId?: string) => {
     const existingTab = messageId ? tabs.find(t => t.messageId === messageId) : null;

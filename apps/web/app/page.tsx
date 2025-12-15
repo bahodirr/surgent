@@ -115,7 +115,7 @@ export default function Index() {
             const q = new URLSearchParams({ initial }).toString();
             router.push(`/project/${id}?${q}`);
           },
-          onError: () => toast.error('Failed to create project. Please try again.', { id: 'create-project' }),
+          onError: (error) => toast.error(error instanceof Error ? error.message : String(error), { id: 'create-project' }),
         }
       );
     } else {
