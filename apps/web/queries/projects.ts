@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { HTTPError } from 'ky'
 import { http } from '@/lib/http'
 import { ProjectsSchema, CreateProjectResponseSchema, ProjectSchema } from '@/lib/schemas/project'
 import { z } from 'zod'
@@ -9,8 +10,16 @@ async function fetchProjects() {
 }
 
 async function postProject(githubUrl: string, name: string, initConvex: boolean) {
-  const data = await http.post('api/projects', { json: { githubUrl, name, initConvex } }).json()
-  return CreateProjectResponseSchema.parse(data)
+  try {
+    const data = await http.post('api/projects', { json: { githubUrl, name, initConvex } }).json()
+    return CreateProjectResponseSchema.parse(data)
+  } catch (err) {
+    if (err instanceof HTTPError) {
+      const body = await err.response.json<{ error?: string }>().catch(() => ({}))
+      throw new Error(body.error ?? 'Failed to create project')
+    }
+    throw err
+  }
 }
 
 export function useProjectsQuery() {
