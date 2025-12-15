@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { requireAuth } from '../middleware/auth'
 import { deployProject, initializeProject, resumeProject, deployConvexProd } from '@/controllers/projects'
-import { listDeploymentEnvVars, setDeploymentEnvVars } from '@/apis/convex'
+import { listDeploymentEnvVars, setDeploymentEnvVars, buildDashboardCredentials } from '@/apis/convex'
 
 const projects = new Hono<AppContext>()
 
@@ -116,18 +116,22 @@ projects.post(
     initConvex: z.boolean().optional()
   })),
   async (c) => {
-    const { githubUrl, name, initConvex } = c.req.valid('json')
+    try {
+      const { githubUrl, name, initConvex } = c.req.valid('json')
 
+      const result = await initializeProject({
+        githubUrl,
+        userId: c.get('user')!.id,
+        name,
+        initConvex,
+        headers: c.req.raw.headers,
+      })
 
-    const result = await initializeProject({
-      githubUrl,
-      userId: c.get('user')!.id,
-      name,
-      initConvex,
-      headers: c.req.raw.headers,
-    })
-
-    return c.json({ id: result.projectId })
+      return c.json({ id: result.projectId })
+    } catch (err: any) {
+      console.error('[projects] create failed', { userId: c.get('user')?.id, error: err?.message ?? String(err) })
+      return c.json({ error: err?.message ?? 'Failed to create project' }, 500)
+    }
   },
 )
 // POST /projects/:id/deploy - Deploy project to Cloudflare
@@ -234,5 +238,25 @@ projects.post(
     return c.json({ updated: true })
   }
 )
+
+// GET /projects/:id/convex/dashboard - Get dashboard embed credentials
+projects.get('/:id/convex/dashboard', zValidator('param', idParam), async (c) => {
+  const { id } = c.req.valid('param')
+  const row = await db.selectFrom('project').selectAll().where('id', '=', id).executeTakeFirst()
+  if (!row) return c.json({ error: 'Project not found' }, 404)
+  if (row.userId !== c.get('user')!.id) return c.json({ error: 'Forbidden' }, 403)
+
+  const convex = (row.metadata as any)?.convex
+  if (!convex?.deploymentName || !convex?.deploymentUrl || !convex?.deployKey) {
+    return c.json({ error: 'Convex not provisioned' }, 400)
+  }
+
+  const credentials = buildDashboardCredentials({
+    deploymentName: convex.deploymentName,
+    deploymentUrl: convex.deploymentUrl,
+    deployKey: convex.deployKey,
+  })
+  return c.json(credentials)
+})
 
 export default projects

@@ -100,3 +100,25 @@ export async function listDeploymentEnvVars(
   const body: any = await res.json()
   return body.environmentVariables || {}
 }
+
+export interface DashboardCredentials {
+  adminKey: string
+  deploymentUrl: string
+  deploymentName: string
+}
+
+/**
+ * Construct dashboard credentials from project metadata.
+ * The adminKey is just the deploy key directly.
+ */
+export function buildDashboardCredentials(args: {
+  deploymentName: string
+  deploymentUrl: string
+  deployKey: string
+}): DashboardCredentials {
+  return {
+    adminKey: args.deployKey,
+    deploymentUrl: args.deploymentUrl,
+    deploymentName: args.deploymentName,
+  }
+}

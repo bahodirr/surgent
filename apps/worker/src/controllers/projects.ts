@@ -7,7 +7,7 @@ import { createHash } from "crypto";
 import stripJsonComments from "strip-json-comments";
 import * as ProjectService from "@/services/projects";
 
-const MAX_PROJECTS_PER_USER = 2;
+const MAX_PROJECTS_PER_USER = 1000;
 import { buildDeploymentConfig, parseWranglerConfig, deployToDispatch } from "@/apis/deploy";
 import { createProjectOnTeam, createDeployKey, setDeploymentEnvVars } from "@/apis/convex";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
