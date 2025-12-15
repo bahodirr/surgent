@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useActivateProject, useProjectQuery } from '@/queries/projects';
 import { useSandbox } from '@/hooks/use-sandbox';
 import { useIsMobile } from '@/hooks/use-mobile';
+import ProjectHeader from './project-header';
 
 interface SplitViewProps {
   projectId?: string;
@@ -74,6 +75,7 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
 
   return (
     <div className="h-screen w-full bg-background flex flex-col">
+      <ProjectHeader projectId={projectId} project={project} />
       <div className="flex-1 min-h-0">
         {isMobile ? (
           <div className="h-full min-h-0 flex flex-col">

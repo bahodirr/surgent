@@ -111,7 +111,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const activeSession = sessions.find(s => s.id === activeId);
 
   return (
-    <div className="flex flex-col h-svh w-full">
+    <div className="flex flex-col h-full w-full">
       {/* Header */}
       <header className="flex h-10 items-stretch border-b bg-muted/30 shrink-0 overflow-hidden">
         {/* Session dropdown */}
