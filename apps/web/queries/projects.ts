@@ -15,8 +15,8 @@ async function postProject(githubUrl: string, name: string, initConvex: boolean)
     return CreateProjectResponseSchema.parse(data)
   } catch (err) {
     if (err instanceof HTTPError) {
-      const body = await err.response.json<{ error?: string }>().catch(() => ({}))
-      throw new Error(body.error ?? 'Failed to create project')
+      const body = await err.response.json<{ error?: string }>().catch(() => null)
+      throw new Error(body?.error ?? 'Failed to create project')
     }
     throw err
   }
