@@ -4,7 +4,7 @@ import { db } from '@repo/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { requireAuth } from '../middleware/auth'
-import { deployProject, initializeProject, resumeProject, deployConvexProd } from '@/controllers/projects'
+import { deployProject, initializeProject, resumeProject, deployConvexProd, HttpError } from '@/controllers/projects'
 import { listDeploymentEnvVars, setDeploymentEnvVars, buildDashboardCredentials } from '@/apis/convex'
 
 const projects = new Hono<AppContext>()
@@ -128,9 +128,11 @@ projects.post(
       })
 
       return c.json({ id: result.projectId })
-    } catch (err: any) {
-      console.error('[projects] create failed', { userId: c.get('user')?.id, error: err?.message ?? String(err) })
-      return c.json({ error: err?.message ?? 'Failed to create project' }, 500)
+    } catch (err) {
+      const status = err instanceof HttpError ? err.status : 500
+      const message = err instanceof Error ? err.message : 'Failed to create project'
+      console.error('[projects] create failed', { userId: c.get('user')?.id, error: message })
+      return c.json({ error: message }, status as 400 | 500)
     }
   },
 )

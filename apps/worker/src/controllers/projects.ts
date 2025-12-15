@@ -8,6 +8,12 @@ import stripJsonComments from "strip-json-comments";
 import * as ProjectService from "@/services/projects";
 
 const MAX_PROJECTS_PER_USER = 2;
+
+export class HttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
 import { buildDeploymentConfig, parseWranglerConfig, deployToDispatch } from "@/apis/deploy";
 import { createProjectOnTeam, createDeployKey, setDeploymentEnvVars } from "@/apis/convex";
 import { exportJWK, exportPKCS8, generateKeyPair } from "jose";
@@ -332,7 +338,7 @@ export async function setRunIndefinitely(sandboxId: string): Promise<{ sandboxId
 export async function initializeProject(args: InitializeProjectArgs): Promise<{ projectId: string; sandboxId: string; previewUrl: string }> {
   const projectCount = await ProjectService.countProjectsByUserId(args.userId);
   if (projectCount >= MAX_PROJECTS_PER_USER) {
-    throw new Error(`Project limit reached. Maximum ${MAX_PROJECTS_PER_USER} projects per user.`);
+    throw new HttpError(400, `Project limit reached. Maximum ${MAX_PROJECTS_PER_USER} projects per user.`);
   }
 
   const created = await ProjectService.createProject({ userId: args.userId, name: args.name || "app", githubUrl: args.githubUrl });
