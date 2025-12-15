@@ -40,11 +40,20 @@ async function fetchProject(id: string) {
   return ProjectSchema.parse(data)
 }
 
+const DEPLOYMENT_IN_PROGRESS_STATUSES = ['queued', 'starting', 'building', 'uploading']
+
 export function useProjectQuery(id?: string) {
   return useQuery({
     queryKey: ['project', id],
     queryFn: () => fetchProject(id as string),
     enabled: Boolean(id),
+    refetchInterval: (query) => {
+      const status = query.state.data?.deployment?.status
+      if (status && DEPLOYMENT_IN_PROGRESS_STATUSES.includes(status)) {
+        return 3000 // Poll every 3 seconds while deployment is in progress
+      }
+      return false
+    },
   })
 }
 

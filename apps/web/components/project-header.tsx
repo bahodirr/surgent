@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
 import { useDeployProject, useRenameProject } from "@/queries/projects";
 import DeployDialog from "@/components/deploy-dialog";
@@ -33,6 +34,7 @@ interface ProjectHeaderProps {
     deployment?: {
       name?: string;
       status?: string;
+      error?: string;
     };
   };
 }
@@ -104,7 +106,9 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
   const deployment = project?.deployment;
   const deploymentName = deployment?.name;
   const status = deployment?.status ?? "";
-  const isInProgress = ["queued", "starting", "resuming", "building", "uploading"].includes(status);
+  const isInProgress = ["queued", "starting", "building", "uploading"].includes(status);
+  const isFailed = status.includes("failed");
+  const errorMsg = isFailed ? (deployment?.error || status) : null;
 
   return (
     <>
@@ -145,15 +149,26 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
 
         {/* Right side */}
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            className="bg-brand hover:bg-brand/90 text-brand-foreground"
-            onClick={() => setIsDialogOpen(true)}
-            disabled={!projectId || isDeploying || isInProgress}
-          >
-            <Rocket className="h-4 w-4" />
-            {isInProgress ? "Publishing..." : "Publish"}
-          </Button>
+          {status && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className={`h-2 w-2 rounded-full ${status === "deployed" ? "bg-green-500" : isFailed ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`} />
+              {status === "deployed" ? "Live" : isFailed ? "Failed" : isInProgress ? "Deploying" : null}
+            </div>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                className="bg-brand hover:bg-brand/90 text-brand-foreground"
+                onClick={() => setIsDialogOpen(true)}
+                disabled={!projectId || isDeploying || isInProgress}
+              >
+                <Rocket className="h-4 w-4" />
+                {isInProgress ? "Publishing..." : status === "deployed" ? "Republish" : "Publish"}
+              </Button>
+            </TooltipTrigger>
+            {errorMsg && <TooltipContent>{errorMsg}</TooltipContent>}
+          </Tooltip>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
