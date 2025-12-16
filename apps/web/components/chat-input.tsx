@@ -31,7 +31,9 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
   const [tier, setTier] = useState<keyof typeof TIERS>("openai");
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
 
   const addFiles = async (files: File[]) => {
     const valid = files.filter(f => f.size <= MAX_FILE_SIZE).slice(0, MAX_FILES - attachments.length);
@@ -54,6 +56,25 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
   const handlePaste = (e: React.ClipboardEvent) => {
     const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
     if (files.length) { e.preventDefault(); addFiles(files); }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (!isDragging && e.dataTransfer.types.includes("Files")) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setIsDragging(false);
+    addFiles(Array.from(e.dataTransfer.files));
   };
 
   const removeAttachment = (index: number) => {
@@ -87,8 +108,23 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
   const canSubmit = !uploading && !disabled && (value.trim() || attachments.length);
 
   return (
-    <div className={cn("w-full", className)}>
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg overflow-hidden">
+    <div
+      className={cn("w-full relative", className)}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={e => e.preventDefault()}
+      onDrop={handleDrop}
+    >
+      <div className={cn(
+        "absolute inset-0 z-10 rounded-2xl border-2 border-dashed border-violet-400 bg-violet-50/80 dark:bg-violet-900/20 flex items-center justify-center pointer-events-none transition-opacity duration-150",
+        isDragging ? "opacity-100" : "opacity-0"
+      )}>
+        <span className="text-sm font-medium text-violet-600 dark:text-violet-400">Drop files here</span>
+      </div>
+      <div className={cn(
+        "rounded-2xl border bg-white dark:bg-zinc-900 shadow-lg overflow-hidden transition-colors",
+        isDragging ? "border-violet-400" : "border-zinc-200 dark:border-zinc-700"
+      )}>
         {/* File previews */}
         {attachments.length > 0 && (
           <div className="flex gap-1 sm:gap-1.5 p-2 sm:p-3 pb-0 flex-wrap">
