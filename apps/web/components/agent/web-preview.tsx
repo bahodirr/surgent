@@ -6,7 +6,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Input } from '@/components/ui/input';
 import {
   Tooltip,
   TooltipContent,
@@ -14,15 +13,28 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { ChevronDownIcon } from 'lucide-react';
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ExternalLinkIcon,
+  MonitorIcon,
+  RefreshCwIcon,
+} from 'lucide-react';
 import type { ComponentProps, ReactNode } from 'react';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 export type WebPreviewContextValue = {
   url: string;
   setUrl: (url: string) => void;
   consoleOpen: boolean;
   setConsoleOpen: (open: boolean) => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  goBack: () => void;
+  goForward: () => void;
+  refresh: () => void;
+  iframeRef: React.RefObject<HTMLIFrameElement | null>;
 };
 
 const WebPreviewContext = createContext<WebPreviewContextValue | null>(null);
@@ -47,28 +59,65 @@ export const WebPreview = ({
   onUrlChange,
   ...props
 }: WebPreviewProps) => {
-  const [url, setUrl] = useState(defaultUrl);
   const [consoleOpen, setConsoleOpen] = useState(false);
+  const [nav, setNav] = useState(() => ({
+    history: [defaultUrl],
+    index: 0,
+  }));
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  const handleUrlChange = (newUrl: string) => {
-    setUrl(newUrl);
-    onUrlChange?.(newUrl);
+  const url = nav.history[nav.index] ?? '';
+
+  useEffect(() => {
+    onUrlChange?.(url);
+  }, [url, onUrlChange]);
+
+  const setUrl = (nextUrl: string) => {
+    setNav((prev) => {
+      const current = prev.history[prev.index] ?? '';
+      if (nextUrl === current) return prev;
+
+      const history = [...prev.history.slice(0, prev.index + 1), nextUrl];
+      return { history, index: history.length - 1 };
+    });
+  };
+
+  const canGoBack = nav.index > 0;
+  const canGoForward = nav.index < nav.history.length - 1;
+
+  const goBack = () => {
+    setNav((prev) => (prev.index > 0 ? { ...prev, index: prev.index - 1 } : prev));
+  };
+
+  const goForward = () => {
+    setNav((prev) =>
+      prev.index < prev.history.length - 1 ? { ...prev, index: prev.index + 1 } : prev
+    );
+  };
+
+  const refresh = () => {
+    if (iframeRef.current) {
+      iframeRef.current.src = url;
+    }
   };
 
   const contextValue: WebPreviewContextValue = {
     url,
-    setUrl: handleUrlChange,
+    setUrl,
     consoleOpen,
     setConsoleOpen,
+    canGoBack,
+    canGoForward,
+    goBack,
+    goForward,
+    refresh,
+    iframeRef,
   };
 
   return (
     <WebPreviewContext.Provider value={contextValue}>
       <div
-        className={cn(
-          'flex size-full flex-col border bg-card',
-          className
-        )}
+        className={cn('flex size-full flex-col border bg-card', className)}
         {...props}
       >
         {children}
@@ -85,12 +134,103 @@ export const WebPreviewNavigation = ({
   ...props
 }: WebPreviewNavigationProps) => (
   <div
-    className={cn('flex items-center gap-1 border-b p-2', className)}
+    className={cn('flex items-center gap-1 border-b px-2 py-1.5', className)}
     {...props}
   >
     {children}
   </div>
 );
+
+export const WebPreviewNavButtons = () => {
+  const { canGoBack, canGoForward, goBack, goForward, refresh, url } =
+    useWebPreview();
+
+  return (
+    <div className="flex items-center gap-1">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              disabled={!canGoBack}
+              onClick={goBack}
+              className={cn(
+                'flex size-7 items-center justify-center rounded-md transition-colors',
+                !canGoBack
+                  ? 'opacity-30'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+              aria-label="Go back"
+            >
+              <ChevronLeftIcon size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Go back</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              disabled={!canGoForward}
+              onClick={goForward}
+              className={cn(
+                'flex size-7 items-center justify-center rounded-md transition-colors',
+                !canGoForward
+                  ? 'opacity-30'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+              aria-label="Go forward"
+            >
+              <ChevronRightIcon size={16} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Go forward</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={refresh}
+              className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Refresh page"
+            >
+              <RefreshCwIcon size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <a
+              href={url || '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                'flex size-7 items-center justify-center rounded-md transition-colors',
+                url
+                  ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  : 'pointer-events-none opacity-30'
+              )}
+              aria-label="Open in new tab"
+            >
+              <ExternalLinkIcon size={14} />
+            </a>
+          </TooltipTrigger>
+          <TooltipContent>Open in new tab</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+  );
+};
 
 export type WebPreviewNavigationButtonProps = ComponentProps<typeof Button> & {
   tooltip?: string;
@@ -124,38 +264,52 @@ export const WebPreviewNavigationButton = ({
   </TooltipProvider>
 );
 
-export type WebPreviewUrlProps = ComponentProps<typeof Input>;
+export type WebPreviewUrlProps = ComponentProps<'input'>;
 
-export const WebPreviewUrl = ({
-  value,
-  onChange,
-  onKeyDown,
-  ...props
-}: WebPreviewUrlProps) => {
+const getPathname = (url: string) => {
+  try {
+    return new URL(url).pathname || '/';
+  } catch {
+    return '/';
+  }
+};
+
+export const WebPreviewUrl = ({ className, ...props }: WebPreviewUrlProps) => {
   const { url, setUrl } = useWebPreview();
-  const [localUrl, setLocalUrl] = useState(url);
+  const [path, setPath] = useState(() => getPathname(url));
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalUrl(event.target.value);
-    onChange?.(event);
-  };
+  useEffect(() => {
+    setPath(getPathname(url));
+  }, [url]);
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
-      setUrl(localUrl);
+  const handleNavigate = () => {
+    try {
+      const newUrl = new URL(url);
+      newUrl.pathname = path.startsWith('/') ? path : '/' + path;
+      setUrl(newUrl.toString());
+    } catch {
+      // ignore invalid url
     }
-    onKeyDown?.(event);
   };
 
   return (
-    <Input
-      className="h-8 flex-1 text-sm"
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-      placeholder="Enter URL..."
-      value={localUrl}
-      {...props}
-    />
+    <div
+      className={cn(
+        'flex h-7 w-full max-w-[280px] items-center rounded-lg border border-border/50 bg-muted/50 px-2.5',
+        className
+      )}
+    >
+      <input
+        className="w-full bg-transparent text-sm text-muted-foreground outline-none placeholder:text-muted-foreground/50"
+        value={path}
+        onChange={(e) => setPath(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && handleNavigate()}
+        placeholder="/"
+        aria-label="App preview path"
+        type="text"
+        {...props}
+      />
+    </div>
   );
 };
 
@@ -169,11 +323,12 @@ export const WebPreviewBody = ({
   src,
   ...props
 }: WebPreviewBodyProps) => {
-  const { url } = useWebPreview();
+  const { url, iframeRef } = useWebPreview();
 
   return (
     <div className="relative flex-1">
       <iframe
+        ref={iframeRef}
         className={cn('size-full', className)}
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-presentation allow-pointer-lock allow-storage-access-by-user-activation allow-downloads"
         allow="autoplay; camera; clipboard-read; clipboard-write; geolocation; display-capture; encrypted-media; fullscreen; gamepad; gyroscope; magnetometer; microphone; midi; payment; usb; bluetooth; hid; serial; xr-spatial-tracking; screen-wake-lock; idle-detection; publickey-credentials-get; local-fonts; window-management"
@@ -181,7 +336,11 @@ export const WebPreviewBody = ({
         title="Preview"
         {...props}
       />
-      {overlay ? <div className="absolute inset-0 z-10 pointer-events-none">{overlay}</div> : null}
+      {overlay ? (
+        <div className="pointer-events-none absolute inset-0 z-10">
+          {overlay}
+        </div>
+      ) : null}
     </div>
   );
 };

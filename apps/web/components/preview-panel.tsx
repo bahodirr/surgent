@@ -1,8 +1,8 @@
 "use client";
 
-import { WebPreview, WebPreviewNavigation, WebPreviewUrl, WebPreviewBody, WebPreviewNavigationButton } from '@/components/agent/web-preview';
+import { WebPreview, WebPreviewNavButtons, WebPreviewUrl, WebPreviewBody } from '@/components/agent/web-preview';
 import { useEffect, useState } from 'react';
-import { ExternalLink, RefreshCw, Copy, X, Database } from 'lucide-react';
+import { X, Database } from 'lucide-react';
 import type { FileDiff } from "@opencode-ai/sdk";
 import { useConvexDashboardQuery, type ConvexDashboardCredentials } from '@/queries/projects';
 import DiffView from '@/components/diff/diff-view';
@@ -38,45 +38,13 @@ function LoadingState({ icon: Icon, message }: { icon?: typeof Database; message
   );
 }
 
-// Tab content components
-function PreviewContent({ 
-  previewUrl, 
-  reloadKey, 
-  onReload, 
-  onUrlChange 
-}: { 
-  previewUrl: string; 
-  reloadKey: number; 
-  onReload: () => void; 
-  onUrlChange: (url: string) => void;
-}) {
+// Navigation controls for the tab bar (only shown when preview is active)
+function PreviewNavControls() {
   return (
-    <WebPreview
-      key={`${previewUrl}:${reloadKey}`}
-      defaultUrl={previewUrl}
-      onUrlChange={onUrlChange}
-      className="h-full border-0"
-    >
-      <WebPreviewNavigation className="border-b p-2">
-        <WebPreviewNavigationButton tooltip="Reload" onClick={onReload}>
-          <RefreshCw className="h-4 w-4" />
-        </WebPreviewNavigationButton>
-        <WebPreviewNavigationButton 
-          tooltip="Copy URL" 
-          onClick={() => navigator.clipboard?.writeText(previewUrl).catch(() => {})}
-        >
-          <Copy className="h-4 w-4" />
-        </WebPreviewNavigationButton>
-        <WebPreviewNavigationButton 
-          tooltip="Open in new tab" 
-          onClick={() => window.open(previewUrl, '_blank', 'noopener,noreferrer')}
-        >
-          <ExternalLink className="h-4 w-4" />
-        </WebPreviewNavigationButton>
-        <WebPreviewUrl placeholder="Enter URL..." />
-      </WebPreviewNavigation>
-      <WebPreviewBody className="w-full h-full border-0" />
-    </WebPreview>
+    <div className="flex items-center gap-2 px-2">
+      <WebPreviewNavButtons />
+      <WebPreviewUrl className="w-[360px] max-w-none" />
+    </div>
   );
 }
 
@@ -175,6 +143,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const hasConvex = Boolean((project?.metadata as any)?.convex);
   const isConvexTabActive = activeTab?.type === 'convex';
+  const isPreviewTabActive = activeTab?.type === 'preview';
   
   const { data: convexCredentials, isLoading: convexLoading } = useConvexDashboardQuery(
     projectId,
@@ -187,7 +156,6 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
   const previewUrl = isReady ? `https://3000-${sandboxId}.${proxyHost}` : undefined;
 
   const [currentUrl, setCurrentUrl] = useState('');
-  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     onPreviewUrl?.(previewUrl ?? null);
@@ -199,12 +167,17 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
     setCurrentUrl(previewUrl);
   }, [currentUrl, previewUrl]);
 
+  const handleUrlChange = (u: string) => {
+    setCurrentUrl(u);
+    onPreviewUrl?.(u || null);
+  };
 
-  return (
+  // Content without WebPreview wrapper (for non-preview tabs)
+  const renderContent = () => (
     <div className="h-full flex flex-col relative">
       {/* Tab bar */}
       <div className="flex h-10 items-stretch border-b bg-muted/30 shrink-0">
-        <div className="flex flex-1 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 overflow-x-auto">
           {tabs.map(tab => (
             <TabButton
               key={tab.id}
@@ -215,19 +188,19 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
             />
           ))}
         </div>
-
+        {/* Nav controls on the right - only when preview tab is active and ready */}
+        {isPreviewTabActive && isReady && previewUrl && (
+          <div className="shrink-0 flex items-center">
+            <PreviewNavControls />
+          </div>
+        )}
       </div>
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 flex flex-col">
-        {activeTab?.type === 'preview' && (
+        {isPreviewTabActive && (
           isReady && previewUrl ? (
-            <PreviewContent
-              previewUrl={previewUrl}
-              reloadKey={reloadKey}
-              onReload={() => setReloadKey(k => k + 1)}
-              onUrlChange={(u) => { setCurrentUrl(u); onPreviewUrl?.(u || null); }}
-            />
+            <WebPreviewBody className="w-full h-full border-0" />
           ) : (
             <LoadingState message="Starting sandbox..." />
           )
@@ -245,7 +218,23 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
           <ChangesContent diffs={activeTab.diffs} />
         )}
       </div>
-
     </div>
   );
+
+  // Wrap in WebPreview context when preview is ready
+  if (isPreviewTabActive && isReady && previewUrl) {
+    return (
+      <WebPreview
+        key={previewUrl}
+        defaultUrl={previewUrl}
+        onUrlChange={handleUrlChange}
+        className="h-full border-0"
+      >
+        {renderContent()}
+      </WebPreview>
+    );
+  }
+
+  return renderContent();
 }
+
