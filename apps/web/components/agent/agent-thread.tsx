@@ -187,11 +187,21 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
   const userMessages = visible.filter(m => m.role === "user");
 
   const getText = (m: Message) => {
+    let text = "";
     const fromParts = partsMap[m.id]?.filter((p): p is TextPart => p.type === "text").map(p => p.text).join("\n") ?? "";
-    if (fromParts) return fromParts;
-    const summary = m.summary;
-    if (!summary || typeof summary !== "object") return "";
-    return summary.body || summary.title || "";
+    if (fromParts) {
+      text = fromParts;
+    } else {
+      const summary = m.summary;
+      if (summary && typeof summary === "object") {
+        text = summary.body || summary.title || "";
+      }
+    }
+    // Strip markdown image links from user messages (images shown via FileThumb)
+    if (m.role === "user") {
+      text = text.replace(/!\[[^\]]*\]\([^)]+\)\n*/g, "").trim();
+    }
+    return text;
   };
   const getFiles = (m: Message) => partsMap[m.id]?.filter((p): p is FilePart => p.type === "file") ?? [];
   const renderPart = (p: Part) => {

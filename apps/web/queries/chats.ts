@@ -39,21 +39,17 @@ async function sendMessage(
     }
   }
 
-  if (text) {
-    parts.push({ type: 'text', text })
+  // Build text with markdown image links for AI
+  const imageLinks = files?.length
+    ? files.map(f => `![${f.filename}](${f.url})`).join('\n')
+    : ''
+  const fullText = imageLinks ? `${imageLinks}\n\n${text}` : text
+
+  if (fullText) {
+    parts.push({ type: 'text', text: fullText })
   }
 
-  const system =
-    files?.length
-      ? [
-          'Image URLs:',
-          ...files
-            .filter((f) => f.mime.startsWith('image/'))
-            .map((f, i) => `${i + 1}. ${f.filename}: ${f.url}`),
-        ].join('\n')
-      : undefined
-
-  const body: Record<string, unknown> = { agent, parts, system }
+  const body: Record<string, unknown> = { agent, parts }
 
   if (model && model.trim()) {
     body.model = { providerID, modelID: model }
