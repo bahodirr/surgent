@@ -235,11 +235,15 @@ function Changes({ diffs, onView }: { diffs: FileDiff[]; onView: () => void }) {
   );
 }
 
-function ApiError({ message }: { message: string }) {
+function ApiError({ error }: { error: any }) {
+  const code = error?.code || error?.data?.code;
+  const msg = error?.data?.message || error?.message || error?.name || "Request failed";
+  const isContext = code === "context_length_exceeded" || msg.includes("context");
+
   return (
-    <div className="flex items-start gap-2 py-2 px-3 rounded-lg border bg-muted/50 text-muted-foreground text-xs sm:text-sm">
+    <div className={`flex items-start gap-2 py-2 px-3 rounded-lg border text-xs sm:text-sm ${isContext ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 text-muted-foreground"}`}>
       <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
-      <p className="min-w-0 break-all">{message}</p>
+      <p className="min-w-0 break-all">{isContext ? "Context limit reached. Start a new session." : msg}</p>
     </div>
   );
 }
@@ -434,7 +438,7 @@ export function AgentThread({ projectId, sessionId, messages, partsMap, permissi
                 if (!err) return null;
                 const msg = err.data?.message || err.message || err.name || "Request failed";
                 if (msg.toLowerCase().includes("abort")) return null;
-                return <ApiError key={m.id} message={msg} />;
+                return <ApiError key={m.id} error={err} />;
               })}
 
               {timeline.map(renderPart)}

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useReducer, useRef } from "react";
-import type { Event, Message, Part, Permission, Session } from "@opencode-ai/sdk";
+import type { Event, Message, Part, Permission, Session, ApiError, ProviderAuthError, UnknownError, MessageOutputLengthError, MessageAbortedError } from "@opencode-ai/sdk";
 import { backendBaseUrl, http } from "@/lib/http";
+
+type AgentError = ProviderAuthError | UnknownError | MessageOutputLengthError | MessageAbortedError | ApiError;
 
 type State = {
   messages: Message[];
@@ -10,14 +12,16 @@ type State = {
   permissions: Permission[];
   session?: Session;
   status?: { type: string; [key: string]: unknown };
+  error?: AgentError;
   lastAt: number;
   connected: boolean;
   loading: boolean;
+  compacting: boolean;
 };
 
 type StreamEvent = Event | { type: string; properties?: Record<string, any> };
 
-const initialState: State = { messages: [], parts: {}, permissions: [], lastAt: 0, connected: false, loading: false };
+const initialState: State = { messages: [], parts: {}, permissions: [], lastAt: 0, connected: false, loading: false, compacting: false };
 
 function upsertMessage(list: Message[], incoming: Message): Message[] {
   const idx = list.findIndex((m) => m.id === incoming.id);
@@ -56,13 +60,16 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
   
   if (!props) {
     if (event.type === "session.deleted") {
-      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, permissions: [], lastAt: now, loading: true };
+      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, permissions: [], lastAt: now, loading: true, error: undefined };
     }
     if (event.type === "connection.closed") {
       return { ...state, connected: false, lastAt: now };
     }
     if (event.type === "server.connected") {
       return { ...state, connected: true, lastAt: now };
+    }
+    if (event.type === "error.clear") {
+      return { ...state, error: undefined };
     }
     return { ...state, lastAt: now };
   }
@@ -71,7 +78,7 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     // Batch load for initial messages - single dispatch instead of N+M
     case "batch.load": {
       const items = props.messages as Array<{ info: Message; parts: Part[] }>;
-      if (!items?.length) return { ...state, loading: false, lastAt: now };
+      if (!items?.length) return { ...state, loading: false, compacting: false, lastAt: now };
       let messages = state.messages;
       const parts: Record<string, Part[]> = { ...state.parts };
       for (const { info, parts: msgParts } of items) {
@@ -80,7 +87,7 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
         // Overwrite even if empty to avoid keeping stale parts after resync.
         if (msgParts !== undefined) parts[info.id] = msgParts;
       }
-      return { ...state, messages, parts, lastAt: now, loading: false };
+      return { ...state, messages, parts, lastAt: now, loading: false, compacting: false };
     }
     case "session.updated": {
       const info = props.info as Session;
@@ -89,7 +96,15 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     }
     case "session.deleted": {
       if (props.sessionID !== currentSessionId) return state;
-      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, permissions: [], lastAt: now };
+      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, permissions: [], lastAt: now, error: undefined };
+    }
+    case "session.error": {
+      if (props.sessionID && props.sessionID !== currentSessionId) return state;
+      return { ...state, error: props.error, lastAt: now };
+    }
+    case "session.compacted": {
+      if (props.sessionID !== currentSessionId) return state;
+      return { ...state, messages: [], parts: {}, lastAt: now, loading: true, compacting: true };
     }
     case "message.updated": {
       const info = props.info as Message;
@@ -201,7 +216,13 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
       };
       es.onmessage = (evt) => {
         try {
-          queueRef.current.push(JSON.parse(evt.data));
+          const event = JSON.parse(evt.data);
+          // Handle compaction: resync immediately
+          const sid = sessionIdRef.current;
+          if (event.type === "session.compacted" && sid && event.properties?.sessionID === sid) {
+            resync(projectId, sid);
+          }
+          queueRef.current.push(event);
           if (!rafRef.current) {
             rafRef.current = requestAnimationFrame(() => {
               const events = queueRef.current;
@@ -226,5 +247,7 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
     };
   }, [projectId]);
 
-  return state;
+  const dismissError = () => dispatch({ type: "error.clear" } as any);
+
+  return { ...state, dismissError };
 }

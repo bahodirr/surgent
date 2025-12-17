@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { http } from "@/lib/http";
-import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, History, Check, AlertCircle } from "lucide-react";
+import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, History, Check, AlertCircle, X } from "lucide-react";
 import ChatInput, { type FilePart } from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -91,7 +91,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const usageRef = useRef<{ ctxTokens: number; contextPct?: number; costSpent: number } | null>(null);
+  const usageRef = useRef<{ ctxTokens?: number; contextPct?: number; costSpent: number; contextExceeded?: boolean } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null);
@@ -120,7 +120,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     ? storedSessionId
     : sessions[0]?.id;
   const busy = revert.isPending || unrevert.isPending;
-  const { messages, parts, permissions, session, connected, status, loading } = useAgentStream({ projectId, sessionId: activeId });
+  const { messages, parts, permissions, session, connected, status, loading, compacting, error: sessionError, dismissError } = useAgentStream({ projectId, sessionId: activeId });
   const working = status?.type !== undefined && status.type !== "idle";
 
   // Auto-scroll setup
@@ -186,14 +186,41 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const sessionName = formatTitle(session?.title || activeSession?.title || "Untitled");
 
   const assistantMessages = messages.filter((m) => m.role === "assistant");
-  const lastAssistant = assistantMessages[assistantMessages.length - 1];
-  const lastAssistantError = (lastAssistant as any)?.error || (lastAssistant as any)?.info?.error;
-  const rawErrorMessage = lastAssistantError?.data?.message || lastAssistantError?.message || lastAssistantError?.name;
-  // Skip abort errors (user initiated stop)
-  const lastAssistantErrorMessage = rawErrorMessage?.toLowerCase().includes("abort") ? undefined : rawErrorMessage;
-  const ctxTokens =
-    lastAssistant && "tokens" in lastAssistant ? lastAssistant.tokens.input + lastAssistant.tokens.cache.read : 0;
-  const costSpent = assistantMessages.reduce((sum, m) => sum + ("cost" in m ? m.cost : 0), 0);
+
+  const isContextLengthExceeded = (err: any) => {
+    if (!err) return false;
+    const directCode = err.code || err.data?.code;
+    if (directCode === "context_length_exceeded") return true;
+
+    const responseBody = err.data?.responseBody ?? err.responseBody;
+    if (typeof responseBody === "string" && responseBody) {
+      try {
+        const body = JSON.parse(responseBody);
+        const code =
+          body?.code ??
+          body?.error?.code ??
+          body?.error?.error?.code ??
+          body?.error?.data?.code ??
+          body?.error?.error?.data?.code;
+        if (code === "context_length_exceeded") return true;
+        if (body?.type === "error" && body?.error?.code === "context_length_exceeded") return true;
+      } catch {}
+    }
+
+    const msg = err.data?.message || err.message || err.name;
+    return typeof msg === "string" && (msg.toLowerCase().includes("context_length_exceeded") || msg.toLowerCase().includes("context window"));
+  };
+
+  const lastAssistantError = (() => {
+    const last = assistantMessages[assistantMessages.length - 1];
+    const err = (last as any)?.error || (last as any)?.info?.error;
+    if (!err) return undefined;
+    const code = err.code || err.data?.code;
+    const msg = err.data?.message || err.message || err.name;
+    if (msg?.toLowerCase().includes("abort")) return undefined;
+    const isContext = isContextLengthExceeded(err) || code === "context_length_exceeded" || msg?.includes("context");
+    return { message: isContext ? "Context limit reached. Start a new session." : msg, isContext };
+  })();
 
   const { data: providers } = useQuery<ProviderList>({
     queryKey: ["providers", projectId],
@@ -202,29 +229,52 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     queryFn: async () => (await http.get(`api/agent/${projectId}/provider`).json()) as ProviderList,
   });
 
-  const contextLimit =
-    lastAssistant && "providerID" in lastAssistant && "modelID" in lastAssistant
-      ? providers?.all.find((p) => p.id === lastAssistant.providerID)?.models?.[lastAssistant.modelID]?.limit?.context
-      : undefined;
-  const contextPct = contextLimit ? Math.round((ctxTokens / contextLimit) * 100) : 0;
-
+  // Reset usage cache on session change
   useEffect(() => {
     usageRef.current = null;
   }, [activeId]);
 
+  // Track context tokens from the last COMPLETED assistant message
+  // During streaming, we keep showing the previous value to avoid flickering
   useEffect(() => {
-    if (ctxTokens > 0) {
-      usageRef.current = {
-        ctxTokens,
-        contextPct: contextLimit ? contextPct : usageRef.current?.contextPct,
-        costSpent,
-      };
-    }
-  }, [ctxTokens, contextPct, contextLimit, costSpent]);
+    const last = assistantMessages[assistantMessages.length - 1];
+    if (!last) return;
 
-  const shownTokens = usageRef.current?.ctxTokens || (ctxTokens > 0 ? ctxTokens : undefined);
-  const shownPct = usageRef.current?.contextPct ?? (contextLimit ? contextPct : undefined);
-  const shownCost = usageRef.current?.costSpent ?? costSpent;
+    // Calculate total cost (always summing all messages)
+    const currentCost = assistantMessages.reduce((sum, m) => sum + ("cost" in m ? m.cost : 0), 0);
+
+    const tokens = "tokens" in last ? last.tokens.input + last.tokens.cache.read : 0;
+    const contextExceeded = Boolean(lastAssistantError?.isContext) || isContextLengthExceeded(sessionError);
+
+    if (contextExceeded) {
+      usageRef.current = { ctxTokens: undefined, contextPct: undefined, costSpent: currentCost, contextExceeded: true };
+      return;
+    }
+
+    // Only update tokens if this message has them (implies it's at least partially done)
+    if (tokens > 0) {
+      let pct = usageRef.current?.contextPct;
+
+      if ("providerID" in last && "modelID" in last) {
+        const limit = providers?.all.find((p) => p.id === last.providerID)?.models?.[last.modelID]?.limit?.context;
+        if (limit) pct = Math.round((tokens / limit) * 100);
+      }
+
+      usageRef.current = {
+        ctxTokens: tokens,
+        contextPct: pct,
+        costSpent: currentCost,
+      };
+    } else if (usageRef.current) {
+      // Just update cost if we have a cache but no new tokens yet
+      usageRef.current.costSpent = currentCost;
+    }
+  }, [assistantMessages, providers, lastAssistantError?.isContext, sessionError]);
+
+  const shownTokens = usageRef.current?.ctxTokens;
+  const shownPct = usageRef.current?.contextPct;
+  const shownCost = usageRef.current?.costSpent ?? 0;
+  const contextExceeded = usageRef.current?.contextExceeded;
 
   return (
     <div className="flex flex-col h-full w-full min-w-0 @container/conversation">
@@ -277,13 +327,31 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
           {connected ? (
             <>
               <span className="font-medium truncate max-w-32 @md/conversation:max-w-64">{sessionName}</span>
-              <span className="text-muted-foreground">·</span>
-              <span className="text-muted-foreground tabular-nums">
-                {shownTokens?.toLocaleString() ?? "—"} tokens
-                {shownPct !== undefined && <span className="hidden @md/conversation:inline"> / {shownPct}%</span>}
-              </span>
-              <span className="text-muted-foreground">·</span>
-              <span className="font-medium">${shownCost.toFixed(2)}</span>
+              {compacting || session?.time?.compacting ? (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Loader2 className="size-2.5 animate-spin" />
+                    Compacting
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {shownTokens?.toLocaleString() ?? "—"} tokens
+                    {shownPct !== undefined && !contextExceeded && <span className="hidden @md/conversation:inline"> / {shownPct}%</span>}
+                  </span>
+                  {contextExceeded ? (
+                    <>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-destructive font-medium">Context exceeded</span>
+                    </>
+                  ) : null}
+                  <span className="text-muted-foreground">·</span>
+                  <span className="font-medium">${shownCost.toFixed(2)}</span>
+                </>
+              )}
             </>
           ) : projectId ? (
             <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -292,6 +360,21 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
             </span>
           ) : null}
         </div>
+
+        {(() => {
+          if (!sessionError) return null;
+          const err = sessionError as any;
+          const msg = err.data?.message || err.message || err.name || String(sessionError);
+          if (msg.toLowerCase().includes("abort")) return null;
+          const isContext = (err.code || err.data?.code) === "context_length_exceeded" || msg.includes("context");
+          return (
+            <div className={cn("flex items-center gap-2 px-3 py-1.5 text-xs border-t animate-in slide-in-from-top-1", isContext ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-destructive/10 text-destructive")}>
+              <AlertCircle className="size-3.5 shrink-0" />
+              <p className="flex-1 min-w-0 font-medium truncate">{isContext ? "Context limit reached. Start a new session." : msg}</p>
+              <button onClick={dismissError} className="p-0.5 rounded transition-colors hover:bg-black/10"><X className="size-3" /></button>
+            </div>
+          );
+        })()}
 
       </header>
 
@@ -346,21 +429,17 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
             </div>
           )}
           <div className="max-w-3xl mx-auto">
-            {lastAssistantErrorMessage && (
-              <div className="mb-2 px-3 py-2 rounded-lg border bg-muted/50 text-xs">
+            {lastAssistantError && (
+              <div className={cn("mb-2 px-3 py-2 rounded-lg border text-xs", lastAssistantError.isContext ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 text-muted-foreground")}>
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="size-3.5 shrink-0 text-muted-foreground" />
-                  <p className="flex-1 min-w-0 text-muted-foreground break-all line-clamp-2">{lastAssistantErrorMessage}</p>
-                  <button
-                    onClick={handleCreate}
-                    disabled={create.isPending}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md text-foreground hover:bg-muted transition-colors shrink-0"
-                  >
+                  <AlertCircle className="size-3.5 shrink-0" />
+                  <p className="flex-1 min-w-0 break-all line-clamp-2">{lastAssistantError.message}</p>
+                  <button onClick={handleCreate} disabled={create.isPending} className="flex items-center gap-1 px-2 py-1 rounded-md transition-colors shrink-0 hover:bg-black/10">
                     {create.isPending ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />}
                     <span>New session</span>
                   </button>
                 </div>
-                <p className="text-muted-foreground/50 mt-1 pl-5">or revert your last message</p>
+                {!lastAssistantError.isContext && <p className="text-muted-foreground/50 mt-1 pl-5">or revert your last message</p>}
               </div>
             )}
             <ChatInput
