@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { authClient } from "@/lib/auth-client";
 import { useDeployProject, useRenameProject } from "@/queries/projects";
 import DeployDialog from "@/components/deploy-dialog";
+import PaywallDialog from "@/components/autumn/paywall-dialog";
 import { useCustomer } from "autumn-js/react";
 
 interface User {
@@ -48,7 +49,9 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
   const [editName, setEditName] = useState("");
   const deployProject = useDeployProject();
   const renameProject = useRenameProject();
-  const { customer } = useCustomer();
+  const { customer, check } = useCustomer();
+  const [isCheckingAccess, setIsCheckingAccess] = useState(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
 
   useEffect(() => {
     authClient.getSession().then(({ data }) => {
@@ -97,6 +100,25 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
     }
     setIsDeploying(false);
   }, [deployProject, isDeploying, projectId]);
+
+  const handlePublishClick = useCallback(async () => {
+    if (!projectId || isCheckingAccess) return;
+    
+    setIsCheckingAccess(true);
+    try {
+      const { data } = check({ featureId: "publish_your_app" });
+      
+      if (data?.allowed) {
+        setIsDialogOpen(true);
+      } else {
+        setIsPaywallOpen(true);
+      }
+    } catch {
+      // If check fails, allow user to proceed (fail open)
+      setIsDialogOpen(true);
+    }
+    setIsCheckingAccess(false);
+  }, [projectId, isCheckingAccess, check]);
 
   const handleSignOut = async () => {
     await authClient.signOut();
@@ -170,11 +192,11 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
               <Button
                 size="sm"
                 className="bg-brand hover:bg-brand/90 text-brand-foreground"
-                onClick={() => setIsDialogOpen(true)}
-                disabled={!projectId || isDeploying || isInProgress}
+                onClick={handlePublishClick}
+                disabled={!projectId || isDeploying || isInProgress || isCheckingAccess}
               >
                 <Rocket className="h-4 w-4" />
-                {isInProgress ? "Publishing..." : status === "deployed" ? "Republish" : "Publish"}
+                {isCheckingAccess ? "Checking..." : isInProgress ? "Publishing..." : status === "deployed" ? "Republish" : "Publish"}
               </Button>
             </TooltipTrigger>
             {errorMsg && <TooltipContent>{errorMsg}</TooltipContent>}
@@ -227,6 +249,12 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
         defaultName={deploymentName}
         onConfirm={handleConfirmDeploy}
         isSubmitting={isDeploying}
+      />
+
+      <PaywallDialog
+        open={isPaywallOpen}
+        setOpen={setIsPaywallOpen}
+        featureId="publish_your_app"
       />
     </>
   );
