@@ -120,7 +120,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     ? storedSessionId
     : sessions[0]?.id;
   const busy = revert.isPending || unrevert.isPending;
-  const { messages, parts, session, connected, status, loading } = useAgentStream({ projectId, sessionId: activeId });
+  const { messages, parts, permissions, session, connected, status, loading } = useAgentStream({ projectId, sessionId: activeId });
   const working = status?.type !== undefined && status.type !== "idle";
 
   // Auto-scroll setup
@@ -137,7 +137,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     if (stickRef.current && viewportRef.current) {
       viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: "smooth" });
     }
-  }, [messages.length]);
+  }, [messages.length, permissions.length]);
 
   // Seed initial prompt: wait for SSE connected, then send
   useEffect(() => {
@@ -307,9 +307,11 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
                 </div>
               ) : messages.length ? (
                 <AgentThread
+                  projectId={projectId}
                   sessionId={activeId!}
                   messages={messages}
                   partsMap={parts}
+                  permissions={permissions}
                   onRevert={handleRevert}
                   revertMessageId={session?.revert?.messageID}
                   reverting={busy}

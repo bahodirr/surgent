@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import type { Message, Part, ToolPart, TextPart, ReasoningPart, FileDiff, FilePart } from "@opencode-ai/sdk";
+import type { Message, Part, ToolPart, TextPart, ReasoningPart, FileDiff, FilePart, Permission } from "@opencode-ai/sdk";
 import { ChevronDown, Undo2, CheckCircle2, Eye, FileText, FilePenLine, Trash2, Terminal, Search, Globe, ListTodo, Play, Loader2, AlertCircle } from "lucide-react";
 import { ShimmeringText } from "@/components/ui/shimmer-text";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Markdown } from "@/components/ui/markdown";
+import { useRespondPermission } from "@/queries/chats";
+
+type PermissionResponse = "once" | "always" | "reject";
 
 // Tool configs
 const TOOLS: Record<string, { icon: React.ElementType; done: string; doing: string }> = {
@@ -36,38 +39,110 @@ function getTarget(part: ToolPart): string | undefined {
   if (part.tool === "webfetch") try { return new URL(String(input.url)).hostname; } catch { return String(input.url); }
 }
 
+function PermissionPrompt({
+  permission,
+  onRespond,
+  responding,
+  error,
+}: {
+  permission: Permission;
+  onRespond: (response: PermissionResponse) => void;
+  responding: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="rounded-lg border overflow-hidden bg-muted/30">
+      <div className="flex items-center gap-2 px-3 h-8 border-b">
+        <AlertCircle className="size-3 text-primary shrink-0" />
+        <span className="text-xs font-medium">Permission required</span>
+      </div>
+      <div className="px-3 py-2 text-[11px] text-muted-foreground break-all">
+        {permission.title}
+      </div>
+      <div className="flex items-stretch h-8 border-t bg-muted/40">
+        <button
+          onClick={() => onRespond("once")}
+          disabled={responding}
+          className="flex-1 flex items-center justify-center gap-1 text-xs text-primary font-medium bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+        >
+          {responding && <Loader2 className="size-3 animate-spin" />}
+          Allow
+        </button>
+        <button
+          onClick={() => onRespond("always")}
+          disabled={responding}
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs border-l bg-background hover:bg-muted disabled:opacity-50 transition-colors"
+        >
+          <span className="size-1.5 rounded-full bg-emerald-500" />
+          Always Allow
+        </button>
+        <button
+          onClick={() => onRespond("reject")}
+          disabled={responding}
+          className="flex-1 flex items-center justify-center text-xs text-muted-foreground border-l hover:bg-muted/50 disabled:opacity-50 transition-colors"
+        >
+          Reject
+        </button>
+      </div>
+      {error && <div className="px-3 py-1.5 text-[11px] text-destructive border-t">{error}</div>}
+    </div>
+  );
+}
+
 // Components
-function Tool({ part }: { part: ToolPart }) {
+function Tool({
+  part,
+  permission,
+  onRespondPermission,
+  responding,
+  respondError,
+}: {
+  part: ToolPart;
+  permission?: Permission;
+  onRespondPermission?: (permission: Permission, response: PermissionResponse) => void;
+  responding?: boolean;
+  respondError?: string;
+}) {
   const cfg = TOOLS[part.tool] || { icon: FileText, done: part.tool, doing: "Working..." };
   const Icon = cfg.icon;
   const target = getTarget(part);
   const running = part.state.status === "running" || part.state.status === "pending";
   const error = part.state.status === "error";
 
-  if (running) return (
+  const status = running ? (
     <div className="flex items-center gap-1 sm:gap-1.5 py-0.5 sm:py-1 text-[11px] sm:text-sm text-muted-foreground flex-wrap min-w-0">
       <ShimmeringText text={cfg.doing} duration={0.4} className="text-[11px] sm:text-sm" />
       {target && <code className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs truncate max-w-24 sm:max-w-48">{target}</code>}
     </div>
-  );
-
-  if (error) return (
+  ) : error ? (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="py-0.5 text-[11px] sm:text-xs text-muted-foreground/60 cursor-help truncate">Skipped {target || cfg.done}</div>
       </TooltipTrigger>
       <TooltipContent><p className="text-xs">{part.state.status === "error" ? String(part.state.error) : "Failed"}</p></TooltipContent>
     </Tooltip>
-  );
-
-    return (
+  ) : (
     <div className="flex items-center gap-1 py-0.5 sm:py-1 text-[11px] sm:text-sm text-muted-foreground flex-wrap min-w-0">
       <Icon className="size-2.5 sm:size-3.5 shrink-0" />
       <span>{cfg.done}</span>
       {target && <code className="px-1 py-0.5 bg-muted rounded text-[10px] sm:text-xs truncate max-w-24 sm:max-w-48">{target}</code>}
       </div>
     );
-  }
+
+  return (
+    <div className={permission ? "space-y-2" : undefined}>
+      {status}
+      {permission && onRespondPermission ? (
+        <PermissionPrompt
+          permission={permission}
+          onRespond={(response) => onRespondPermission(permission, response)}
+          responding={responding === true}
+          error={respondError}
+        />
+      ) : null}
+    </div>
+  );
+}
 
 function Todos({ part }: { part: ToolPart }) {
   const loading = part.state.status === "running" || part.state.status === "pending";
@@ -170,10 +245,12 @@ function ApiError({ message }: { message: string }) {
 }
 
 // Main
-export function AgentThread({ messages, partsMap, onRevert, revertMessageId, reverting, revertingMessageId, onViewChanges, isWorking }: {
+export function AgentThread({ projectId, sessionId, messages, partsMap, permissions, onRevert, revertMessageId, reverting, revertingMessageId, onViewChanges, isWorking }: {
+  projectId?: string;
   sessionId: string;
   messages: Message[];
   partsMap: Record<string, Part[]>;
+  permissions?: Permission[];
   onRevert?: (id: string) => void;
   revertMessageId?: string;
   reverting?: boolean;
@@ -182,9 +259,53 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
   isWorking?: boolean;
 }) {
   const [openThoughts, setOpenThoughts] = useState<Record<string, boolean>>({});
+  const [permissionErrors, setPermissionErrors] = useState<Record<string, string>>({});
+  const respondPermission = useRespondPermission(projectId, sessionId);
 
   const visible = revertMessageId ? messages.filter(m => m.id < revertMessageId) : messages;
   const userMessages = visible.filter(m => m.role === "user");
+
+  const permissionByCallId = useMemo(() => {
+    const map = new Map<string, Permission>();
+    (permissions ?? []).forEach((p) => {
+      if (p.callID) map.set(p.callID, p);
+    });
+    return map;
+  }, [permissions]);
+
+  const unmatchedPermissions = useMemo(() => {
+    if (!permissions?.length) return [];
+    const callIds = new Set<string>();
+    visible.forEach((m) => {
+      (partsMap[m.id] ?? []).forEach((p) => {
+        if (p.type !== "tool") return;
+        const toolPart = p as ToolPart;
+        if (toolPart.tool === "todoread") return;
+        if (toolPart.callID) callIds.add(toolPart.callID);
+      });
+    });
+    return permissions.filter((p) => !p.callID || !callIds.has(p.callID));
+  }, [partsMap, permissions, visible]);
+
+  const respondToPermission = (permission: Permission, response: PermissionResponse) => {
+    if (!projectId) return;
+    setPermissionErrors((s) => {
+      if (!s[permission.id]) return s;
+      const { [permission.id]: _ignored, ...rest } = s;
+      return rest;
+    });
+    respondPermission.mutate(
+      { permissionId: permission.id, response },
+      {
+        onError: (err) => {
+          setPermissionErrors((s) => ({
+            ...s,
+            [permission.id]: err instanceof Error ? err.message : String(err),
+          }));
+        },
+      }
+    );
+  };
 
   const getText = (m: Message) => {
     let text = "";
@@ -222,11 +343,34 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
     }
     if (p.type === "tool") {
       const toolPart = p as ToolPart;
+      const permission = toolPart.callID ? permissionByCallId.get(toolPart.callID) : undefined;
       // Hide todoread like opencode does
       if (toolPart.tool === "todoread") return null;
       // Render todowrite with Todos component
-      if (toolPart.tool === "todowrite") return <Todos key={p.id} part={toolPart} />;
-      return <Tool key={p.id} part={toolPart} />;
+      if (toolPart.tool === "todowrite") {
+        if (!permission) return <Todos key={p.id} part={toolPart} />;
+        return (
+          <div key={p.id} className="space-y-2">
+            <Todos part={toolPart} />
+            <PermissionPrompt
+              permission={permission}
+              onRespond={(response) => respondToPermission(permission, response)}
+              responding={respondPermission.isPending && respondPermission.variables?.permissionId === permission.id}
+              error={permissionErrors[permission.id]}
+            />
+          </div>
+        );
+      }
+      return (
+        <Tool
+          key={p.id}
+          part={toolPart}
+          permission={permission}
+          onRespondPermission={respondToPermission}
+          responding={respondPermission.isPending && respondPermission.variables?.permissionId === permission?.id}
+          respondError={permission ? permissionErrors[permission.id] : undefined}
+        />
+      );
     }
     if (p.type === "file") return <div key={p.id} className="flex gap-1 py-1"><FileThumb file={p as FilePart} /></div>;
     if (p.type === "step-start" || p.type === "step-finish") return null;
@@ -294,6 +438,16 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
               })}
 
               {timeline.map(renderPart)}
+
+              {isLast && unmatchedPermissions.map((permission) => (
+                <PermissionPrompt
+                  key={permission.id}
+                  permission={permission}
+                  onRespond={(response) => respondToPermission(permission, response)}
+                  responding={respondPermission.isPending && respondPermission.variables?.permissionId === permission.id}
+                  error={permissionErrors[permission.id]}
+                />
+              ))}
 
               {showPlanning && (
                 <ShimmeringText text="Working..." duration={0.4} className="text-xs sm:text-sm text-muted-foreground py-1" />

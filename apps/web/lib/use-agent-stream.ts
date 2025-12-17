@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useReducer, useRef } from "react";
-import type { Event, Message, Part, Session } from "@opencode-ai/sdk";
+import type { Event, Message, Part, Permission, Session } from "@opencode-ai/sdk";
 import { backendBaseUrl, http } from "@/lib/http";
 
 type State = {
   messages: Message[];
   parts: Record<string, Part[]>;
+  permissions: Permission[];
   session?: Session;
   status?: { type: string; [key: string]: unknown };
   lastAt: number;
@@ -16,7 +17,7 @@ type State = {
 
 type StreamEvent = Event | { type: string; properties?: Record<string, any> };
 
-const initialState: State = { messages: [], parts: {}, lastAt: 0, connected: false, loading: false };
+const initialState: State = { messages: [], parts: {}, permissions: [], lastAt: 0, connected: false, loading: false };
 
 function upsertMessage(list: Message[], incoming: Message): Message[] {
   const idx = list.findIndex((m) => m.id === incoming.id);
@@ -41,13 +42,21 @@ function upsertPart(list: Part[] | undefined, incoming: Part): Part[] {
   return [...list.slice(0, idx), merged, ...list.slice(idx + 1)];
 }
 
+function upsertPermission(list: Permission[] | undefined, incoming: Permission): Permission[] {
+  if (!list) return [incoming];
+  const idx = list.findIndex((p) => p.id === incoming.id);
+  if (idx === -1) return [...list, incoming];
+  const merged = { ...list[idx], ...incoming } as Permission;
+  return [...list.slice(0, idx), merged, ...list.slice(idx + 1)];
+}
+
 function reducer(state: State, event: StreamEvent, currentSessionId?: string): State {
   const props = (event as any).properties;
   const now = Date.now();
   
   if (!props) {
     if (event.type === "session.deleted") {
-      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, lastAt: now, loading: true };
+      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, permissions: [], lastAt: now, loading: true };
     }
     if (event.type === "connection.closed") {
       return { ...state, connected: false, lastAt: now };
@@ -80,7 +89,7 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     }
     case "session.deleted": {
       if (props.sessionID !== currentSessionId) return state;
-      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, lastAt: now };
+      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, permissions: [], lastAt: now };
     }
     case "message.updated": {
       const info = props.info as Message;
@@ -114,6 +123,15 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     case "session.idle": {
       if (props.sessionID !== currentSessionId) return state;
       return { ...state, status: { type: "idle" }, lastAt: now };
+    }
+    case "permission.updated": {
+      const permission = props as Permission;
+      if (permission.sessionID !== currentSessionId) return state;
+      return { ...state, permissions: upsertPermission(state.permissions, permission), lastAt: now };
+    }
+    case "permission.replied": {
+      if (props.sessionID !== currentSessionId) return state;
+      return { ...state, permissions: state.permissions.filter((p) => p.id !== props.permissionID), lastAt: now };
     }
     default:
       return state;
