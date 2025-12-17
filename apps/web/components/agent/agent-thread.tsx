@@ -234,7 +234,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
     if (p.type === "text") {
       const content = (p as TextPart).text?.trim();
       if (!content) return null;
-      return <Markdown key={p.id} className="prose prose-sm max-w-none dark:prose-invert break-words overflow-x-auto [&_p]:text-[13px] [&_p]:sm:text-sm [&_li]:text-[13px] [&_li]:sm:text-sm">{content}</Markdown>;
+      return <Markdown key={p.id} className="prose prose-sm max-w-none dark:prose-invert break-words [&_p]:text-[13px] [&_p]:sm:text-sm [&_li]:text-[13px] [&_li]:sm:text-sm">{content}</Markdown>;
     }
     return null;
   };
@@ -265,8 +265,8 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
                   {userFiles.map((fp) => <FileThumb key={fp.id} file={fp} />)}
                 </div>
               )}
-              <div className="relative max-w-[90%] sm:max-w-[80%] md:max-w-[70%] rounded-xl bg-muted/50 border px-2.5 sm:px-3 py-2">
-                <div className="whitespace-pre-wrap text-sm sm:text-[15px] pr-5 sm:pr-6 break-words">
+              <div className="relative max-w-[90%] sm:max-w-[80%] md:max-w-[70%] rounded-xl bg-muted/50 border px-2.5 sm:px-3 py-2 overflow-hidden">
+                <div className="whitespace-pre-wrap text-sm sm:text-[15px] pr-5 sm:pr-6 break-all">
                   {text || <span className="text-muted-foreground italic">Sending...</span>}
                 </div>
                 {onRevert && text && (

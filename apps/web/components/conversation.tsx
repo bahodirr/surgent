@@ -291,7 +291,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
       <div className="flex flex-col flex-1 min-h-0">
         <div ref={scrollRef} className="flex-1 min-h-0">
           <ScrollArea className="h-full">
-            <div className="max-w-3xl mx-auto px-2 py-4 @md/conversation:px-4 @md/conversation:py-6">
+            <div className="max-w-3xl mx-auto px-2 py-4 @md/conversation:px-4 @md/conversation:py-6 overflow-hidden">
               {loading ? (
                 <div className="flex items-center justify-center min-h-[300px]">
                   <Loader2 className="size-6 animate-spin text-muted-foreground" />

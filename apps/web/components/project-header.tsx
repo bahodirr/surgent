@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Users, Rocket, CreditCard, Pencil } from "lucide-react";
+import { ArrowLeft, Users, Rocket, CreditCard, Pencil, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -154,6 +154,16 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
               <span className={`h-2 w-2 rounded-full ${status === "deployed" ? "bg-green-500" : isFailed ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`} />
               {status === "deployed" ? "Live" : isFailed ? "Failed" : isInProgress ? "Deploying" : null}
             </div>
+          )}
+          {status === "deployed" && deploymentName && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => window.open(`https://${deploymentName}.surgent.dev`, "_blank")}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open
+            </Button>
           )}
           <Tooltip>
             <TooltipTrigger asChild>
