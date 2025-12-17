@@ -5,7 +5,8 @@ import type { Session, Message, Part } from '@opencode-ai/sdk'
 
 async function fetchSessions(projectId: string): Promise<Session[]> {
   const data = await http.get(`api/agent/${projectId}/session`).json()
-  return data as Session[]
+  const sessions = data as Session[]
+  return [...sessions].sort((a, b) => (b.time?.updated ?? 0) - (a.time?.updated ?? 0))
 }
 
 async function createSession(projectId: string): Promise<Session> {

@@ -8,7 +8,6 @@ import { useConvexDashboardQuery, type ConvexDashboardCredentials } from '@/quer
 import DiffView from '@/components/diff/diff-view';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { useSandbox } from '@/hooks/use-sandbox';
 import { EmbeddedDashboard } from '@/components/agent/convex-dashboard';
 
 export interface PreviewTab {
@@ -138,8 +137,6 @@ interface PreviewPanelProps {
 }
 
 export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = DEFAULT_TABS, activeTabId = 'preview', onTabChange, onCloseTab }: PreviewPanelProps) {
-  const connected = useSandbox(s => s.connected);
-  
   const activeTab = tabs.find(t => t.id === activeTabId);
   const hasConvex = Boolean((project?.metadata as any)?.convex);
   const isConvexTabActive = activeTab?.type === 'convex';
@@ -152,7 +149,8 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
 
   const proxyHost = process.env.NEXT_PUBLIC_PROXY_URL;
   const sandboxId = project?.sandbox?.id;
-  const isReady = sandboxId && proxyHost && connected;
+  // Preview availability should not depend on SSE connectivity.
+  const isReady = Boolean(sandboxId && proxyHost);
   const previewUrl = isReady ? `https://3000-${sandboxId}.${proxyHost}` : undefined;
 
   const [currentUrl, setCurrentUrl] = useState('');

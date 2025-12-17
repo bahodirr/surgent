@@ -51,6 +51,9 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     if (event.type === "connection.closed") {
       return { ...state, connected: false, lastAt: now };
     }
+    if (event.type === "server.connected") {
+      return { ...state, connected: true, lastAt: now };
+    }
     return { ...state, lastAt: now };
   }
   
@@ -59,14 +62,14 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     case "batch.load": {
       const items = props.messages as Array<{ info: Message; parts: Part[] }>;
       if (!items?.length) return state;
-      const messages: Message[] = [];
-      const parts: Record<string, Part[]> = {};
+      let messages = state.messages;
+      const parts: Record<string, Part[]> = { ...state.parts };
       for (const { info, parts: msgParts } of items) {
         if (info.sessionID !== currentSessionId) continue;
-        messages.push(info);
-        if (msgParts?.length) parts[info.id] = msgParts;
+        messages = upsertMessage(messages, info);
+        // Overwrite even if empty to avoid keeping stale parts after resync.
+        if (msgParts !== undefined) parts[info.id] = msgParts;
       }
-      messages.sort((a, b) => a.id.localeCompare(b.id));
       return { ...state, messages, parts, lastAt: now };
     }
     case "session.updated": {
@@ -133,47 +136,31 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
   const queueRef = useRef<StreamEvent[]>([]);
   const rafRef = useRef<number | null>(null);
 
-  // Load initial messages
+  const resync = (pid: string, sid: string) => {
+    http
+      .get(`api/agent/${pid}/session/${sid}/message`, {
+        retry: { limit: 5, statusCodes: [502, 503, 504], delay: () => 1000 },
+      })
+      .json<Array<{ info: Message; parts: Part[] }>>()
+      .then((items) => items?.length && dispatch({ type: "batch.load", properties: { messages: items } } as any))
+      .catch(() => {});
+    http
+      .get(`api/agent/${pid}/session/status`)
+      .json<Record<string, unknown>>()
+      .then((items) => {
+        const status = items?.[sid];
+        if (status) dispatch({ type: "session.status", properties: { sessionID: sid, status } } as any);
+      })
+      .catch(() => {});
+  };
+
+  // Clear state on session change, initial load handled by SSE onopen
   useEffect(() => {
     if (!projectId || !sessionId) return;
-    
     if (currentSessionRef.current !== sessionId) {
       dispatch({ type: "session.deleted" } as any);
       currentSessionRef.current = sessionId;
     }
-
-    const controller = new AbortController();
-
-    http.get(`api/agent/${projectId}/session/${sessionId}/message`, {
-      signal: controller.signal,
-      retry: { limit: 5, statusCodes: [502, 503, 504], delay: () => 1000 },
-    })
-      .json<Array<{ info: Message; parts: Part[] }>>()
-      .then((items) => {
-        if (items?.length) {
-          dispatch({ type: "batch.load", properties: { messages: items } } as any);
-        }
-      })
-      .catch(() => {});
-
-    return () => controller.abort();
-  }, [projectId, sessionId]);
-
-  // Load initial status (best-effort, SSE events will also update status)
-  useEffect(() => {
-    if (!projectId || !sessionId) return;
-
-    const controller = new AbortController();
-
-    http.get(`api/agent/${projectId}/session/status`, { signal: controller.signal })
-      .json<Record<string, unknown>>()
-      .then((items) => {
-        const status = items?.[sessionId];
-        if (status) dispatch({ type: "session.status", properties: { sessionID: sessionId, status } } as any);
-      })
-      .catch(() => {});
-
-    return () => controller.abort();
   }, [projectId, sessionId]);
 
   // Subscribe to SSE events
@@ -189,6 +176,8 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
       esRef.current = es;
       es.onopen = () => {
         dispatch({ type: "server.connected" });
+        const sid = sessionIdRef.current;
+        if (sid) resync(projectId, sid);
       };
       es.onmessage = (evt) => {
         try {
@@ -206,7 +195,7 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
       es.onerror = () => {
         dispatch({ type: "connection.closed" });
         es.close();
-        if (!closedRef.current) setTimeout(connect, 2000);
+        if (!closedRef.current) setTimeout(connect, 1000);
       };
     };
     connect();

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { FileDiff, Part, ToolPart, ReasoningPart } from "@opencode-ai/sdk";
+import type { FileDiff } from "@opencode-ai/sdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null);
   const stickRef = useRef(true);
@@ -34,11 +34,12 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const [tab, setTab] = useState<"chat" | "terminal">("chat");
   const [mode, setMode] = useState<"plan" | "build">("build");
   const [diffOpen, setDiffOpen] = useState(false);
-  const [sessionId, setSessionId] = useState<string>();
   const [revertingId, setRevertingId] = useState<string>();
-  // Queries & mutations
+
   const sandboxId = useSandbox(s => s.sandboxId || undefined);
-  const setConnected = useSandbox(s => s.setConnected);
+  const storedSessionId = useSandbox(s => projectId ? s.activeSessionId[projectId] : undefined);
+  const setActiveSession = useSandbox(s => s.setActiveSession);
+
   const { data: sessions = [] } = useSessionsQuery(projectId);
   const create = useCreateSession(projectId);
   const send = useSendMessage(projectId);
@@ -46,15 +47,12 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const revert = useRevertMessage(projectId);
   const unrevert = useUnrevert(projectId);
 
-  const activeId = sessionId || sessions[0]?.id;
+  const activeId = (storedSessionId && sessions.some(s => s.id === storedSessionId))
+    ? storedSessionId
+    : sessions[0]?.id;
   const busy = revert.isPending || unrevert.isPending;
   const { messages, parts, session, connected, status } = useAgentStream({ projectId, sessionId: activeId });
   const working = status?.type !== undefined && status.type !== "idle";
-
-  // Sync connected state to store for preview panel
-  useEffect(() => {
-    setConnected(connected);
-  }, [connected, setConnected]);
 
   // Auto-scroll setup
   useEffect(() => {
@@ -105,7 +103,8 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     finally { setRevertingId(undefined); }
   };
 
-  const handleCreate = () => create.mutateAsync().then(s => s?.id && setSessionId(s.id));
+  const handleCreate = () =>
+    create.mutateAsync().then((s) => s?.id && projectId && setActiveSession(projectId, s.id));
 
   const activeSession = sessions.find(s => s.id === activeId);
 
@@ -157,7 +156,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
           {sessions.map(s => (
             <button
               key={s.id}
-              onClick={() => setSessionId(s.id)}
+              onClick={() => projectId && setActiveSession(projectId, s.id)}
               className={cn(
                 "flex items-center gap-1.5 px-3 sm:px-4 text-sm border-r transition-colors shrink-0 max-w-32 sm:max-w-40",
                 s.id === activeId ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
