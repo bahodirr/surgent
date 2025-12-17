@@ -101,6 +101,8 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const [mode, setMode] = useState<"plan" | "build">("build");
   const [diffOpen, setDiffOpen] = useState(false);
   const [revertingId, setRevertingId] = useState<string>();
+  const [inputValue, setInputValue] = useState("");
+  const lastSentRef = useRef<string>("");
 
   const sandboxId = useSandbox(s => s.sandboxId || undefined);
   const storedSessionId = useSandbox(s => projectId ? s.activeSessionId[projectId] : undefined);
@@ -154,12 +156,19 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
 
   const handleSend = (text: string, files?: FilePart[], model?: string, providerID?: string) => {
     if (!activeId || (!text.trim() && !files?.length) || working) return;
+    lastSentRef.current = text.trim();
+    setInputValue("");
     send.mutate({ sessionId: activeId, text: text.trim(), agent: mode, files, model, providerID });
   };
 
   const handleAbort = () => {
     if (!activeId || !projectId) return;
     abort.mutate({ projectId, sessionId: activeId });
+    // Restore the last sent message back to the input
+    if (lastSentRef.current) {
+      setInputValue(lastSentRef.current);
+      lastSentRef.current = "";
+    }
   };
 
   const handleRevert = async (messageId: string) => {
@@ -335,6 +344,8 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
               isWorking={working}
               onStop={handleAbort}
               isStopping={abort.isPending}
+              value={inputValue}
+              onValueChange={setInputValue}
             />
           </div>
         </div>

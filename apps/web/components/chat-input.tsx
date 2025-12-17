@@ -3,7 +3,7 @@ import { ArrowUp, Paperclip, X, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fileToDataUrl, uploadFile, attachmentsToParts, formatSize, type UploadingAttachment, type FilePart } from "@/lib/upload";
+import { fileToDataUrl, uploadFile, attachmentsToParts, type UploadingAttachment, type FilePart } from "@/lib/upload";
 
 export type { FilePart };
 
@@ -17,6 +17,9 @@ type Props = {
   isWorking?: boolean;
   onStop?: () => void;
   isStopping?: boolean;
+  /** Controlled value (optional) */
+  value?: string;
+  onValueChange?: (value: string) => void;
 };
 
 const TIERS = {
@@ -26,8 +29,10 @@ const TIERS = {
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anything...", className, mode = "plan", onToggleMode, isWorking, onStop, isStopping }: Props) {
-  const [value, setValue] = useState("");
+export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anything...", className, mode = "plan", onToggleMode, isWorking, onStop, isStopping, value: controlledValue, onValueChange }: Props) {
+  const [internalValue, setInternalValue] = useState("");
+  const value = controlledValue ?? internalValue;
+  const setValue = onValueChange ?? setInternalValue;
   const [tier, setTier] = useState<keyof typeof TIERS>("openai");
   const [attachments, setAttachments] = useState<UploadingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -102,12 +107,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
     if ((!value.trim() && !attachments.length) || disabled || hasUploading) return;
 
     const fileParts = attachmentsToParts(attachments);
-    
-    // Build message with image info prepended
-    const imageInfo = fileParts
-      .map((f, i) => `${i + 1}. Image ${f.filename} (${formatSize(f.size)}) ${f.url}`)
-      .join("\n");
-    const text = imageInfo ? `${imageInfo}\n\n${value.trim()}` : value.trim();
+    const text = value.trim();
 
     setValue("");
     setAttachments([]);

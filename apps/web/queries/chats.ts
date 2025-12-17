@@ -19,6 +19,7 @@ type FilePartInput = {
   mime: string
   filename: string
   url: string
+  size: number
 }
 
 async function sendMessage(
@@ -30,11 +31,11 @@ async function sendMessage(
   model?: string,
   providerID?: string
 ): Promise<Message> {
-  const parts: Array<{ type: string; text?: string; mime?: string; filename?: string; url?: string }> = []
+  const parts: Array<{ type: string; text?: string; mime?: string; filename?: string; url?: string; size?: number }> = []
 
   if (files?.length) {
     for (const file of files) {
-      parts.push({ type: 'file', mime: file.mime, filename: file.filename, url: file.url })
+      parts.push({ type: 'file', mime: file.mime, filename: file.filename, url: file.url, size: file.size })
     }
   }
 
@@ -42,7 +43,17 @@ async function sendMessage(
     parts.push({ type: 'text', text })
   }
 
-  const body: Record<string, unknown> = { agent, parts }
+  const system =
+    files?.length
+      ? [
+          'Image URLs:',
+          ...files
+            .filter((f) => f.mime.startsWith('image/'))
+            .map((f, i) => `${i + 1}. ${f.filename}: ${f.url}`),
+        ].join('\n')
+      : undefined
+
+  const body: Record<string, unknown> = { agent, parts, system }
 
   if (model && model.trim()) {
     body.model = { providerID, modelID: model }
