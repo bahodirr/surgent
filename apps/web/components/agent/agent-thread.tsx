@@ -162,9 +162,9 @@ function Changes({ diffs, onView }: { diffs: FileDiff[]; onView: () => void }) {
 
 function ApiError({ message }: { message: string }) {
   return (
-    <div className="flex items-center gap-1 sm:gap-2 py-1 sm:py-2 text-[11px] sm:text-sm text-destructive min-w-0">
-      <AlertCircle className="size-3 sm:size-4 shrink-0" />
-      <span className="break-words min-w-0">{message}</span>
+    <div className="flex items-start gap-2 py-2 px-3 rounded-lg border bg-muted/50 text-muted-foreground text-xs sm:text-sm">
+      <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+      <p className="min-w-0 break-all">{message}</p>
     </div>
   );
 }
@@ -234,7 +234,7 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
     if (p.type === "text") {
       const content = (p as TextPart).text?.trim();
       if (!content) return null;
-      return <Markdown key={p.id} className="prose prose-sm max-w-none dark:prose-invert break-words [&_p]:text-[13px] [&_p]:sm:text-sm [&_li]:text-[13px] [&_li]:sm:text-sm">{content}</Markdown>;
+      return <Markdown key={p.id} className="[&_p]:text-[13px] [&_p]:sm:text-sm [&_li]:text-[13px] [&_li]:sm:text-sm">{content}</Markdown>;
     }
     return null;
   };
@@ -284,11 +284,13 @@ export function AgentThread({ messages, partsMap, onRevert, revertMessageId, rev
 
             {/* Assistant content */}
             <div className="space-y-1 overflow-x-hidden">
-              {/* API errors */}
+              {/* API errors (skip abort errors - user initiated) */}
               {assistants.map((m) => {
-                const err = (m as any).info?.error;
+                const err = (m as any).error || (m as any).info?.error;
                 if (!err) return null;
-                return <ApiError key={m.id} message={err.data?.message || err.name || "Request failed"} />;
+                const msg = err.data?.message || err.message || err.name || "Request failed";
+                if (msg.toLowerCase().includes("abort")) return null;
+                return <ApiError key={m.id} message={msg} />;
               })}
 
               {timeline.map(renderPart)}

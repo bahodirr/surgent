@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import type { FileDiff } from "@opencode-ai/sdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { http } from "@/lib/http";
-import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, WifiOff, History, Check } from "lucide-react";
+import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, History, Check, AlertCircle } from "lucide-react";
 import ChatInput, { type FilePart } from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -186,6 +187,10 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
 
   const assistantMessages = messages.filter((m) => m.role === "assistant");
   const lastAssistant = assistantMessages[assistantMessages.length - 1];
+  const lastAssistantError = (lastAssistant as any)?.error || (lastAssistant as any)?.info?.error;
+  const rawErrorMessage = lastAssistantError?.data?.message || lastAssistantError?.message || lastAssistantError?.name;
+  // Skip abort errors (user initiated stop)
+  const lastAssistantErrorMessage = rawErrorMessage?.toLowerCase().includes("abort") ? undefined : rawErrorMessage;
   const ctxTokens =
     lastAssistant && "tokens" in lastAssistant ? lastAssistant.tokens.input + lastAssistant.tokens.cache.read : 0;
   const costSpent = assistantMessages.reduce((sum, m) => sum + ("cost" in m ? m.cost : 0), 0);
@@ -271,19 +276,23 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         <div className="h-8 flex items-center px-3 gap-2 min-w-0 text-xs">
           {connected ? (
             <>
-              <span className="max-w-44 font-medium truncate @md/conversation:max-w-80">{sessionName}</span>
+              <span className="font-medium truncate max-w-32 @md/conversation:max-w-64">{sessionName}</span>
               <span className="text-muted-foreground">·</span>
-              <span className="flex-1 text-muted-foreground tabular-nums truncate">
-                Context: <span className="text-foreground font-medium">{shownTokens?.toLocaleString() ?? "—"}</span> tokens / {shownPct ?? "—"}% ·{" "}
-                <span className="text-foreground font-medium">${shownCost.toFixed(2)}</span>
+              <span className="text-muted-foreground tabular-nums">
+                {shownTokens?.toLocaleString() ?? "—"} tokens
+                {shownPct !== undefined && <span className="hidden @md/conversation:inline"> / {shownPct}%</span>}
               </span>
+              <span className="text-muted-foreground">·</span>
+              <span className="font-medium">${shownCost.toFixed(2)}</span>
             </>
           ) : projectId ? (
-            <span className="flex items-center gap-1 text-amber-500">
-              <WifiOff className="size-3.5" />Connecting...
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" />
+              Connecting...
             </span>
           ) : null}
         </div>
+
       </header>
 
       {/* Chat */}
@@ -335,6 +344,23 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
             </div>
           )}
           <div className="max-w-3xl mx-auto">
+            {lastAssistantErrorMessage && (
+              <div className="mb-2 px-3 py-2 rounded-lg border bg-muted/50 text-xs">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="size-3.5 shrink-0 text-muted-foreground" />
+                  <p className="flex-1 min-w-0 text-muted-foreground break-all line-clamp-2">{lastAssistantErrorMessage}</p>
+                  <button
+                    onClick={handleCreate}
+                    disabled={create.isPending}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md text-foreground hover:bg-muted transition-colors shrink-0"
+                  >
+                    {create.isPending ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />}
+                    <span>New session</span>
+                  </button>
+                </div>
+                <p className="text-muted-foreground/50 mt-1 pl-5">or revert your last message</p>
+              </div>
+            )}
             <ChatInput
               onSubmit={handleSend}
               disabled={!connected || working || busy}
