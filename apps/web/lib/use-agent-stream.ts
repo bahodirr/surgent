@@ -11,11 +11,12 @@ type State = {
   status?: { type: string; [key: string]: unknown };
   lastAt: number;
   connected: boolean;
+  loading: boolean;
 };
 
 type StreamEvent = Event | { type: string; properties?: Record<string, any> };
 
-const initialState: State = { messages: [], parts: {}, lastAt: 0, connected: false };
+const initialState: State = { messages: [], parts: {}, lastAt: 0, connected: false, loading: false };
 
 function upsertMessage(list: Message[], incoming: Message): Message[] {
   const idx = list.findIndex((m) => m.id === incoming.id);
@@ -46,7 +47,7 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
   
   if (!props) {
     if (event.type === "session.deleted") {
-      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, lastAt: now };
+      return { ...state, session: undefined, status: undefined, messages: [], parts: {}, lastAt: now, loading: true };
     }
     if (event.type === "connection.closed") {
       return { ...state, connected: false, lastAt: now };
@@ -61,7 +62,7 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
     // Batch load for initial messages - single dispatch instead of N+M
     case "batch.load": {
       const items = props.messages as Array<{ info: Message; parts: Part[] }>;
-      if (!items?.length) return state;
+      if (!items?.length) return { ...state, loading: false, lastAt: now };
       let messages = state.messages;
       const parts: Record<string, Part[]> = { ...state.parts };
       for (const { info, parts: msgParts } of items) {
@@ -70,7 +71,7 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
         // Overwrite even if empty to avoid keeping stale parts after resync.
         if (msgParts !== undefined) parts[info.id] = msgParts;
       }
-      return { ...state, messages, parts, lastAt: now };
+      return { ...state, messages, parts, lastAt: now, loading: false };
     }
     case "session.updated": {
       const info = props.info as Session;
@@ -142,8 +143,8 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
         retry: { limit: 5, statusCodes: [502, 503, 504], delay: () => 1000 },
       })
       .json<Array<{ info: Message; parts: Part[] }>>()
-      .then((items) => items?.length && dispatch({ type: "batch.load", properties: { messages: items } } as any))
-      .catch(() => {});
+      .then((items) => dispatch({ type: "batch.load", properties: { messages: items ?? [] } } as any))
+      .catch(() => dispatch({ type: "batch.load", properties: { messages: [] } } as any));
     http
       .get(`api/agent/${pid}/session/status`)
       .json<Record<string, unknown>>()
@@ -154,12 +155,13 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
       .catch(() => {});
   };
 
-  // Clear state on session change, initial load handled by SSE onopen
+  // Clear state and resync on session change
   useEffect(() => {
     if (!projectId || !sessionId) return;
     if (currentSessionRef.current !== sessionId) {
       dispatch({ type: "session.deleted" } as any);
       currentSessionRef.current = sessionId;
+      resync(projectId, sessionId);
     }
   }, [projectId, sessionId]);
 

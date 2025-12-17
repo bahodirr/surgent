@@ -2,11 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
 import type { FileDiff } from "@opencode-ai/sdk";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, WifiOff } from "lucide-react";
+import { http } from "@/lib/http";
+import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, WifiOff, History, Check } from "lucide-react";
 import ChatInput, { type FilePart } from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -21,10 +30,67 @@ export interface ConversationProps {
   onViewChanges?: (diffs: FileDiff[], messageId?: string) => void;
 }
 
+type ProviderList = {
+  all: Array<{ id: string; models: Record<string, { limit?: { context: number } }> }>;
+};
+
+const formatTitle = (title: string) => {
+  const isoMatch = title.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  if (!isoMatch) return title;
+  try {
+    return format(parseISO(isoMatch[0]), "MMM d HH:mm");
+  } catch {
+    return title;
+  }
+};
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1 px-2.5 text-sm border-r transition-colors shrink-0 @md/conversation:gap-2 @md/conversation:px-4",
+        active ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ActionButton({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex items-center gap-1 px-2.5 text-sm border-l transition-colors shrink-0 @md/conversation:gap-2 @md/conversation:px-4",
+        disabled ? "opacity-50 cursor-not-allowed" : "text-muted-foreground hover:bg-muted/50"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[400px] text-center px-4">
+      <div className="rounded-full bg-muted p-3 sm:p-4 mb-3 sm:mb-4">
+        <MessageCircle className="size-6 sm:size-8 text-muted-foreground" strokeWidth={1.5} />
+      </div>
+      <p className="font-medium text-sm sm:text-base">No messages yet</p>
+      <p className="text-xs sm:text-sm text-muted-foreground">Start a conversation</p>
+    </div>
+  );
+}
+
 export default function Conversation({ projectId, initialPrompt, onViewChanges }: ConversationProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const usageRef = useRef<{ ctxTokens: number; contextPct?: number; costSpent: number } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null);
@@ -51,7 +117,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     ? storedSessionId
     : sessions[0]?.id;
   const busy = revert.isPending || unrevert.isPending;
-  const { messages, parts, session, connected, status } = useAgentStream({ projectId, sessionId: activeId });
+  const { messages, parts, session, connected, status, loading } = useAgentStream({ projectId, sessionId: activeId });
   const working = status?.type !== undefined && status.type !== "idle";
 
   // Auto-scroll setup
@@ -106,72 +172,108 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const handleCreate = () =>
     create.mutateAsync().then((s) => s?.id && projectId && setActiveSession(projectId, s.id));
 
-  const activeSession = sessions.find(s => s.id === activeId);
+  const activeSession = sessions.find((s) => s.id === activeId);
+  const sessionName = formatTitle(session?.title || activeSession?.title || "Untitled");
+
+  const assistantMessages = messages.filter((m) => m.role === "assistant");
+  const lastAssistant = assistantMessages[assistantMessages.length - 1];
+  const ctxTokens =
+    lastAssistant && "tokens" in lastAssistant ? lastAssistant.tokens.input + lastAssistant.tokens.cache.read : 0;
+  const costSpent = assistantMessages.reduce((sum, m) => sum + ("cost" in m ? m.cost : 0), 0);
+
+  const { data: providers } = useQuery<ProviderList>({
+    queryKey: ["providers", projectId],
+    enabled: Boolean(projectId),
+    staleTime: 60_000,
+    queryFn: async () => (await http.get(`api/agent/${projectId}/provider`).json()) as ProviderList,
+  });
+
+  const contextLimit =
+    lastAssistant && "providerID" in lastAssistant && "modelID" in lastAssistant
+      ? providers?.all.find((p) => p.id === lastAssistant.providerID)?.models?.[lastAssistant.modelID]?.limit?.context
+      : undefined;
+  const contextPct = contextLimit ? Math.round((ctxTokens / contextLimit) * 100) : 0;
+
+  useEffect(() => {
+    usageRef.current = null;
+  }, [activeId]);
+
+  useEffect(() => {
+    if (ctxTokens > 0) {
+      usageRef.current = {
+        ctxTokens,
+        contextPct: contextLimit ? contextPct : usageRef.current?.contextPct,
+        costSpent,
+      };
+    }
+  }, [ctxTokens, contextPct, contextLimit, costSpent]);
+
+  const shownTokens = usageRef.current?.ctxTokens || (ctxTokens > 0 ? ctxTokens : undefined);
+  const shownPct = usageRef.current?.contextPct ?? (contextLimit ? contextPct : undefined);
+  const shownCost = usageRef.current?.costSpent ?? costSpent;
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full w-full min-w-0 @container/conversation">
       {/* Header */}
       <header className="flex flex-col border-b bg-muted/30 shrink-0">
-        {/* Top row: Tabs + Actions */}
-        <div className="flex h-10 items-stretch border-b">
-          <button
-            onClick={() => setTab("chat")}
-            className={cn(
-              "flex items-center gap-1 sm:gap-2 px-3 sm:px-4 text-sm border-r transition-colors shrink-0",
-              tab === "chat" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
-            )}
-          >
+        {/* Tabs + Session + Actions */}
+        <div className="flex h-10 items-stretch border-b min-w-0">
+          <TabButton active={tab === "chat"} onClick={() => setTab("chat")}>
             <MessagesSquare className="size-4" />
-            <span className="hidden sm:inline">Chat</span>
-          </button>
-          <button
-            onClick={() => setTab("terminal")}
-            className={cn(
-              "flex items-center gap-1 sm:gap-2 px-3 sm:px-4 text-sm border-r transition-colors shrink-0",
-              tab === "terminal" ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
-            )}
-          >
+            <span className="hidden @md/conversation:inline">Chat</span>
+          </TabButton>
+          <TabButton active={tab === "terminal"} onClick={() => setTab("terminal")}>
             <Terminal className="size-4" />
-            <span className="hidden sm:inline">Terminal</span>
-          </button>
-          <div className="flex-1" />
-          {/* Actions */}
-          <div className="flex items-center gap-1 sm:gap-3 px-2 sm:px-4 shrink-0">
-            {!connected && projectId && (
-              <div className="flex items-center gap-1 sm:gap-2 text-sm text-amber-500">
-                <WifiOff className="size-4" />
-                <span className="hidden sm:inline">Reconnecting...</span>
-              </div>
-            )}
-            {session?.summary?.diffs?.length ? (
-              <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)} className="text-xs sm:text-sm px-2 sm:px-3">
-                <span className="hidden sm:inline">View </span>Diff
-              </Button>
-            ) : null}
-          </div>
-        </div>
+            <span className="hidden @md/conversation:inline">Terminal</span>
+          </TabButton>
 
-        {/* Bottom row: Sessions */}
-        <div className="flex h-9 items-stretch overflow-x-auto scrollbar-none">
-          {sessions.map(s => (
-            <button
-              key={s.id}
-              onClick={() => projectId && setActiveSession(projectId, s.id)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 sm:px-4 text-sm border-r transition-colors shrink-0 max-w-32 sm:max-w-40",
-                s.id === activeId ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
-              )}
-            >
-              <span className="truncate">{s.title || "Untitled"}</span>
-            </button>
-          ))}
-          <button
-            onClick={handleCreate}
-            disabled={create.isPending}
-            className="flex items-center gap-1 px-2 sm:px-3 text-sm text-muted-foreground hover:bg-muted/50 transition-colors shrink-0"
-          >
-            {create.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-          </button>
+          <div className="flex-1" />
+
+          <ActionButton onClick={handleCreate} disabled={create.isPending}>
+            {create.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            <span className="hidden @md/conversation:inline">New session</span>
+          </ActionButton>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center px-2.5 text-sm border-l text-muted-foreground hover:bg-muted/50 @md/conversation:px-4">
+                <History className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64 max-h-72 overflow-y-auto">
+              {sessions.map((s) => (
+                <DropdownMenuItem key={s.id} onClick={() => projectId && setActiveSession(projectId, s.id)} className="gap-2">
+                  {s.id === activeId ? <Check className="size-4" /> : <span className="w-4" />}
+                  <span className="truncate">{formatTitle(s.title || "Untitled")}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {session?.summary?.diffs?.length ? (
+            <div className="flex items-center px-2 @md/conversation:px-4">
+              <Button size="sm" variant="outline" onClick={() => setDiffOpen(true)} className="text-xs px-2 @md/conversation:text-sm @md/conversation:px-3">
+                <span className="hidden @md/conversation:inline">View </span>Diff
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        {/* Context stats */}
+        <div className="h-8 flex items-center px-3 gap-2 min-w-0 text-xs">
+          {connected ? (
+            <>
+              <span className="max-w-44 font-medium truncate @md/conversation:max-w-80">{sessionName}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="flex-1 text-muted-foreground tabular-nums truncate">
+                Context: <span className="text-foreground font-medium">{shownTokens?.toLocaleString() ?? "—"}</span> tokens / {shownPct ?? "—"}% ·{" "}
+                <span className="text-foreground font-medium">${shownCost.toFixed(2)}</span>
+              </span>
+            </>
+          ) : projectId ? (
+            <span className="flex items-center gap-1 text-amber-500">
+              <WifiOff className="size-3.5" />Connecting...
+            </span>
+          ) : null}
         </div>
       </header>
 
@@ -180,8 +282,12 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
       <div className="flex flex-col flex-1 min-h-0">
         <div ref={scrollRef} className="flex-1 min-h-0">
           <ScrollArea className="h-full">
-            <div className="max-w-3xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
-              {messages.length ? (
+            <div className="max-w-3xl mx-auto px-2 py-4 @md/conversation:px-4 @md/conversation:py-6">
+              {loading ? (
+                <div className="flex items-center justify-center min-h-[300px]">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : messages.length ? (
                 <AgentThread
                   sessionId={activeId!}
                   messages={messages}
@@ -194,40 +300,36 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
                   isWorking={working}
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center min-h-[300px] sm:min-h-[400px] text-center px-4">
-                  <div className="rounded-full bg-muted p-3 sm:p-4 mb-3 sm:mb-4">
-                    <MessageCircle className="size-6 sm:size-8 text-muted-foreground" strokeWidth={1.5} />
-                  </div>
-                  <p className="font-medium text-sm sm:text-base">No messages yet</p>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Start a conversation</p>
-                </div>
+                <EmptyState />
               )}
             </div>
           </ScrollArea>
         </div>
 
         {/* Input */}
-        <div className="px-2 sm:px-4 py-2 sm:py-4 shrink-0 relative">
+        <div className="px-2 py-2 shrink-0 relative @md/conversation:px-4 @md/conversation:py-4">
           {session?.revert?.messageID && (
             <div className="absolute -top-10 right-2 sm:right-4 z-10">
-              <Button size="sm" variant="outline" onClick={() => unrevert.mutate({ sessionId: activeId! })} disabled={unrevert.isPending} className="bg-background/90 backdrop-blur-sm shadow-sm text-xs sm:text-sm">
-                {unrevert.isPending ? <><Loader2 className="size-3 sm:size-3.5 mr-1 sm:mr-2 animate-spin" />Restoring...</> : <><RotateCcw className="size-3 sm:size-3.5 mr-1 sm:mr-2" />Restore</>}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => unrevert.mutate({ sessionId: activeId! })}
+                disabled={unrevert.isPending}
+                className="bg-background/90 backdrop-blur-sm shadow-sm text-xs @md/conversation:text-sm"
+              >
+                {unrevert.isPending ? (
+                  <><Loader2 className="size-3 sm:size-3.5 mr-1 sm:mr-2 animate-spin" />Restoring...</>
+                ) : (
+                  <><RotateCcw className="size-3 sm:size-3.5 mr-1 sm:mr-2" />Restore</>
+                )}
               </Button>
             </div>
           )}
           <div className="max-w-3xl mx-auto">
             <ChatInput
               onSubmit={handleSend}
-              disabled={send.isPending || working || busy || !connected || working}
-              placeholder={
-                !connected
-                  ? "Connecting..."
-                  : working
-                    ? "Agent busy, please wait..."
-                    : working
-                      ? "Working..."
-                      : "Ask anything..."
-              }
+              disabled={!connected || working || busy}
+              placeholder={!connected ? "Connecting..." : working ? "Working..." : "Ask anything..."}
               mode={mode}
               onToggleMode={() => setMode(m => m === "plan" ? "build" : "plan")}
               isWorking={working}

@@ -40,9 +40,9 @@ function LoadingState({ icon: Icon, message }: { icon?: typeof Database; message
 // Navigation controls for the tab bar (only shown when preview is active)
 function PreviewNavControls() {
   return (
-    <div className="flex items-center gap-2 px-2">
+    <div className="flex min-w-0 items-center gap-2 px-2">
       <WebPreviewNavButtons />
-      <WebPreviewUrl className="w-[360px] max-w-none" />
+      <WebPreviewUrl className="min-w-0" />
     </div>
   );
 }
@@ -188,7 +188,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
         </div>
         {/* Nav controls on the right - only when preview tab is active and ready */}
         {isPreviewTabActive && isReady && previewUrl && (
-          <div className="shrink-0 flex items-center">
+          <div className="flex min-w-0 items-center">
             <PreviewNavControls />
           </div>
         )}
@@ -235,4 +235,3 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
 
   return renderContent();
 }
-

@@ -3,7 +3,7 @@ import { ArrowUp, Paperclip, X, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fileToDataUrl, filesToParts, type FileAttachment, type FilePart } from "@/lib/upload";
+import { fileToDataUrl, uploadFile, attachmentsToParts, type UploadingAttachment, type FilePart } from "@/lib/upload";
 
 export type { FilePart };
 
@@ -29,8 +29,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anything...", className, mode = "plan", onToggleMode, isWorking, onStop, isStopping }: Props) {
   const [value, setValue] = useState("");
   const [tier, setTier] = useState<keyof typeof TIERS>("openai");
-  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [attachments, setAttachments] = useState<UploadingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -39,13 +38,32 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
     const valid = files.filter(f => f.size <= MAX_FILE_SIZE).slice(0, MAX_FILES - attachments.length);
     if (!valid.length) return;
 
-    const newAttachments: FileAttachment[] = await Promise.all(
+    // Create attachments with uploading state
+    const newAttachments: UploadingAttachment[] = await Promise.all(
       valid.map(async (file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         file,
         preview: file.type.startsWith("image/") ? await fileToDataUrl(file) : undefined,
+        status: "uploading" as const,
       }))
     );
+
     setAttachments(prev => [...prev, ...newAttachments].slice(0, MAX_FILES));
+
+    // Upload each file immediately
+    for (const attachment of newAttachments) {
+      uploadFile(attachment.file)
+        .then((url) => {
+          setAttachments(prev =>
+            prev.map(a => a.id === attachment.id ? { ...a, status: "done", url } : a)
+          );
+        })
+        .catch(() => {
+          setAttachments(prev =>
+            prev.map(a => a.id === attachment.id ? { ...a, status: "error" } : a)
+          );
+        });
+    }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,35 +95,25 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
     addFiles(Array.from(e.dataTransfer.files));
   };
 
-  const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index));
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
   const handleSubmit = async () => {
     const text = value.trim();
-    if ((!text && !attachments.length) || disabled || uploading) return;
+    const hasUploading = attachments.some(a => a.status === "uploading");
+    if ((!text && !attachments.length) || disabled || hasUploading) return;
 
-    let fileParts: FilePart[] | undefined;
-
-    if (attachments.length) {
-      setUploading(true);
-      try {
-        fileParts = await filesToParts(attachments);
-      } catch (err) {
-        console.error("Failed to process files:", err);
-        setUploading(false);
-        return;
-      }
-      setUploading(false);
-    }
+    const fileParts = attachmentsToParts(attachments);
 
     setValue("");
     setAttachments([]);
     const t = TIERS[tier];
-    onSubmit(text, fileParts, t.model, t.provider);
+    onSubmit(text, fileParts.length ? fileParts : undefined, t.model, t.provider);
   };
 
-  const canSubmit = !uploading && !disabled && (value.trim() || attachments.length);
+  const hasUploading = attachments.some(a => a.status === "uploading");
+  const canSubmit = !hasUploading && !disabled && (value.trim() || attachments.length);
 
   return (
     <div
@@ -128,19 +136,29 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
         {/* File previews */}
         {attachments.length > 0 && (
           <div className="flex gap-1 sm:gap-1.5 p-2 sm:p-3 pb-0 flex-wrap">
-            {attachments.map((a, i) => (
-              <div key={i} className="relative group">
+            {attachments.map((a) => (
+              <div key={a.id} className="relative group">
                 <div className="size-8 sm:size-10 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                  {a.preview ? (
-                    <img src={a.preview} alt={a.file.name} className="size-full object-cover" />
+                  {a.url || a.preview ? (
+                    <img src={a.url || a.preview} alt={a.file.name} className="size-full object-cover" />
                   ) : (
                     <div className="size-full flex items-center justify-center">
                       <FileText className="size-3 sm:size-4 text-zinc-400" />
                     </div>
                   )}
+                  {a.status === "uploading" && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <Loader2 className="size-4 text-white animate-spin" />
+                    </div>
+                  )}
+                  {a.status === "error" && (
+                    <div className="absolute inset-0 bg-red-500/40 flex items-center justify-center">
+                      <X className="size-4 text-white" />
+                    </div>
+                  )}
                 </div>
                 <button
-                  onClick={() => removeAttachment(i)}
+                  onClick={() => removeAttachment(a.id)}
                   className="absolute -top-1 -right-1 size-4 rounded-full bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-800 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   <X className="size-2.5" />
@@ -179,7 +197,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
               variant="ghost"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              disabled={attachments.length >= MAX_FILES || uploading}
+              disabled={attachments.length >= MAX_FILES}
               className="size-8 shrink-0 rounded-full text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800"
             >
               <Paperclip className="size-4" />
@@ -236,9 +254,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
                 : "size-8 p-0 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-sm"
             )}
           >
-            {uploading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : isWorking ? (
+            {isWorking ? (
               <span className="flex items-center gap-1.5 text-xs">
                 {isStopping ? <span className="size-2 rounded-full bg-red-600 animate-spin" /> : <span className="size-2 rounded-full bg-red-600 animate-pulse" />}
                 <span className="sr-only">Stop</span>

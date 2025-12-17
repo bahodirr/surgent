@@ -4,6 +4,24 @@ import { requireAuth } from '../middleware/auth'
 
 const upload = new Hono<AppContext>()
 
+// GET /api/upload/<key> - Serve uploaded file from R2 (works even if bucket is not public)
+upload.get('/*', async (c) => {
+  const key = c.req.param('*')
+  if (!key) return c.json({ error: 'No key provided' }, 400)
+
+  console.log('[upload.get]', { key })
+
+  const obj = await c.env.UPLOADS.get(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+
+  const headers = new Headers()
+  obj.writeHttpMetadata(headers)
+  headers.set('etag', obj.httpEtag)
+  headers.set('cache-control', 'public, max-age=31536000, immutable')
+
+  return new Response(obj.body, { headers })
+})
+
 // POST /api/upload - Upload file to R2
 upload.post('/', requireAuth, async (c) => {
   const user = c.get('user')!
@@ -14,27 +32,47 @@ upload.post('/', requireAuth, async (c) => {
     return c.json({ error: 'No file provided' }, 400)
   }
 
+  console.log('[upload.post] start', {
+    origin: new URL(c.req.url).origin,
+    userId: user.id,
+    filename: file.name,
+    contentType: file.type,
+    size: file.size,
+  })
+
   // Generate unique key: userId/timestamp-random-filename
   const timestamp = Date.now()
   const random = Math.random().toString(36).slice(2, 8)
   const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
   const key = `${user.id}/${timestamp}-${random}-${safeName}`
 
+  console.log('[upload.post] key', { key })
+
   // Upload to R2
-  const bucket = c.env.UPLOADS as R2Bucket
-  await bucket.put(key, file.stream(), {
+  await c.env.UPLOADS.put(key, file.stream(), {
     httpMetadata: {
       contentType: file.type,
     },
   })
 
-  // Construct public URL
-  // R2 public access URL pattern: https://<bucket>.<account>.r2.cloudflarestorage.com/<key>
-  // Or custom domain if configured
-  const publicUrl = `https://uploads.surgent.dev/${key}`
+  const head = await c.env.UPLOADS.head(key)
+  console.log('[upload.post] stored', {
+    key,
+    head: head ? { size: head.size, httpEtag: head.httpEtag } : null,
+    uploadsPublicUrl: c.env.UPLOADS_PUBLIC_URL,
+  })
+
+  // Public R2 URL (bucket has public access enabled)
+  const publicBase = c.env.UPLOADS_PUBLIC_URL.replace
+  const publicUrl = `${publicBase}/${key}`
+  const origin = new URL(c.req.url).origin
+  const proxyUrl = `${origin}/api/upload/${key}`
 
   return c.json({
-    url: publicUrl,
+    // Prefer the Worker-served URL so it works even when R2 public access is off.
+    url: proxyUrl,
+    publicUrl,
+    proxyUrl,
     key,
     filename: file.name,
     contentType: file.type,

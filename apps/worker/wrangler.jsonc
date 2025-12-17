@@ -46,7 +46,8 @@
     "CLOUDFLARE_ACCOUNT_ID": "44756fda18d37b7accae2ce6baf0ac6a",
     // Daytona preview proxy defaults (do NOT store secrets here)
     "DAYTONA_API_URL": "https://app.daytona.io/api",
-    "DEFAULT_SANDBOX_PORT": "3000"
+    "DEFAULT_SANDBOX_PORT": "3000",
+    "UPLOADS_PUBLIC_URL": "https://pub-9d003c45a61941fa8185697edb8372c7.r2.dev"
   },
   "r2_buckets": [
     {
