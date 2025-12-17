@@ -27,10 +27,8 @@ export function ChatMessage({ role, parts }: ChatMessageProps) {
                 key={index}
                 markdown
                 className={cn(
-                  'prose prose-sm dark:prose-invert max-w-none wrap-break-word [&_pre]:overflow-x-auto [&_p]:text-[13px] [&_p]:sm:text-sm [&_li]:text-[13px] [&_li]:sm:text-sm',
-                  role === 'assistant'
-                    ? 'bg-white w-full'
-                    : 'bg-foreground/4 border border-border text-[13px] sm:text-sm'
+                  'prose prose-sm dark:prose-invert max-w-none',
+                  role === 'assistant' ? 'bg-white w-full' : 'bg-foreground/4 border border-border'
                 )}
               >
                 {(part as { text: string }).text}
