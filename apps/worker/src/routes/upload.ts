@@ -4,24 +4,6 @@ import { requireAuth } from '../middleware/auth'
 
 const upload = new Hono<AppContext>()
 
-// GET /api/upload/<key> - Serve uploaded file from R2 (works even if bucket is not public)
-upload.get('/*', async (c) => {
-  const key = c.req.param('*')
-  if (!key) return c.json({ error: 'No key provided' }, 400)
-
-  console.log('[upload.get]', { key })
-
-  const obj = await c.env.UPLOADS.get(key)
-  if (!obj) return c.json({ error: 'Not found' }, 404)
-
-  const headers = new Headers()
-  obj.writeHttpMetadata(headers)
-  headers.set('etag', obj.httpEtag)
-  headers.set('cache-control', 'public, max-age=31536000, immutable')
-
-  return new Response(obj.body, { headers })
-})
-
 // POST /api/upload - Upload file to R2
 upload.post('/', requireAuth, async (c) => {
   const user = c.get('user')!
@@ -63,16 +45,11 @@ upload.post('/', requireAuth, async (c) => {
   })
 
   // Public R2 URL (bucket has public access enabled)
-  const publicBase = c.env.UPLOADS_PUBLIC_URL.replace
+  const publicBase = c.env.UPLOADS_PUBLIC_URL.replace(/\/$/, '')
   const publicUrl = `${publicBase}/${key}`
-  const origin = new URL(c.req.url).origin
-  const proxyUrl = `${origin}/api/upload/${key}`
 
   return c.json({
-    // Prefer the Worker-served URL so it works even when R2 public access is off.
-    url: proxyUrl,
-    publicUrl,
-    proxyUrl,
+    url: publicUrl,
     key,
     filename: file.name,
     contentType: file.type,
