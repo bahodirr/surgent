@@ -3,7 +3,7 @@ import { ArrowUp, Paperclip, X, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { fileToDataUrl, uploadFile, attachmentsToParts, type UploadingAttachment, type FilePart } from "@/lib/upload";
+import { fileToDataUrl, uploadFile, attachmentsToParts, formatSize, type UploadingAttachment, type FilePart } from "@/lib/upload";
 
 export type { FilePart };
 
@@ -38,7 +38,6 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
     const valid = files.filter(f => f.size <= MAX_FILE_SIZE).slice(0, MAX_FILES - attachments.length);
     if (!valid.length) return;
 
-    // Create attachments with uploading state
     const newAttachments: UploadingAttachment[] = await Promise.all(
       valid.map(async (file) => ({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -50,12 +49,11 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
 
     setAttachments(prev => [...prev, ...newAttachments].slice(0, MAX_FILES));
 
-    // Upload each file immediately
     for (const attachment of newAttachments) {
       uploadFile(attachment.file)
-        .then((url) => {
+        .then(({ url, size }) => {
           setAttachments(prev =>
-            prev.map(a => a.id === attachment.id ? { ...a, status: "done", url } : a)
+            prev.map(a => a.id === attachment.id ? { ...a, status: "done", url, size } : a)
           );
         })
         .catch(() => {
@@ -100,11 +98,16 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
   };
 
   const handleSubmit = async () => {
-    const text = value.trim();
     const hasUploading = attachments.some(a => a.status === "uploading");
-    if ((!text && !attachments.length) || disabled || hasUploading) return;
+    if ((!value.trim() && !attachments.length) || disabled || hasUploading) return;
 
     const fileParts = attachmentsToParts(attachments);
+    
+    // Build message with image info prepended
+    const imageInfo = fileParts
+      .map((f, i) => `${i + 1}. Image ${f.filename} (${formatSize(f.size)}) ${f.url}`)
+      .join("\n");
+    const text = imageInfo ? `${imageInfo}\n\n${value.trim()}` : value.trim();
 
     setValue("");
     setAttachments([]);

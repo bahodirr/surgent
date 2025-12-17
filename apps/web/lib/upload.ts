@@ -3,6 +3,12 @@ export type FilePart = {
   mime: string
   filename: string
   url: string
+  size: number
+}
+
+export type UploadResult = {
+  url: string
+  size: number
 }
 
 export type UploadingAttachment = {
@@ -11,6 +17,7 @@ export type UploadingAttachment = {
   preview?: string
   status: "uploading" | "done" | "error"
   url?: string
+  size?: number
 }
 
 /** Convert file to data URL for local previews only */
@@ -23,15 +30,15 @@ export function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-/** Upload file to R2 and return the public URL */
-export async function uploadFile(file: File): Promise<string> {
+/** Upload file to R2 and return url + size */
+export async function uploadFile(file: File): Promise<UploadResult> {
   const formData = new FormData()
   formData.append('file', file)
 
   const base = process.env.NEXT_PUBLIC_BACKEND_URL
-  const url = base ? `${base}/api/upload` : '/api/upload'
+  const endpoint = base ? `${base}/api/upload` : '/api/upload'
 
-  const res = await fetch(url, {
+  const res = await fetch(endpoint, {
     method: 'POST',
     body: formData,
     credentials: 'include',
@@ -42,7 +49,14 @@ export async function uploadFile(file: File): Promise<string> {
   }
 
   const json = await res.json()
-  return json.url
+  return { url: json.url, size: json.size }
+}
+
+/** Format bytes to human readable size */
+export function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
 /** Convert uploaded attachments to FileParts for sending */
@@ -54,5 +68,6 @@ export function attachmentsToParts(attachments: UploadingAttachment[]): FilePart
       mime: a.file.type,
       filename: a.file.name,
       url: a.url!,
+      size: a.size ?? a.file.size,
     }))
 }
