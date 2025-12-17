@@ -55,12 +55,28 @@ agent.all('/:id/*', requireAuth, async (c) => {
     headers.set('x-daytona-skip-preview-warning', 'true')
     headers.delete('host')
     console.log("proxied request to", targetUrl.toString());
-    
-    return await fetch(new Request(targetUrl.toString(), {
+
+    const accept = headers.get('accept') || ''
+    const isSse = accept.includes('text/event-stream') || path === '/event' || path === '/global/event'
+
+    const upstreamReq = new Request(targetUrl.toString(), {
       method: c.req.method,
       headers,
       body: c.req.raw.body,
-    }))
+      signal: c.req.raw.signal,
+    })
+
+    const upstreamResp = await fetch(upstreamReq)
+    if (!isSse) return upstreamResp
+
+    // Prevent buffering/caching by intermediaries (OpenCode heartbeats every 30s)
+    const outHeaders = new Headers(upstreamResp.headers)
+    outHeaders.set('cache-control', 'no-cache, no-transform')
+
+    return new Response(upstreamResp.body, {
+      status: upstreamResp.status,
+      headers: outHeaders,
+    })
   } catch {
     return c.text('Upstream unavailable', 502)
   }

@@ -25,6 +25,43 @@ function createSandboxApi(env: Env): SandboxApi {
   )
 }
 
+async function proxyRequest(
+  api: SandboxApi,
+  sandboxId: string,
+  port: number,
+  req: Request,
+  url: URL
+): Promise<Response> {
+  const { data } = await api.getPortPreviewUrl(sandboxId, port)
+  const targetUrl = new URL(data.url as string)
+  targetUrl.pathname = `${targetUrl.pathname.replace(/\/$/, '')}${url.pathname}`
+  targetUrl.search = url.search
+
+  const headers = new Headers(req.headers)
+  headers.set('x-daytona-preview-token', data.token as string)
+  headers.set('x-daytona-skip-preview-warning', 'true')
+  headers.delete('host')
+
+  // WebSocket passthrough (Vite HMR)
+  if (req.headers.get('Upgrade') === 'websocket') {
+    return fetch(new Request(targetUrl.toString(), { method: req.method, headers }))
+  }
+
+  const resp = await fetch(new Request(targetUrl.toString(), {
+    method: req.method,
+    headers,
+    body: req.body,
+  }))
+
+  // Disable ALL caching for dev preview (Cloudflare edge + browser)
+  const outHeaders = new Headers(resp.headers)
+  outHeaders.set('cache-control', 'no-store, no-cache, must-revalidate, max-age=0')
+  outHeaders.set('cdn-cache-control', 'no-store')
+  outHeaders.delete('etag')
+  outHeaders.delete('last-modified')
+  return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: outHeaders })
+}
+
 preview.all('/*', async (c) => {
   const url = new URL(c.req.url)
   const defaultPort = Number(c.env.DEFAULT_SANDBOX_PORT || '3000')
@@ -37,55 +74,15 @@ preview.all('/*', async (c) => {
   const accept = c.req.header('Accept')
   try {
     const api = createSandboxApi(c.env)
+    const resp = await proxyRequest(api, sandboxId, port, c.req.raw, url)
 
-    const previewResp = await api.getPortPreviewUrl(sandboxId, port)
-    const previewUrl = previewResp.data.url as string
-    const token = previewResp.data.token as string
-
-    const targetUrl = new URL(previewUrl)
-    targetUrl.pathname = `${targetUrl.pathname.replace(/\/$/, '')}${url.pathname}`
-    targetUrl.search = url.search
-
-    const headers = new Headers(c.req.raw.headers)
-    headers.set('x-daytona-preview-token', token)
-    headers.set('x-daytona-skip-preview-warning', 'true')
-    headers.delete('host')
-
-    // Handle WebSocket upgrades (e.g., Vite HMR)
-    if (c.req.header('Upgrade') === 'websocket') {
-      const wsReq = new Request(targetUrl.toString(), {
-        method: c.req.method,
-        headers,
-      })
-      return await fetch(wsReq)
+    if (resp.status >= 502 && accept?.includes('text/html')) {
+      // @ts-expect-error - Hono types for status code are strict
+      return c.html(getErrorHtml(), resp.status)
     }
-
-    const proxied = new Request(targetUrl.toString(), {
-      method: c.req.method,
-      headers,
-      body: c.req.raw.body,
-    })
-
-    let resp: Response
-    try {
-      resp = await fetch(proxied)
-    } catch {
-      return c.html(getErrorHtml(), 502)
-    }
-
-    if (resp.status >= 502) {
-      if (accept?.includes('text/html')) {
-        // @ts-expect-error - Hono types for status code are strict
-        return c.html(getErrorHtml(), resp.status)
-      }
-      return resp
-    }
-
     return resp
   } catch {
-    if (accept?.includes('text/html')) {
-      return c.html(getErrorHtml(), 502)
-    }
+    if (accept?.includes('text/html')) return c.html(getErrorHtml(), 502)
     return c.text('Upstream unavailable', 502)
   }
 })
