@@ -174,8 +174,8 @@ export function ChatComposer({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="fullstack">Full Stack App</SelectItem>
+                <SelectItem value="simple">Web Application</SelectItem>
                 <SelectItem value="landing">Landing Page</SelectItem>
-                <SelectItem value="simple">Utility App</SelectItem>
               </SelectContent>
             </Select>
           </div>
