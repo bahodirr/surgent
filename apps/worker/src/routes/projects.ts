@@ -4,7 +4,7 @@ import { db } from '@repo/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { requireAuth } from '../middleware/auth'
-import { deployProject, initializeProject, resumeProject, deployConvexProd, HttpError } from '@/controllers/projects'
+import { deployProject, initializeProject, resumeProject, deployConvexProd, deleteSandbox, HttpError } from '@/controllers/projects'
 import { listDeploymentEnvVars, setDeploymentEnvVars, buildDashboardCredentials } from '@/apis/convex'
 
 const projects = new Hono<AppContext>()
@@ -97,6 +97,9 @@ projects.delete(
     if ('error' in result) {
       return c.json({ error: result.error }, result.status)
     }
+
+    // Delete sandbox before removing project
+    await deleteSandbox({ projectId: id })
 
     await db
       .deleteFrom('project')

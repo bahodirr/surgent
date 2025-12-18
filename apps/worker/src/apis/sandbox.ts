@@ -36,6 +36,7 @@ export interface SandboxProvider {
 	resume(id: string): Promise<SandboxInstance>;
 	get(id: string): Promise<SandboxInstance>;
 	stop(id: string): Promise<void>;
+	delete(id: string): Promise<void>;
 }
 
 export interface DaytonaConfig {
@@ -137,6 +138,12 @@ export class DaytonaSandboxProvider implements SandboxProvider {
 		const client = this.getClient();
 		const sandbox = await client.get(sandboxId);
 		await sandbox.stop();
+	}
+
+	async delete(sandboxId: string): Promise<void> {
+		const client = this.getClient();
+		const sandbox = await client.get(sandboxId);
+		await sandbox.delete();
 	}
 }
 

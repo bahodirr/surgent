@@ -53,6 +53,10 @@ export interface DeployProjectArgs {
   deployName?: string;
 }
 
+export interface DeleteProjectArgs {
+  projectId: string;
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -465,4 +469,19 @@ export async function deployConvexProd(args: { projectId: string }): Promise<voi
 
   const res = await sandbox.exec('bunx convex deploy -y', { cwd, timeoutSeconds: 180_000 });
   if (res.exitCode !== 0) throw new Error(`convex deploy failed: ${res.result}`);
+}
+
+export async function deleteSandbox(args: DeleteProjectArgs): Promise<void> {
+  const project = await ProjectService.getProjectById(args.projectId);
+  if (!project) return;
+
+  const sandboxId = project.sandbox?.id;
+  if (!sandboxId) return;
+
+  try {
+    await getDaytonaProvider().delete(sandboxId);
+    console.log("[delete] sandbox deleted", { projectId: args.projectId, sandboxId });
+  } catch (err) {
+    console.error("[delete] sandbox deletion failed", { projectId: args.projectId, sandboxId, error: err });
+  }
 }
