@@ -96,7 +96,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLElement | null>(null);
   const stickRef = useRef(true);
-  const seededRef = useRef(false);
+  const prefilledRef = useRef(false);
 
   const [tab, setTab] = useState<"chat" | "terminal">("chat");
   const [mode, setMode] = useState<"plan" | "build">("build");
@@ -139,13 +139,14 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     }
   }, [messages.length, permissions.length]);
 
-  // Seed initial prompt: wait for SSE connected, then send
+  // Prefill initial prompt into the input (don't auto-send)
   useEffect(() => {
-    if (!initialPrompt || seededRef.current || !activeId || !connected) return;
+    if (!initialPrompt || prefilledRef.current) return;
     const text = initialPrompt.trim();
     if (!text) return;
-    seededRef.current = true;
-    send.mutate({ sessionId: activeId, text, agent: "plan", model: "gpt-5.2", providerID: "openai" });
+    if (!inputValue) setInputValue(text);
+    prefilledRef.current = true;
+
     try {
       const params = new URLSearchParams(searchParams?.toString?.() || "");
       if (params.has("initial")) {
@@ -153,7 +154,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         router.replace(params.toString() ? `${pathname}?${params}` : pathname, { scroll: false });
       }
     } catch {}
-  }, [initialPrompt, activeId, connected, pathname, router, searchParams, send]);
+  }, [initialPrompt, inputValue, pathname, router, searchParams]);
 
   const handleSend = (text: string, files?: FilePart[], model?: string, providerID?: string) => {
     if (!activeId || (!text.trim() && !files?.length) || working) return;
@@ -326,6 +327,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         <div className="h-8 flex items-center px-3 gap-2 min-w-0 text-xs">
           {connected ? (
             <>
+              <span className={`size-2 rounded-full ${connected ? "bg-green-500" : "bg-amber-500"}`} title={connected ? "Agent connected" : "Reconnecting..."} />
               <span className="font-medium truncate max-w-32 @md/conversation:max-w-64">{sessionName}</span>
               {compacting || session?.time?.compacting ? (
                 <>

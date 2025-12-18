@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -15,7 +15,8 @@ type FullChatProps = {
 
 export default function FullChat({ initialPrompt }: FullChatProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const hasSeededRef = useRef(false);
+  const prefilledRef = useRef(false);
+  const [inputValue, setInputValue] = useState('');
   
   const { messages, sendMessage, status, stop, error } = useChat({
     transport: new DefaultChatTransport({
@@ -23,15 +24,13 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
     }),
   });
 
-  // Seed initial prompt once if provided
+  // Prefill input with initial prompt (don't auto-send)
   useEffect(() => {
-    if (!hasSeededRef.current && initialPrompt && initialPrompt.trim()) {
-      hasSeededRef.current = true;
-      sendMessage({ text: initialPrompt.trim() });
+    if (!prefilledRef.current && initialPrompt?.trim() && !inputValue) {
+      prefilledRef.current = true;
+      setInputValue(initialPrompt.trim());
     }
-    // We intentionally exclude sendMessage from deps; it's stable from the hook
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPrompt]);
+  }, [initialPrompt, inputValue]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -42,6 +41,7 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
   const handleSend = (text: string, files?: FileList) => {
     if (isLoading) return;
     sendMessage({ text, files });
+    setInputValue('');
   };
 
   const placeholder = useMemo(
@@ -103,6 +103,8 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
             onSend={handleSend}
             disabled={isLoading || error !== undefined}
             placeholder={placeholder}
+            value={inputValue}
+            onValueChange={setInputValue}
           />
         </div>
       </div>

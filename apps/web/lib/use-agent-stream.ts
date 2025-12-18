@@ -154,7 +154,6 @@ function reducer(state: State, event: StreamEvent, currentSessionId?: string): S
 }
 
 export default function useAgentStream({ projectId, sessionId }: { projectId?: string; sessionId?: string }) {
-  // Use ref to avoid stale closure
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
 
@@ -165,12 +164,11 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
   const esRef = useRef<EventSource | null>(null);
   const closedRef = useRef(false);
   const currentSessionRef = useRef(sessionId);
-
-  // SSE batching - queue events and flush once per frame
   const queueRef = useRef<StreamEvent[]>([]);
   const rafRef = useRef<number | null>(null);
 
   const resync = (pid: string, sid: string) => {
+    // Fetch messages
     http
       .get(`api/agent/${pid}/session/${sid}/message`, {
         retry: { limit: 5, statusCodes: [502, 503, 504], delay: () => 1000 },
@@ -178,12 +176,14 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
       .json<Array<{ info: Message; parts: Part[] }>>()
       .then((items) => dispatch({ type: "batch.load", properties: { messages: items ?? [] } } as any))
       .catch(() => dispatch({ type: "batch.load", properties: { messages: [] } } as any));
+    // Fetch status
     http
       .get(`api/agent/${pid}/session/status`)
-      .json<Record<string, unknown>>()
+      .json<Record<string, any>>()
       .then((items) => {
         const status = items?.[sid];
         if (status) dispatch({ type: "session.status", properties: { sessionID: sid, status } } as any);
+        else dispatch({ type: "session.idle", properties: { sessionID: sid } } as any);
       })
       .catch(() => {});
   };
@@ -217,11 +217,12 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
       es.onmessage = (evt) => {
         try {
           const event = JSON.parse(evt.data);
-          // Handle compaction: resync immediately
           const sid = sessionIdRef.current;
+
           if (event.type === "session.compacted" && sid && event.properties?.sessionID === sid) {
             resync(projectId, sid);
           }
+
           queueRef.current.push(event);
           if (!rafRef.current) {
             rafRef.current = requestAnimationFrame(() => {
@@ -239,6 +240,7 @@ export default function useAgentStream({ projectId, sessionId }: { projectId?: s
         if (!closedRef.current) setTimeout(connect, 1000);
       };
     };
+
     connect();
     return () => {
       closedRef.current = true;

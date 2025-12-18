@@ -16,9 +16,7 @@ type CreateSessionOptions = {
 }
 
 async function createSession(projectId: string, options?: CreateSessionOptions): Promise<Session> {
-  const data = await http
-    .post(`api/agent/${projectId}/session`, { json: options ?? {} })
-    .json()
+  const data = await http.post(`api/agent/${projectId}/session`, { json: options ?? {} }).json()
   return data as Session
 }
 
@@ -63,10 +61,7 @@ async function sendMessage(
     body.model = { providerID, modelID: model }
   }
 
-  // Retry on 5xx (agent might still be starting)
-  const data = await http.post(`api/agent/${projectId}/session/${sessionId}/message`, {
-    json: body,
-  }).json()
+  const data = await http.post(`api/agent/${projectId}/session/${sessionId}/message`, { json: body }).json()
   return data as Message
 }
 
