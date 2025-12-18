@@ -25,10 +25,5 @@ RUN git config --global user.name "Surgent Dev" \
 # Set up workspace directory
 WORKDIR /workspace
 
-# Runtime environment variables (set at runtime)
-ENV ANTHROPIC_API_KEY=""
-ENV ANTHROPIC_BASE_URL=""
-ENV OPENAI_API_KEY=""
-
 CMD ["claude", "--version"]
 ENTRYPOINT ["sleep", "infinity"]

@@ -1,11 +1,11 @@
-import { useState, useRef } from "react";
-import { ArrowUp, Paperclip, X, Loader2, FileText } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { ArrowUp, Paperclip, X, Loader2, FileText, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fileToDataUrl, uploadFile, attachmentsToParts, type UploadingAttachment, type FilePart } from "@/lib/upload";
+import ModelSelectorDialog, { type ProviderModel } from "./model-selector-dialog";
 
-export type { FilePart };
+export type { FilePart, ProviderModel };
 
 type Props = {
   onSubmit: (value: string, files?: FilePart[], model?: string, providerID?: string) => void | Promise<void>;
@@ -17,28 +17,66 @@ type Props = {
   isWorking?: boolean;
   onStop?: () => void;
   isStopping?: boolean;
-  /** Controlled value (optional) */
   value?: string;
   onValueChange?: (value: string) => void;
+  models?: ProviderModel[];
+  selectedModel?: { modelId: string; providerId: string };
+  onModelChange?: (modelId: string, providerId: string) => void;
 };
 
-const TIERS = {
-  openai: { model: "gpt-5.2", provider: "openai", label: "GPT-5.2", badge: "Smart", badgeClass: "bg-violet-100 text-violet-700 border-violet-200"},
-  google: { model: "gemini-3-flash-preview", provider: "google", label: "Gemini Flash 3", badge: "Fast", badgeClass: "bg-blue-100 text-blue-700 border-blue-200"},
-} as const;
+const PROVIDER_COLORS: Record<string, string> = {
+  anthropic: "bg-orange-500",
+  openai: "bg-emerald-500",
+  google: "bg-blue-500",
+  "github-copilot": "bg-zinc-500",
+};
+
+// Fallback models when no providers are connected
+const FALLBACK_MODELS: ProviderModel[] = [
+  { id: "gemini-3-flash-preview", name: "Gemini 3 Flash", providerId: "google", providerName: "Gemini" },
+  { id: "gpt-5.2", name: "GPT-5.2", providerId: "openai", providerName: "OpenAI" },
+];
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anything...", className, mode = "plan", onToggleMode, isWorking, onStop, isStopping, value: controlledValue, onValueChange }: Props) {
+export default function ChatInput({ 
+  onSubmit, 
+  disabled, 
+  placeholder = "Ask anything...", 
+  className, 
+  mode = "plan", 
+  onToggleMode, 
+  isWorking, 
+  onStop, 
+  isStopping, 
+  value: controlledValue, 
+  onValueChange,
+  models = FALLBACK_MODELS,
+  selectedModel,
+  onModelChange,
+}: Props) {
   const [internalValue, setInternalValue] = useState("");
   const value = controlledValue ?? internalValue;
   const setValue = onValueChange ?? setInternalValue;
-  const [tier, setTier] = useState<keyof typeof TIERS>("google");
   const [attachments, setAttachments] = useState<UploadingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
+
+  const [modelDialogOpen, setModelDialogOpen] = useState(false);
+
+  // Find current selected model
+  const currentModel = useMemo(() => {
+    if (selectedModel) {
+      return models.find(m => m.id === selectedModel.modelId && m.providerId === selectedModel.providerId);
+    }
+    return models[0];
+  }, [models, selectedModel]);
+
+  const handleModelSelect = (modelId: string, providerId: string) => {
+    onModelChange?.(modelId, providerId);
+  };
 
   const addFiles = async (files: File[]) => {
     const valid = files.filter(f => f.size <= MAX_FILE_SIZE).slice(0, MAX_FILES - attachments.length);
@@ -112,8 +150,9 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
 
     setValue("");
     setAttachments([]);
-    const t = TIERS[tier];
-    onSubmit(text, fileParts.length ? fileParts : undefined, t.model, t.provider);
+    const model = currentModel ?? models[0] ?? FALLBACK_MODELS[0];
+    if (!model) return;
+    onSubmit(text, fileParts.length ? fileParts : undefined, model.id, model.providerId);
   };
 
   const hasUploading = attachments.some(a => a.status === "uploading");
@@ -223,26 +262,20 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
               <span className="hidden sm:inline">Chat mode</span>
             </Button>
 
-            <Select value={tier} onValueChange={v => setTier(v as keyof typeof TIERS)}>
-              <SelectTrigger size="sm" className="h-8 rounded-full border-0 bg-transparent px-2 sm:px-3 text-xs w-auto hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors shadow-none focus:ring-0">
-                <span className="flex items-center gap-1 sm:gap-1.5">
-                  <span className="hidden sm:inline">{TIERS[tier].label}</span>
-                  <span className={`text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full border ${TIERS[tier].badgeClass}`}>{TIERS[tier].badge}</span>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(TIERS).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>
-                    <div className="flex flex-col gap-1">
-                      <span className="flex items-center gap-1.5">
-                        {v.label}
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${v.badgeClass}`}>{v.badge}</span>
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <button 
+              onClick={() => setModelDialogOpen(true)}
+              className="h-8 px-2 sm:px-3 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              {currentModel ? (
+                <>
+                  <span className={cn("size-1.5 rounded-full", PROVIDER_COLORS[currentModel.providerId] || "bg-muted-foreground")} />
+                  <span className="max-w-28 truncate">{currentModel.name || currentModel.id}</span>
+                </>
+              ) : (
+                <span>Select model</span>
+              )}
+              <ChevronDown className="size-3 opacity-50" />
+            </button>
           </div>
 
           <Button
@@ -267,6 +300,14 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
           </Button>
         </div>
       </div>
+
+      <ModelSelectorDialog
+        open={modelDialogOpen}
+        onOpenChange={setModelDialogOpen}
+        models={models}
+        selectedModel={selectedModel}
+        onSelect={handleModelSelect}
+      />
     </div>
   );
 }

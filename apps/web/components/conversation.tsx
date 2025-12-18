@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { http } from "@/lib/http";
 import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, History, Check, AlertCircle, X, Zap } from "lucide-react";
-import ChatInput, { type FilePart } from "./chat-input";
+import ChatInput, { type FilePart, type ProviderModel } from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
 import useAgentStream from "@/lib/use-agent-stream";
@@ -33,7 +33,15 @@ export interface ConversationProps {
 }
 
 type ProviderList = {
-  all: Array<{ id: string; models: Record<string, { limit?: { context: number } }> }>;
+  all: Array<{ id: string; models: Record<string, { name?: string; limit?: { context: number } }> }>;
+  connected: string[];
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  anthropic: "Claude",
+  openai: "OpenAI",
+  google: "Gemini",
+  "github-copilot": "Copilot",
 };
 
 const formatTitle = (title: string) => {
@@ -106,6 +114,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const [providerOpen, setProviderOpen] = useState(false);
   const [revertingId, setRevertingId] = useState<string>();
   const [inputValue, setInputValue] = useState("");
+  const [selectedModel, setSelectedModel] = useState<{ modelId: string; providerId: string } | undefined>();
   const lastSentRef = useRef<string>("");
 
   const sandboxId = useSandbox(s => s.sandboxId || undefined);
@@ -232,6 +241,32 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
     staleTime: 60_000,
     queryFn: async () => (await http.get(`api/agent/${projectId}/provider`).json()) as ProviderList,
   });
+
+  // Transform providers into a flat list of models from connected providers only
+  const availableModels = useMemo<ProviderModel[]>(() => {
+    if (!providers?.all || !providers.connected) return [];
+    
+    const models: ProviderModel[] = [];
+    for (const provider of providers.all) {
+      // Only include models from connected providers
+      if (!providers.connected.includes(provider.id)) continue;
+      
+      for (const [modelId, modelInfo] of Object.entries(provider.models)) {
+        models.push({
+          id: modelId,
+          name: modelInfo.name,
+          providerId: provider.id,
+          providerName: PROVIDER_LABELS[provider.id] || provider.id,
+          limit: modelInfo.limit,
+        });
+      }
+    }
+    return models;
+  }, [providers]);
+
+  const handleModelChange = (modelId: string, providerId: string) => {
+    setSelectedModel({ modelId, providerId });
+  };
 
   // Reset usage cache on session change
   useEffect(() => {
@@ -469,6 +504,9 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
               isStopping={abort.isPending}
               value={inputValue}
               onValueChange={setInputValue}
+              models={availableModels}
+              selectedModel={selectedModel}
+              onModelChange={handleModelChange}
             />
           </div>
         </div>

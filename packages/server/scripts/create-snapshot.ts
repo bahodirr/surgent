@@ -4,7 +4,7 @@ import { Daytona, Image } from '@daytonaio/sdk';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 
-const SNAPSHOT_NAME = "default-env:1.0.1";
+const SNAPSHOT_NAME = "default-env:1.0.2";
 
 async function createSnapshot(): Promise<void> {
   try {
