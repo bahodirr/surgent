@@ -19,6 +19,7 @@ export const config = {
   llms: {
     openaiKey: process.env.OPENAI_API_KEY!,
     heliconeKey: process.env.HELICONE_API_KEY!,
+    googleKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY!,
   },
   vercel: {
     apiKey: process.env.VERCEL_API_KEY!,

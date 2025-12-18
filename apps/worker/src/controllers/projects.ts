@@ -6,6 +6,7 @@ import path from "path";
 import { createHash } from "crypto";
 import stripJsonComments from "strip-json-comments";
 import * as ProjectService from "@/services/projects";
+import ky from "ky";
 
 const MAX_PROJECTS_PER_USER = 2;
 
@@ -205,17 +206,29 @@ async function getOrCreateSandbox(opts: { port: number; workingDirectory: string
 }
 
 async function configureOpencode(sandbox: SandboxInstance, cwd: string) {
-  const apiKey = config.llms.openaiKey;
-  if (!apiKey) return;
+  const openaiKey = config.llms.openaiKey;
+  const googleKey = config.llms.googleKey;
+  
+  if (!openaiKey && !googleKey) return;
 
   try {
     const url = await sandbox.getHost(4096);
     await waitForServer(url);
-    await fetch(`${url}/auth/openai?directory=${encodeURIComponent(cwd)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "api", key: apiKey }),
-    }).catch(() => {});
+
+    const requests = [];
+    const opts = (key: string) => ({
+      searchParams: { directory: cwd },
+      json: { type: "api", key },
+      retry: { limit: 3, methods: ["put"] },
+    });
+
+    if (openaiKey) {
+      requests.push(ky.put(`${url}/auth/openai`, opts(openaiKey)).catch(() => {}));
+    }
+    if (googleKey) {
+      requests.push(ky.put(`${url}/auth/google`, opts(googleKey)).catch(() => {}));
+    }
+    await Promise.all(requests);
   } catch (err) {
     console.log("[opencode] auth configuration failed", err);
   }
