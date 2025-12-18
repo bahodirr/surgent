@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ExternalLink, Key, ChevronLeft, ChevronRight, AlertCircle, X } from "lucide-react";
+import { Loader2, ExternalLink, Key, ChevronLeft, ChevronRight, AlertCircle, X, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -243,6 +243,16 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
                 {meta?.icon && <Image src={meta.icon} alt="" width={20} height={20} />}
                 <span className="font-semibold">{meta?.label}</span>
               </div>
+              {(selectedProvider === "anthropic" || selectedProvider === "github-copilot") && (
+                <div className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg text-[11px] text-muted-foreground bg-amber-500/10 border border-amber-500/20">
+                  <Info className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                  <span>
+                    {selectedProvider === "anthropic" 
+                      ? "Claude subscription may take ~5 mins to sync after connecting."
+                      : "Copilot subscription may take ~5 mins to sync after connecting."}
+                  </span>
+                </div>
+              )}
               {loadingAuth ? (
                 <div className="flex items-center justify-center h-16">
                   <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -337,10 +347,20 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
               }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-3">
                 <ChevronLeft className="size-3" /> Back
               </button>
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 {meta?.icon && <Image src={meta.icon} alt="" width={20} height={20} />}
                 <span className="font-semibold">{meta?.label}</span>
               </div>
+              {(selectedProvider === "anthropic" || selectedProvider === "github-copilot") && (
+                <div className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg text-[11px] text-muted-foreground bg-amber-500/10 border border-amber-500/20">
+                  <Info className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                  <span>
+                    {selectedProvider === "anthropic" 
+                      ? "Claude subscription may take ~5 mins to sync after connecting."
+                      : "Copilot subscription may take ~5 mins to sync after connecting."}
+                  </span>
+                </div>
+              )}
               <div className="space-y-3">
                 <Input
                   type="password"

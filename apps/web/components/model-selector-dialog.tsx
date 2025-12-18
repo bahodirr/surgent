@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, X, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight, Check, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -170,6 +170,12 @@ export default function ModelSelectorDialog({ open, onOpenChange, models, select
                   <span className={cn("size-2 rounded-full", PROVIDER_COLORS[providerId])} />
                   {PROVIDER_LABELS[providerId] || providerId}
                 </div>
+                {providerId === "anthropic" && (
+                  <div className="px-4 py-2 flex items-start gap-2 text-[11px] text-muted-foreground bg-orange-500/5 border-b">
+                    <Info className="size-3.5 shrink-0 mt-0.5 text-orange-500/70" />
+                    <span>Claude subscription may take ~5 mins to sync after connecting.</span>
+                  </div>
+                )}
                 {providerModels.map(model => (
                   <ModelRow key={model.id} model={model} providerId={providerId} />
                 ))}
@@ -218,6 +224,12 @@ export default function ModelSelectorDialog({ open, onOpenChange, models, select
         {/* Provider Models */}
         {step === "provider" && selectedProvider && (
           <>
+            {selectedProvider === "anthropic" && (
+              <div className="px-4 py-2 flex items-start gap-2 text-[11px] text-muted-foreground bg-orange-500/5 border-b">
+                <Info className="size-3.5 shrink-0 mt-0.5 text-orange-500/70" />
+                <span>Claude subscription may take ~5 mins to sync after connecting.</span>
+              </div>
+            )}
             <div className="h-10 px-4 flex items-center gap-2.5 border-b bg-muted/20">
               <Search className="size-4 text-muted-foreground/50" />
               <input
