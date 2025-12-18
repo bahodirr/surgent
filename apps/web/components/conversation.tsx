@@ -114,7 +114,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const [providerOpen, setProviderOpen] = useState(false);
   const [revertingId, setRevertingId] = useState<string>();
   const [inputValue, setInputValue] = useState("");
-  const [selectedModel, setSelectedModel] = useState<{ modelId: string; providerId: string } | undefined>();
+  const [selectedModel, setSelectedModel] = useState<{ modelId: string; providerId: string }>({ modelId: "gemini-3-flash-preview", providerId: "google" });
   const lastSentRef = useRef<string>("");
 
   const sandboxId = useSandbox(s => s.sandboxId || undefined);
