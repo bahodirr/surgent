@@ -99,6 +99,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const stickRef = useRef(true);
   const prefilledRef = useRef(false);
 
+  const showTerminal = searchParams?.get("terminal") === "true";
   const [tab, setTab] = useState<"chat" | "terminal">("chat");
   const [mode, setMode] = useState<"plan" | "build">("build");
   const [diffOpen, setDiffOpen] = useState(false);
@@ -285,14 +286,16 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
       <header className="flex flex-col border-b bg-muted/30 shrink-0">
         {/* Tabs + Session + Actions */}
         <div className="flex h-10 items-stretch border-b min-w-0">
-          <TabButton active={tab === "chat"} onClick={() => setTab("chat")}>
+          <TabButton active={tab === "chat" || !showTerminal} onClick={() => setTab("chat")}>
             <MessagesSquare className="size-4" />
             <span className="hidden @md/conversation:inline">Chat</span>
           </TabButton>
-          <TabButton active={tab === "terminal"} onClick={() => setTab("terminal")}>
-            <Terminal className="size-4" />
-            <span className="hidden @md/conversation:inline">Terminal</span>
-          </TabButton>
+          {showTerminal && (
+            <TabButton active={tab === "terminal"} onClick={() => setTab("terminal")}>
+              <Terminal className="size-4" />
+              <span className="hidden @md/conversation:inline">Terminal</span>
+            </TabButton>
+          )}
 
           <div className="flex-1" />
 
@@ -392,7 +395,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
       </header>
 
       {/* Chat */}
-      {tab === "chat" && (
+      {(tab === "chat" || !showTerminal) && (
       <div className="flex flex-col flex-1 min-h-0">
         <div ref={scrollRef} className="flex-1 min-h-0">
           <ScrollArea className="h-full">
@@ -473,7 +476,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
       )}
 
       {/* Terminal */}
-      {tab === "terminal" && (
+      {showTerminal && tab === "terminal" && (
       <div className="flex-1 min-h-0 p-3">
         <TerminalWidget sandboxId={sandboxId} className="size-full rounded-lg" />
       </div>
