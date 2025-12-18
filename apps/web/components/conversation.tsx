@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { http } from "@/lib/http";
-import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, History, Check, AlertCircle, X } from "lucide-react";
+import { MessageCircle, Loader2, RotateCcw, MessagesSquare, Terminal, Plus, History, Check, AlertCircle, X, Zap } from "lucide-react";
 import ChatInput, { type FilePart } from "./chat-input";
 import TerminalWidget from "./terminal/terminal-widget";
 import { useSandbox } from "@/hooks/use-sandbox";
@@ -24,6 +24,7 @@ import useAgentStream from "@/lib/use-agent-stream";
 import { AgentThread } from "@/components/agent/agent-thread";
 import { useSessionsQuery, useCreateSession, useSendMessage, useAbortSession, useRevertMessage, useUnrevert } from "@/queries/chats";
 import SessionDiffDialog from "@/components/diff/session-diff-dialog";
+import ProviderDialog from "@/components/provider-dialog";
 
 export interface ConversationProps {
   projectId?: string;
@@ -101,6 +102,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
   const [tab, setTab] = useState<"chat" | "terminal">("chat");
   const [mode, setMode] = useState<"plan" | "build">("build");
   const [diffOpen, setDiffOpen] = useState(false);
+  const [providerOpen, setProviderOpen] = useState(false);
   const [revertingId, setRevertingId] = useState<string>();
   const [inputValue, setInputValue] = useState("");
   const lastSentRef = useRef<string>("");
@@ -294,6 +296,15 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
 
           <div className="flex-1" />
 
+          <button
+            onClick={() => setProviderOpen(true)}
+            className="flex items-center gap-1 px-2.5 text-sm border-l transition-colors shrink-0 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/30 @md/conversation:gap-2 @md/conversation:px-4"
+          >
+            <Zap className="size-4" />
+            <span className="hidden @md/conversation:inline @lg/conversation:hidden">AI</span>
+            <span className="hidden @lg/conversation:inline">AI Connect</span>
+          </button>
+
           <ActionButton onClick={handleCreate} disabled={create.isPending}>
             {create.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             <span className="hidden @md/conversation:inline">New session</span>
@@ -351,7 +362,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
                     </>
                   ) : null}
                   <span className="text-muted-foreground">·</span>
-                  <span className="font-medium">${shownCost.toFixed(2)}</span>
+                  <span className="font-medium">{Math.round(shownCost * 100)} credits</span>
                 </>
               )}
             </>
@@ -469,6 +480,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
       )}
 
       <SessionDiffDialog open={diffOpen} onOpenChange={setDiffOpen} diffs={session?.summary?.diffs} />
+      <ProviderDialog open={providerOpen} onOpenChange={setProviderOpen} projectId={projectId} />
     </div>
   );
 }

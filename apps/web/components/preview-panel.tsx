@@ -188,7 +188,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
         </div>
         {/* Nav controls on the right - only when preview tab is active and ready */}
         {isPreviewTabActive && isReady && previewUrl && (
-          <div className="flex min-w-0 items-center">
+          <div className="flex items-center pr-2">
             <PreviewNavControls />
           </div>
         )}

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
-import { ArrowLeft, Users, Rocket, CreditCard, Pencil, ExternalLink } from "lucide-react";
+import { ArrowLeft, Users, Rocket, CreditCard, Pencil, ExternalLink, Download, Loader2, AlertTriangle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -17,6 +17,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { authClient } from "@/lib/auth-client";
 import { useDeployProject, useRenameProject } from "@/queries/projects";
+import { http } from "@/lib/http";
 import DeployDialog from "@/components/deploy-dialog";
 import PaywallDialog from "@/components/autumn/paywall-dialog";
 import { useCustomer } from "autumn-js/react";
@@ -52,6 +53,9 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
   const { customer, check } = useCustomer();
   const [isCheckingAccess, setIsCheckingAccess] = useState(false);
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [isDownloadPaywallOpen, setIsDownloadPaywallOpen] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
     authClient.getSession().then(({ data }) => {
@@ -120,6 +124,46 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
     setIsCheckingAccess(false);
   }, [projectId, isCheckingAccess, check]);
 
+  const performDownload = useCallback(async () => {
+    if (!projectId) return;
+    setDownloading(true);
+    try {
+      const response = await http.get(`api/projects/${projectId}/download`, { timeout: 120000 });
+      const blob = await response.blob();
+      
+      const disposition = response.headers.get('Content-Disposition');
+      const match = disposition?.match(/filename="(.+)"/);
+      const filename = match?.[1] || `${project?.name || 'project'}.tar.gz`;
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download failed:', err);
+      toast.error("Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }, [projectId, project?.name]);
+
+  const handleDownloadClick = useCallback(() => {
+    if (downloading || !projectId) return;
+    
+    try {
+      const { data } = check({ featureId: 'download_code' });
+      if (data?.allowed) {
+        performDownload();
+      } else {
+        setIsDownloadPaywallOpen(true);
+      }
+    } catch {
+      performDownload();
+    }
+  }, [downloading, projectId, check, performDownload]);
+
   const handleSignOut = async () => {
     await authClient.signOut();
     router.push("/login");
@@ -134,6 +178,36 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
 
   return (
     <>
+      {/* Warning banner */}
+      {!bannerDismissed && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-3 text-sm">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+            <span className="text-amber-900 dark:text-amber-200">
+              <span className="font-medium">Heads up!</span> Projects may be deleted after inactivity. Download your code to keep it safe.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDownloadClick}
+              disabled={downloading}
+              className="h-7 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 hover:bg-amber-500/20"
+            >
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
+              Download now
+            </Button>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="p-1 rounded hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="h-12 flex items-center justify-between px-4 bg-background border-b shrink-0">
         {/* Left side */}
         <div className="flex items-center gap-3">
@@ -187,6 +261,25 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
               Open
             </Button>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadClick}
+                disabled={!projectId || downloading}
+              >
+                {downloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                {downloading ? "Preparing..." : "Download Code"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Download project source code</TooltipContent>
+          </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -255,6 +348,12 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
         open={isPaywallOpen}
         setOpen={setIsPaywallOpen}
         featureId="publish_your_app"
+      />
+
+      <PaywallDialog
+        open={isDownloadPaywallOpen}
+        setOpen={setIsDownloadPaywallOpen}
+        featureId="download_code"
       />
     </>
   );

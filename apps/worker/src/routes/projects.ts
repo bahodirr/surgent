@@ -4,7 +4,7 @@ import { db } from '@repo/db'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { requireAuth } from '../middleware/auth'
-import { deployProject, initializeProject, resumeProject, deployConvexProd, deleteSandbox, HttpError } from '@/controllers/projects'
+import { deployProject, initializeProject, resumeProject, deployConvexProd, deleteSandbox, downloadProject, HttpError } from '@/controllers/projects'
 import { listDeploymentEnvVars, setDeploymentEnvVars, buildDashboardCredentials } from '@/apis/convex'
 
 const projects = new Hono<AppContext>()
@@ -193,6 +193,33 @@ projects.post(
     return c.json({ scheduled: true })
   },
 )
+
+// GET /projects/:id/download - Download project as tar.gz
+projects.get('/:id/download', zValidator('param', idParam), async (c) => {
+  const { id } = c.req.valid('param')
+  
+  const result = await getOwnedProject(id, c.get('user')!.id)
+  if ('error' in result) {
+    return c.json({ error: result.error }, result.status)
+  }
+
+  try {
+    const { buffer, filename } = await downloadProject(id)
+
+    return new Response(buffer, {
+      headers: {
+        'Content-Type': 'application/gzip',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': buffer.length.toString(),
+      },
+    })
+  } catch (err) {
+    const status = err instanceof HttpError ? err.status : 500
+    const message = err instanceof Error ? err.message : 'Download failed'
+    console.error('[download] failed', { projectId: id, error: message })
+    return c.json({ error: message }, status as 400 | 500)
+  }
+})
 
 // Convex prod deploy (promote)
 projects.post('/:id/convex/deploy/prod', zValidator('param', idParam), async (c) => {

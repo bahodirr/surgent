@@ -471,6 +471,44 @@ export async function deployConvexProd(args: { projectId: string }): Promise<voi
   if (res.exitCode !== 0) throw new Error(`convex deploy failed: ${res.result}`);
 }
 
+export async function downloadProject(projectId: string): Promise<{ buffer: Buffer; filename: string }> {
+  const project = await ProjectService.getProjectById(projectId);
+  if (!project) throw new HttpError(404, "Project not found");
+
+  const sandboxId = project.sandbox?.id;
+  if (!sandboxId) throw new HttpError(400, "Sandbox not initialized");
+
+  const sandbox = await getDaytonaProvider().resume(sandboxId);
+  const workingDir = (project.metadata as any)?.workingDirectory || localWorkspacePath(projectId);
+  const archivePath = `/tmp/${projectId}-download.tar.gz`;
+
+  // Use tar (always available) with excludes for large/irrelevant directories
+  const tarCmd = [
+    'tar -czf',
+    shellQuote(archivePath),
+    '--exclude=node_modules',
+    '--exclude=.git',
+    '--exclude=.next',
+    '--exclude=dist',
+    '--exclude=.turbo',
+    '--exclude=*.log',
+    '.',
+  ].join(' ');
+
+  const result = await sandbox.exec(tarCmd, { cwd: workingDir, timeoutSeconds: 180 });
+  if (result.exitCode !== 0) {
+    throw new HttpError(500, `Failed to create archive: ${result.result}`);
+  }
+
+  const buffer = await downloadFileSafe(sandbox, archivePath, workingDir);
+
+  // Cleanup
+  await sandbox.exec(`rm -f ${shellQuote(archivePath)}`).catch(() => {});
+
+  const safeName = (project.name || 'project').replace(/[^a-zA-Z0-9_-]/g, '-');
+  return { buffer, filename: `${safeName}.tar.gz` };
+}
+
 export async function deleteSandbox(args: DeleteProjectArgs): Promise<void> {
   const project = await ProjectService.getProjectById(args.projectId);
   if (!project) return;
