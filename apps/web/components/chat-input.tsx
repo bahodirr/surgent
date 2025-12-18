@@ -23,7 +23,8 @@ type Props = {
 };
 
 const TIERS = {
-  openai: { model: "gpt-5.2", provider: "openai", label: "GPT-5.2", badge: "Default", badgeClass: "bg-violet-100 text-violet-700 border-violet-200"},
+  openai: { model: "gpt-5.2", provider: "openai", label: "GPT-5.2", badge: "Smart", badgeClass: "bg-violet-100 text-violet-700 border-violet-200"},
+  google: { model: "gemini-3-flash-preview", provider: "google", label: "Gemini Flash 3", badge: "Fast", badgeClass: "bg-blue-100 text-blue-700 border-blue-200"},
 } as const;
 
 const MAX_FILES = 5;
@@ -33,7 +34,7 @@ export default function ChatInput({ onSubmit, disabled, placeholder = "Ask anyth
   const [internalValue, setInternalValue] = useState("");
   const value = controlledValue ?? internalValue;
   const setValue = onValueChange ?? setInternalValue;
-  const [tier, setTier] = useState<keyof typeof TIERS>("openai");
+  const [tier, setTier] = useState<keyof typeof TIERS>("google");
   const [attachments, setAttachments] = useState<UploadingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
