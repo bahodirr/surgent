@@ -29,15 +29,22 @@ export default function SplitView({ projectId, onPreviewUrl, initialPrompt }: Sp
   
   const [tabs, setTabs] = useState<PreviewTab[]>([
     { id: 'preview', type: 'preview', title: 'Preview' },
+    { id: 'payments', type: 'payments', title: 'Payments' },
   ]);
   const [activeTabId, setActiveTabId] = useState('preview');
   const tabCounter = useRef(0);
   
-  // Add Convex tab once when project has Convex enabled
+  // Add Convex tab once when project has Convex enabled (insert after Preview, before Payments)
   useEffect(() => {
     if (hasConvex && !convexTabAdded.current) {
       convexTabAdded.current = true;
-      setTabs(prev => [...prev, { id: 'convex', type: 'convex', title: 'Database' }]);
+      setTabs(prev => {
+        const previewIdx = prev.findIndex(t => t.id === 'preview');
+        const newTab = { id: 'convex', type: 'convex' as const, title: 'Database' };
+        const result = [...prev];
+        result.splice(previewIdx + 1, 0, newTab);
+        return result;
+      });
     }
   }, [hasConvex]);
 

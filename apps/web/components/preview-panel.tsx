@@ -2,7 +2,7 @@
 
 import { WebPreview, WebPreviewNavButtons, WebPreviewUrl, WebPreviewBody } from '@/components/agent/web-preview';
 import { useEffect, useState } from 'react';
-import { X, Database } from 'lucide-react';
+import { X, Database, Monitor, CreditCard, GitCompare } from 'lucide-react';
 import type { FileDiff } from "@opencode-ai/sdk";
 import { useConvexDashboardQuery, type ConvexDashboardCredentials } from '@/queries/projects';
 import DiffView from '@/components/diff/diff-view';
@@ -12,14 +12,17 @@ import { EmbeddedDashboard } from '@/components/agent/convex-dashboard';
 
 export interface PreviewTab {
   id: string;
-  type: 'preview' | 'changes' | 'convex';
+  type: 'preview' | 'changes' | 'convex' | 'payments';
   title: string;
   diffs?: FileDiff[];
   messageId?: string;
   convexPath?: string;
 }
 
-const DEFAULT_TABS: PreviewTab[] = [{ id: 'preview', type: 'preview', title: 'Preview' }];
+const DEFAULT_TABS: PreviewTab[] = [
+  { id: 'preview', type: 'preview', title: 'Preview' },
+  { id: 'payments', type: 'payments', title: 'Payments' },
+];
 
 // Loading spinner component
 function LoadingState({ icon: Icon, message }: { icon?: typeof Database; message: string }) {
@@ -90,6 +93,32 @@ function ChangesContent({ diffs }: { diffs: FileDiff[] }) {
   );
 }
 
+function PaymentsContent() {
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="rounded-full bg-muted p-4">
+          <CreditCard className="size-8 text-muted-foreground" strokeWidth={1.5} />
+        </div>
+        <div className="space-y-1">
+          <p className="font-medium">Payments</p>
+          <p className="text-sm text-muted-foreground">Join waitlist · Private beta</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Get icon for tab type
+function getTabIcon(type: PreviewTab['type']) {
+  switch (type) {
+    case 'preview': return Monitor;
+    case 'convex': return Database;
+    case 'payments': return CreditCard;
+    case 'changes': return GitCompare;
+  }
+}
+
 // Tab button component
 function TabButton({ 
   tab, 
@@ -102,7 +131,8 @@ function TabButton({
   onSelect: () => void; 
   onClose?: () => void;
 }) {
-  const isClosable = tab.type !== 'preview' && tab.type !== 'convex';
+  const isClosable = tab.type !== 'preview' && tab.type !== 'convex' && tab.type !== 'payments';
+  const Icon = getTabIcon(tab.type);
   
   return (
     <button
@@ -112,6 +142,7 @@ function TabButton({
         isActive ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
       )}
     >
+      {Icon && <Icon className="size-4 shrink-0" />}
       <span className="truncate max-w-32">{tab.title}</span>
       {isClosable && onClose && (
         <span
@@ -211,6 +242,8 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
             path={activeTab.convexPath}
           />
         )}
+        
+        {activeTab?.type === 'payments' && <PaymentsContent />}
         
         {activeTab?.type === 'changes' && activeTab.diffs?.length && (
           <ChangesContent diffs={activeTab.diffs} />

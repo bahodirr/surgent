@@ -181,18 +181,6 @@ export function ChatComposer({
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
-            {/* <PromptInputAction tooltip="Voice input">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 rounded-2xl cursor-pointer"
-                disabled={disabled}
-              >
-                <Mic className="h-5 w-5" />
-              </Button>
-            </PromptInputAction> */}
-
             <PromptInputAction
               tooltip={disabled || (!value.trim() && !files.length) ? 'Type or attach' : 'Send'}
             >

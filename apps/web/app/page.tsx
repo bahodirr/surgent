@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { Github, Twitter } from 'lucide-react';
+import { Github, Twitter, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'motion/react';
@@ -11,6 +11,48 @@ import { Card, CardContent, CardTitle, CardDescription } from '@/components/ui/c
 import { useRouter } from 'next/navigation';
 import { useCreateProject } from '@/queries/projects';
 import { toast, Toaster } from 'react-hot-toast';
+
+// Typing placeholder hook
+function useTypingPlaceholder(placeholders: string[], typingSpeed = 50, pauseDuration = 2000) {
+  const [displayText, setDisplayText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isTyping, setIsTyping] = useState(true);
+
+  useEffect(() => {
+    const currentPlaceholder = placeholders[currentIndex]!;
+    
+    if (isTyping) {
+      if (displayText.length < currentPlaceholder.length) {
+        const timeout = setTimeout(() => {
+          setDisplayText(currentPlaceholder.slice(0, displayText.length + 1));
+        }, typingSpeed);
+        return () => clearTimeout(timeout);
+      } else {
+        const timeout = setTimeout(() => setIsTyping(false), pauseDuration);
+        return () => clearTimeout(timeout);
+      }
+    } else {
+      if (displayText.length > 0) {
+        const timeout = setTimeout(() => {
+          setDisplayText(displayText.slice(0, -1));
+        }, typingSpeed / 2);
+        return () => clearTimeout(timeout);
+      } else {
+        setCurrentIndex((prev) => (prev + 1) % placeholders.length);
+        setIsTyping(true);
+      }
+    }
+  }, [displayText, currentIndex, isTyping, placeholders, typingSpeed, pauseDuration]);
+
+  return displayText;
+}
+
+const typingPlaceholders = [
+  "Build a CRM for freelance photographers...",
+  "Build a habit tracker for students...",
+  "Build an invoicing app for freelancers...",
+  "Build a booking system for salons...",
+];
 
 const templates = [
   {
@@ -79,6 +121,7 @@ export default function Index() {
   const [promptValue, setPromptValue] = useState('');
   const router = useRouter();
   const create = useCreateProject();
+  const typingPlaceholder = useTypingPlaceholder(typingPlaceholders);
 
   useEffect(() => {
     const load = async () => {
@@ -198,36 +241,73 @@ export default function Index() {
         </motion.header>
 
         {/* Hero Section */}
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-18">
           <div className="max-w-4xl w-full space-y-16">
             {/* Hero text */}
             <div className="text-center space-y-6">
-              <motion.h1 
-                className="text-4xl sm:text-5xl md:text-7xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-100"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.1 }}
-              >
-                Build your dream website.
-              </motion.h1>
+              {/* 2-line headline */}
+              <div className="space-y-2">
+                <motion.h1 
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.1 }}
+                >
+                  Build something people want.
+                </motion.h1>
+                <motion.h1 
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-indigo-500 inline-flex flex-wrap items-center justify-center gap-3"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                >
+                  Monetize it instantly
+                  <motion.span
+                    className="inline-block"
+                    animate={{
+                      y: [0, -6, 0],
+                    }}
+                    transition={{
+                      duration: 2.5,
+                      repeat: Number.POSITIVE_INFINITY,
+                      ease: "easeInOut",
+                    }}
+                    style={{
+                      filter: 'drop-shadow(0 0 12px rgba(99, 102, 241, 0.6))',
+                    }}
+                  >
+                    <Image
+                      src="/surgent-coin.svg"
+                      alt="Coin"
+                      width={56}
+                      height={56}
+                      className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14"
+                    />
+                  </motion.span>
+                </motion.h1>
+              </div>
+
+              {/* Subheadline */}
               <motion.p 
-                className="text-base md:text-xl text-zinc-500 dark:text-zinc-400 font-light max-w-3xl mx-auto leading-relaxed"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-              >
-                Ask AI to build what you want.
-              </motion.p>
-              <motion.div
+                className="text-lg md:text-xl text-slate-500 dark:text-slate-400 font-normal max-w-2xl mx-auto leading-relaxed"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
-                className="max-w-2xl mx-auto w-full pt-2 space-y-4"
+              >
+                Vibe-code apps. We handle hosting & payments.
+              </motion.p>
+
+              {/* Prompt Box */}
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                className="max-w-xl mx-auto w-full pt-4 space-y-4"
               >
                 <div className="relative">
                   <ChatComposer
                     onSend={handlePromptSend}
-                    placeholder="What do you want to build today?"
+                    placeholder={typingPlaceholder || "What do you want to build?"}
                     disabled={create.isPending}
                     value={promptValue}
                     onValueChange={setPromptValue}
@@ -242,15 +322,15 @@ export default function Index() {
                   )}
                 </div>
                 
-                <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-                  <span className="text-zinc-500 dark:text-zinc-400">Try:</span>
-                  <button
-                    onClick={() => setPromptValue('Please build personal website with linkedin data. Clean yet unique and creative. No ai slop. Comprehensive full web page. Linkedin:')}
-                    className="px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                  >
-                    Build personal website
-                  </button>
-                </div>
+                {/* Trust line */}
+                <motion.p
+                  className="text-xs sm:text-sm text-slate-400 dark:text-slate-500"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 0.5 }}
+                >
+                  No credit card required · Free to start
+                </motion.p>
               </motion.div>
             </div>
 
