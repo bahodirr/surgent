@@ -175,9 +175,16 @@ export default function Index() {
           transition={{ duration: 0.5 }}
         >
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
-              <span className="text-lg font-bold tracking-tight">Surgent</span>
-            </div>
+            <Link href="/" className="flex items-center gap-2">
+              <Image
+                src="/surgent-logo.svg"
+                alt="Surgent"
+                width={119}
+                height={32}
+                className="h-8 w-auto"
+                priority
+              />
+            </Link>
             {isLoggedIn ? (
               <Button asChild variant="outline" size="sm" className="rounded-full shrink-0 cursor-pointer">
                 <Link href="/dashboard">Go to dashboard</Link>
