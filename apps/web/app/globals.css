@@ -45,6 +45,23 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Status + misc semantic colors */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-backdrop: var(--backdrop);
+
+  /* Provider badge/dot colors */
+  --color-provider-anthropic: var(--provider-anthropic);
+  --color-provider-openai: var(--provider-openai);
+  --color-provider-google: var(--provider-google);
+  --color-provider-github-copilot: var(--provider-github-copilot);
+
+  /* Diff colors */
+  --color-diff-add: var(--diff-add);
+  --color-diff-del: var(--diff-del);
 }
 
 :root {
@@ -83,43 +100,78 @@
   --sidebar-ring: oklch(0.708 0 0);
   --background: #ffffff;
   --foreground: #0a2540;
+
+  /* Status + misc semantic colors */
+  --success: #16a34a; /* Green 600 */
+  --warning: #f59e0b; /* Amber 500 */
+  --danger: #ef4444; /* Red 500 */
+  --info: #3b82f6; /* Blue 500 */
+  --backdrop: #000000;
+
+  /* Provider badge/dot colors */
+  --provider-anthropic: #f97316; /* Orange 500 */
+  --provider-openai: #10b981; /* Emerald 500 */
+  --provider-google: #3b82f6; /* Blue 500 */
+  --provider-github-copilot: #71717a; /* Zinc 500 */
+
+  /* Diff colors */
+  --diff-add: #16a34a;
+  --diff-del: #e11d48; /* Rose 600 */
 }
 
 .dark {
-  /* Stripe-like dark theme tokens */
-  --background: #0a2540; /* Stripe deep navy */
-  --foreground: #ffffff;
-  --card: #0b2b4a;
-  --card-foreground: #ffffff;
-  --popover: #0b2b4a;
-  --popover-foreground: #ffffff;
-  --primary: #ffffff; /* Primary text color (light) */
-  --primary-foreground: #0a2540;
-  --brand: #635bff; /* Stripe brand purple */
+  /* Slate-like dark theme tokens */
+  --background: #020617; /* Slate 950 */
+  --foreground: #f8fafc; /* Slate 50 */
+  --card: #0f172a; /* Slate 900 */
+  --card-foreground: #f8fafc;
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
+  --primary: #f8fafc;
+  --primary-foreground: #0f172a;
+  --brand: #635bff; /* Stripe brand purple - keeping as brand accent */
   --brand-foreground: #ffffff;
-  --secondary: #122b45;
-  --secondary-foreground: #ffffff;
-  --muted: #122b45;
-  --muted-foreground: #b3c0cc;
-  --accent: #122b45;
-  --accent-foreground: #ffffff;
-  --destructive: #fb7185; /* Rose 400-ish for dark */
-  --border: #2a3a4d;
-  --input: #2a3a4d;
+  --secondary: #1e293b; /* Slate 800 */
+  --secondary-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8; /* Slate 400 */
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+  --destructive: #7f1d1d; /* Red 900 */
+  --destructive-foreground: #f8fafc;
+  --border: #1e293b;
+  --input: #1e293b;
   --ring: #635bff;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #020617;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #334155; /* Slate 700 */
+  --sidebar-primary-foreground: #f8fafc;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: #1e293b;
+  --sidebar-ring: #635bff;
+
+  /* Status + misc semantic colors */
+  --success: #22c55e; /* Green 500 */
+  --warning: #fbbf24; /* Amber 400 */
+  --danger: #f87171; /* Red 400 */
+  --info: #60a5fa; /* Blue 400 */
+  --backdrop: #000000;
+
+  /* Provider badge/dot colors */
+  --provider-anthropic: #fb923c; /* Orange 400 */
+  --provider-openai: #34d399; /* Emerald 400 */
+  --provider-google: #60a5fa; /* Blue 400 */
+  --provider-github-copilot: #a1a1aa; /* Zinc 400 */
+
+  /* Diff colors */
+  --diff-add: #22c55e;
+  --diff-del: #fb7185; /* Rose 400 */
 }
 
 * {

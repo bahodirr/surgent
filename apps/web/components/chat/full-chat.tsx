@@ -7,7 +7,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatComposer } from '@/components/chat/chat-composer';
 import { ChatMessage } from '@/components/chat/chat-message';
 import { Button } from '@/components/ui/button';
-import { StopCircle } from 'lucide-react';
+import { StopCircle, ArrowLeft } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
+import Link from 'next/link';
 
 type FullChatProps = {
   initialPrompt?: string;
@@ -51,6 +53,14 @@ export default function FullChat({ initialPrompt }: FullChatProps) {
 
   return (
     <div className="h-screen w-full bg-background flex flex-col">
+      <header className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+        <Button variant="ghost" size="icon" asChild className="-ml-2">
+          <Link href="/">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <ThemeToggle />
+      </header>
       <ScrollArea className="flex-1 overflow-x-hidden">
         <div className="w-full mx-auto min-h-full flex flex-col px-2 sm:px-4 md:px-6 lg:px-16 max-w-4xl">
           <div className="flex flex-col gap-3 sm:gap-4 p-2 sm:p-4">

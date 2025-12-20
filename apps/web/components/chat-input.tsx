@@ -25,10 +25,10 @@ type Props = {
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
-  anthropic: "bg-orange-500",
-  openai: "bg-emerald-500",
-  google: "bg-blue-500",
-  "github-copilot": "bg-zinc-500",
+  anthropic: "bg-provider-anthropic",
+  openai: "bg-provider-openai",
+  google: "bg-provider-google",
+  "github-copilot": "bg-provider-github-copilot",
 };
 
 // Fallback models when no providers are connected
@@ -167,26 +167,26 @@ export default function ChatInput({
       onDrop={handleDrop}
     >
       <div className={cn(
-        "absolute inset-0 z-10 rounded-2xl border-2 border-dashed border-violet-400 bg-violet-50/80 dark:bg-violet-900/20 flex items-center justify-center pointer-events-none transition-opacity duration-150",
+        "absolute inset-0 z-10 rounded-2xl border-2 border-dashed border-brand bg-brand/10 flex items-center justify-center pointer-events-none transition-opacity duration-150",
         isDragging ? "opacity-100" : "opacity-0"
       )}>
-        <span className="text-sm font-medium text-violet-600 dark:text-violet-400">Drop files here</span>
+        <span className="text-sm font-medium text-brand">Drop files here</span>
       </div>
       <div className={cn(
-        "rounded-2xl border bg-white dark:bg-zinc-900 shadow-lg overflow-hidden transition-colors",
-        isDragging ? "border-violet-400" : "border-zinc-200 dark:border-zinc-700"
+        "rounded-2xl border bg-background shadow-lg overflow-hidden transition-colors",
+        isDragging ? "border-brand" : "border-border"
       )}>
         {/* File previews */}
         {attachments.length > 0 && (
           <div className="flex gap-1 sm:gap-1.5 p-2 sm:p-3 pb-0 flex-wrap">
             {attachments.map((a) => (
               <div key={a.id} className="relative group">
-                <div className="size-8 sm:size-10 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                <div className="size-8 sm:size-10 rounded-lg overflow-hidden bg-muted">
                   {a.url || a.preview ? (
                     <img src={a.url || a.preview} alt={a.file.name} className="size-full object-cover" />
                   ) : (
                     <div className="size-full flex items-center justify-center">
-                      <FileText className="size-3 sm:size-4 text-zinc-400" />
+                      <FileText className="size-3 sm:size-4 text-muted-foreground" />
                     </div>
                   )}
                   {a.status === "uploading" && (
@@ -195,14 +195,14 @@ export default function ChatInput({
                     </div>
                   )}
                   {a.status === "error" && (
-                    <div className="absolute inset-0 bg-red-500/40 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-danger/40 flex items-center justify-center">
                       <X className="size-4 text-white" />
                     </div>
                   )}
                 </div>
                 <button
                   onClick={() => removeAttachment(a.id)}
-                  className="absolute -top-1 -right-1 size-4 rounded-full bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-800 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1 -right-1 size-4 rounded-full bg-foreground text-background flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   <X className="size-2.5" />
                 </button>
@@ -212,7 +212,7 @@ export default function ChatInput({
         )}
 
         <textarea
-          className="w-full p-3 sm:p-4 resize-none outline-none text-sm min-h-[44px] sm:min-h-[48px] max-h-48 sm:max-h-72 bg-transparent text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+          className="w-full p-3 sm:p-4 resize-none outline-none text-sm min-h-[44px] sm:min-h-[48px] max-h-48 sm:max-h-72 bg-transparent text-foreground placeholder:text-muted-foreground"
           value={value}
           onChange={e => setValue(e.target.value)}
           onPaste={handlePaste}
@@ -241,7 +241,7 @@ export default function ChatInput({
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               disabled={attachments.length >= MAX_FILES}
-              className="size-8 shrink-0 rounded-full text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-zinc-800"
+              className="size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <Paperclip className="size-4" />
             </Button>
@@ -254,11 +254,11 @@ export default function ChatInput({
               className={cn(
                 "h-8 px-2 sm:px-3 rounded-full text-xs font-medium transition-colors shrink-0",
                 mode === "plan"
-                  ? "bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/30"
-                  : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  ? "bg-brand/10 text-brand hover:bg-brand/15"
+                  : "text-muted-foreground hover:bg-muted"
               )}
             >
-              <span className={cn("sm:mr-1.5 size-1.5 rounded-full", mode === "plan" ? "bg-violet-600 dark:bg-violet-400" : "bg-zinc-400")} />
+              <span className={cn("sm:mr-1.5 size-1.5 rounded-full", mode === "plan" ? "bg-brand" : "bg-muted-foreground")} />
               <span className="hidden sm:inline">Chat mode</span>
             </Button>
 
@@ -278,7 +278,7 @@ export default function ChatInput({
             </button>
           </div>
 
-          <Button
+            <Button
             type="button"
             disabled={isStopping || (!isWorking && !canSubmit)}
             onClick={isWorking ? onStop : handleSubmit}
@@ -287,13 +287,13 @@ export default function ChatInput({
             className={cn(
               "rounded-full transition-all duration-200 shrink-0",
               isWorking
-                ? "h-8 px-3 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 bg-transparent"
-                : "size-8 p-0 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-sm"
+                ? "h-8 px-3 text-danger border-danger/30 hover:bg-danger/10 bg-transparent"
+                : "size-8 p-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
             )}
           >
             {isWorking ? (
               <span className="flex items-center gap-1.5 text-xs">
-                {isStopping ? <span className="size-2 rounded-full bg-red-600 animate-spin" /> : <span className="size-2 rounded-full bg-red-600 animate-pulse" />}
+                {isStopping ? <span className="size-2 rounded-full bg-danger animate-spin" /> : <span className="size-2 rounded-full bg-danger animate-pulse" />}
                 <span className="sr-only">Stop</span>
               </span>
             ) : <ArrowUp className="size-4" />}

@@ -336,7 +336,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
 
           <button
             onClick={() => setProviderOpen(true)}
-            className="flex items-center gap-1 px-2.5 text-sm border-l transition-colors shrink-0 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/30 @md/conversation:gap-2 @md/conversation:px-4"
+            className="flex items-center gap-1 px-2.5 text-sm border-l transition-colors shrink-0 text-brand hover:bg-brand/10 @md/conversation:gap-2 @md/conversation:px-4"
           >
             <Zap className="size-4" />
             <span className="hidden @md/conversation:inline @lg/conversation:hidden">AI</span>
@@ -376,7 +376,7 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
         <div className="h-8 flex items-center px-3 gap-2 min-w-0 text-xs">
           {connected ? (
             <>
-              <span className={`size-2 rounded-full ${connected ? "bg-green-500" : "bg-amber-500"}`} title={connected ? "Agent connected" : "Reconnecting..."} />
+              <span className={`size-2 rounded-full ${connected ? "bg-success" : "bg-warning"}`} title={connected ? "Agent connected" : "Reconnecting..."} />
               <span className="font-medium truncate max-w-32 @md/conversation:max-w-64">{sessionName}</span>
               {compacting || session?.time?.compacting ? (
                 <>
@@ -419,10 +419,10 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
           if (msg.toLowerCase().includes("abort")) return null;
           const isContext = (err.code || err.data?.code) === "context_length_exceeded" || msg.includes("context");
           return (
-            <div className={cn("flex items-center gap-2 px-3 py-1.5 text-xs border-t animate-in slide-in-from-top-1", isContext ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-destructive/10 text-destructive")}>
+            <div className={cn("flex items-center gap-2 px-3 py-1.5 text-xs border-t animate-in slide-in-from-top-1", isContext ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive")}>
               <AlertCircle className="size-3.5 shrink-0" />
               <p className="flex-1 min-w-0 font-medium truncate">{isContext ? "Context limit reached. Start a new session." : msg}</p>
-              <button onClick={dismissError} className="p-0.5 rounded transition-colors hover:bg-black/10"><X className="size-3" /></button>
+              <button onClick={dismissError} className="p-0.5 rounded transition-colors hover:bg-muted"><X className="size-3" /></button>
             </div>
           );
         })()}
@@ -481,11 +481,11 @@ export default function Conversation({ projectId, initialPrompt, onViewChanges }
           )}
           <div className="max-w-3xl mx-auto">
             {lastAssistantError && (
-              <div className={cn("mb-2 px-3 py-2 rounded-lg border text-xs", lastAssistantError.isContext ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 text-muted-foreground")}>
+              <div className={cn("mb-2 px-3 py-2 rounded-lg border text-xs", lastAssistantError.isContext ? "bg-warning/10 border-warning/20 text-warning" : "bg-muted/50 text-muted-foreground")}>
                 <div className="flex items-center gap-2">
                   <AlertCircle className="size-3.5 shrink-0" />
                   <p className="flex-1 min-w-0 break-all line-clamp-2">{lastAssistantError.message}</p>
-                  <button onClick={handleCreate} disabled={create.isPending} className="flex items-center gap-1 px-2 py-1 rounded-md transition-colors shrink-0 hover:bg-black/10">
+                  <button onClick={handleCreate} disabled={create.isPending} className="flex items-center gap-1 px-2 py-1 rounded-md transition-colors shrink-0 hover:bg-muted">
                     {create.isPending ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3" />}
                     <span>New session</span>
                   </button>

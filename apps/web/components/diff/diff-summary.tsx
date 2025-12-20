@@ -29,13 +29,13 @@ function Bars({ add, del }: { add: number; del: number }) {
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-24 rounded overflow-hidden bg-muted/60 flex">
-        <span className="h-full bg-emerald-500" style={{ width: `${addPct}%` }} />
-        <span className="h-full bg-rose-500" style={{ width: `${delPct}%` }} />
+        <span className="h-full bg-diff-add" style={{ width: `${addPct}%` }} />
+        <span className="h-full bg-diff-del" style={{ width: `${delPct}%` }} />
       </div>
       <div className="text-[11px] tabular-nums text-foreground/70">
-        <span className="text-emerald-600">+{add}</span>
+        <span className="text-diff-add">+{add}</span>
         <span className="mx-1" />
-        <span className="text-rose-600">-{del}</span>
+        <span className="text-diff-del">-{del}</span>
       </div>
     </div>
   );
@@ -53,9 +53,9 @@ export default function DiffSummary({ diffs, variant = "compact", className, max
           <Bars add={additions} del={deletions} />
         ) : (
           <div className="text-[11px] tabular-nums text-foreground/60">
-            <span className="text-emerald-500">+{additions}</span>
+            <span className="text-diff-add">+{additions}</span>
             <span className="mx-1" />
-            <span className="text-rose-500">-{deletions}</span>
+            <span className="text-diff-del">-{deletions}</span>
           </div>
         )}
       </div>
@@ -76,8 +76,8 @@ export default function DiffSummary({ diffs, variant = "compact", className, max
             <li key={d.file} className="flex items-center justify-between text-[12px]">
               <span className="truncate max-w-[60%] text-foreground/80">{d.file}</span>
               <span className="tabular-nums text-foreground/70">
-                <span className="text-emerald-500 mr-2">+{d.additions ?? 0}</span>
-                <span className="text-rose-500">-{d.deletions ?? 0}</span>
+                <span className="text-diff-add mr-2">+{d.additions ?? 0}</span>
+                <span className="text-diff-del">-{d.deletions ?? 0}</span>
               </span>
             </li>
           ))}

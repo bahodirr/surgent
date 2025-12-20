@@ -406,7 +406,7 @@ const PrepaidItem = ({
 
 							<Button
 								onClick={handleSave}
-								className="w-14 !h-7 text-sm items-center bg-white text-foreground shadow-sm border border-zinc-200 hover:bg-zinc-100"
+								className="w-14 !h-7 text-sm items-center bg-background text-foreground shadow-sm border border-border hover:bg-muted"
 								disabled={loading}
 							>
 								{loading ? (

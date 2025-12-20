@@ -21,6 +21,7 @@ import { http } from "@/lib/http";
 import DeployDialog from "@/components/deploy-dialog";
 import PaywallDialog from "@/components/autumn/paywall-dialog";
 import { useCustomer } from "autumn-js/react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface User {
   id: string;
@@ -180,10 +181,10 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
     <>
       {/* Warning banner */}
       {!bannerDismissed && (
-        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between gap-4 shrink-0">
+        <div className="bg-warning/10 border-b border-warning/20 px-4 py-2 flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-            <span className="text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+            <span className="text-foreground">
               <span className="font-medium">Heads up!</span> Projects may be deleted after inactivity. Download your code to keep it safe.
             </span>
           </div>
@@ -193,14 +194,14 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
               size="sm"
               onClick={handleDownloadClick}
               disabled={downloading}
-              className="h-7 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 hover:bg-amber-500/20"
+              className="h-7 text-xs text-warning hover:bg-warning/20"
             >
               {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
               Download now
             </Button>
             <button
               onClick={() => setBannerDismissed(true)}
-              className="p-1 rounded hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors"
+              className="p-1 rounded hover:bg-warning/20 text-warning transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -247,7 +248,7 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
         <div className="flex items-center gap-2">
           {status && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className={`h-2 w-2 rounded-full ${status === "deployed" ? "bg-green-500" : isFailed ? "bg-red-500" : "bg-yellow-500 animate-pulse"}`} />
+              <span className={`h-2 w-2 rounded-full ${status === "deployed" ? "bg-success" : isFailed ? "bg-danger" : "bg-warning animate-pulse"}`} />
               {status === "deployed" ? "Live" : isFailed ? "Failed" : isInProgress ? "Deploying" : null}
             </div>
           )}
@@ -294,6 +295,8 @@ export default function ProjectHeader({ projectId, project }: ProjectHeaderProps
             </TooltipTrigger>
             {errorMsg && <TooltipContent>{errorMsg}</TooltipContent>}
           </Tooltip>
+
+          <ThemeToggle />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

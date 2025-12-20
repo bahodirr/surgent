@@ -94,7 +94,7 @@ const templates = [
 function TemplateCard({ template }: { template: typeof templates[0] }) {
   return (
     <Card className="border-0 p-0 shadow-none bg-transparent rounded-xs">
-      <div className="rounded-md overflow-hidden border border-zinc-200 dark:border-zinc-800">
+      <div className="rounded-md overflow-hidden border border-border">
         <Image
           src={template.image}
           alt={template.title}
@@ -105,10 +105,10 @@ function TemplateCard({ template }: { template: typeof templates[0] }) {
         />
       </div>
       <CardContent className="px-0 pt-3 space-y-1.5">
-        <CardTitle className="text-base sm:text-lg text-zinc-900 dark:text-zinc-100">
+        <CardTitle className="text-base sm:text-lg text-foreground">
           {template.title}
         </CardTitle>
-        <CardDescription className="text-zinc-600 dark:text-zinc-400">
+        <CardDescription className="text-muted-foreground">
           {template.description}
         </CardDescription>
       </CardContent>
@@ -170,10 +170,10 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950 relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Floating orbs in background */}
       <motion.div
-        className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-3xl"
+        className="absolute top-20 left-10 w-72 h-72 bg-brand/10 rounded-full blur-3xl"
         animate={{
           y: [0, 30, 0],
           scale: [1, 1.1, 1],
@@ -185,7 +185,7 @@ export default function Index() {
         }}
       />
       <motion.div
-        className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 dark:bg-purple-500/5 rounded-full blur-3xl"
+        className="absolute bottom-20 right-10 w-96 h-96 bg-brand/10 rounded-full blur-3xl"
         animate={{
           y: [0, -40, 0],
           scale: [1, 1.2, 1],
@@ -198,7 +198,7 @@ export default function Index() {
       />
       
       {/* Subtle gradient background */}
-      <div className="absolute inset-0 bg-linear-to-br from-zinc-50 via-white to-zinc-100 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900" />
+      <div className="absolute inset-0 bg-linear-to-br from-background via-background to-muted/20" />
       
       {/* Dot pattern overlay */}
       <div 
@@ -248,7 +248,7 @@ export default function Index() {
               {/* 2-line headline */}
               <div className="space-y-2">
                 <motion.h1 
-                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground"
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.6, delay: 0.1 }}
@@ -256,7 +256,7 @@ export default function Index() {
                   Build something people want.
                 </motion.h1>
                 <motion.h1 
-                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-indigo-500 inline-flex flex-wrap items-center justify-center gap-3"
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-brand inline-flex flex-wrap items-center justify-center gap-3"
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.6, delay: 0.2 }}
@@ -289,7 +289,7 @@ export default function Index() {
 
               {/* Subheadline */}
               <motion.p 
-                className="text-lg md:text-xl text-slate-500 dark:text-slate-400 font-normal max-w-2xl mx-auto leading-relaxed"
+                className="text-lg md:text-xl text-muted-foreground font-normal max-w-2xl mx-auto leading-relaxed"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
@@ -313,7 +313,7 @@ export default function Index() {
                     onValueChange={setPromptValue}
                   />
                   {create.isPending && (
-                    <div className="absolute inset-0 rounded-xl bg-background/60 backdrop-blur-sm flex items-center justify-center border border-zinc-200 dark:border-zinc-800">
+                    <div className="absolute inset-0 rounded-xl bg-background/60 backdrop-blur-sm flex items-center justify-center border border-border">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <div className="h-4 w-4 border-2 border-brand-foreground border-t-transparent rounded-full animate-spin" />
                         Creating your project… Give us a sec
@@ -324,7 +324,7 @@ export default function Index() {
                 
                 {/* Trust line */}
                 <motion.p
-                  className="text-xs sm:text-sm text-slate-400 dark:text-slate-500"
+                  className="text-xs sm:text-sm text-muted-foreground"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.6, delay: 0.5 }}
@@ -342,7 +342,7 @@ export default function Index() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.4 }}
               >
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400 tracking-wide uppercase">
+                <p className="text-sm font-medium text-muted-foreground tracking-wide uppercase">
                   Things you can build
                 </p>
               </motion.div>

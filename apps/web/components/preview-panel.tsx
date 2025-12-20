@@ -139,7 +139,7 @@ function TabButton({
       onClick={onSelect}
       className={cn(
         "group flex items-center gap-2 px-3 text-sm border-r transition-colors",
-        isActive ? "bg-background text-foreground" : "text-muted-foreground hover:bg-muted/50"
+        isActive ? "bg-background text-foreground dark:bg-muted" : "text-muted-foreground hover:bg-muted/50"
       )}
     >
       {Icon && <Icon className="size-4 shrink-0" />}
@@ -205,7 +205,7 @@ export default function PreviewPanel({ projectId, project, onPreviewUrl, tabs = 
   const renderContent = () => (
     <div className="h-full flex flex-col relative">
       {/* Tab bar */}
-      <div className="flex h-10 items-stretch border-b bg-muted/30 shrink-0">
+      <div className="flex h-10 items-stretch border-b bg-muted/30 dark:bg-background shrink-0">
         <div className="flex min-w-0 flex-1 overflow-x-auto">
           {tabs.map(tab => (
             <TabButton

@@ -35,10 +35,10 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
-  anthropic: "bg-orange-500",
-  openai: "bg-emerald-500",
-  google: "bg-blue-500",
-  "github-copilot": "bg-zinc-500",
+  anthropic: "bg-provider-anthropic",
+  openai: "bg-provider-openai",
+  google: "bg-provider-google",
+  "github-copilot": "bg-provider-github-copilot",
 };
 
 const CORE_MODELS: Record<string, string[]> = {
@@ -171,8 +171,8 @@ export default function ModelSelectorDialog({ open, onOpenChange, models, select
                   {PROVIDER_LABELS[providerId] || providerId}
                 </div>
                 {providerId === "anthropic" && (
-                  <div className="px-4 py-2 flex items-start gap-2 text-[11px] text-muted-foreground bg-orange-500/5 border-b">
-                    <Info className="size-3.5 shrink-0 mt-0.5 text-orange-500/70" />
+                  <div className="px-4 py-2 flex items-start gap-2 text-[11px] text-muted-foreground bg-warning/10 border-b">
+                    <Info className="size-3.5 shrink-0 mt-0.5 text-warning" />
                     <span>Claude subscription may take ~5 mins to sync after connecting.</span>
                   </div>
                 )}
@@ -225,8 +225,8 @@ export default function ModelSelectorDialog({ open, onOpenChange, models, select
         {step === "provider" && selectedProvider && (
           <>
             {selectedProvider === "anthropic" && (
-              <div className="px-4 py-2 flex items-start gap-2 text-[11px] text-muted-foreground bg-orange-500/5 border-b">
-                <Info className="size-3.5 shrink-0 mt-0.5 text-orange-500/70" />
+              <div className="px-4 py-2 flex items-start gap-2 text-[11px] text-muted-foreground bg-warning/10 border-b">
+                <Info className="size-3.5 shrink-0 mt-0.5 text-warning" />
                 <span>Claude subscription may take ~5 mins to sync after connecting.</span>
               </div>
             )}

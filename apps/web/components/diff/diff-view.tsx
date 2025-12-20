@@ -89,8 +89,8 @@ export default function DiffView({ before, after, path, className, collapseUncha
             <span className="text-xs text-muted-foreground truncate font-mono">{path}</span>
             {(counts.add > 0 || counts.del > 0) && (
               <div className="flex items-center gap-1.5 text-[10px] tabular-nums">
-                {counts.del > 0 && <span className="text-red-600 dark:text-red-400">-{counts.del}</span>}
-                {counts.add > 0 && <span className="text-green-600 dark:text-green-400">+{counts.add}</span>}
+                {counts.del > 0 && <span className="text-diff-del">-{counts.del}</span>}
+                {counts.add > 0 && <span className="text-diff-add">+{counts.add}</span>}
               </div>
             )}
           </div>

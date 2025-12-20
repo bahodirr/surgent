@@ -23,7 +23,7 @@ export default function PricingTable({
   if (isLoading) {
     return (
       <div className="w-full h-full flex justify-center items-center min-h-[300px]">
-        <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
+        <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
       </div>
     );
   }

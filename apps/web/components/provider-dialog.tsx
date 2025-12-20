@@ -185,9 +185,9 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
         </DialogHeader>
         
         {step === "list" && (
-          <div className="mx-3 mt-3 p-3 rounded-lg bg-muted/50 border border-dashed">
+          <div className="mx-3 mt-3 p-3 rounded-lg bg-muted border border-dashed">
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Have <span className="font-medium text-foreground">Claude Pro</span>, <span className="font-medium text-foreground">ChatGPT Plus</span>, or <span className="font-medium text-foreground">Copilot</span>? Link it and pay <span className="font-semibold text-green-600 dark:text-green-400">$0</span> for AI.
+              Have <span className="font-medium text-foreground">Claude Pro</span>, <span className="font-medium text-foreground">ChatGPT Plus</span>, or <span className="font-medium text-foreground">Copilot</span>? Link it and pay <span className="font-semibold text-success">$0</span> for AI.
             </p>
           </div>
         )}
@@ -215,13 +215,13 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
                   <button
                     key={p.id}
                     onClick={() => handleSelectProvider(p.id)}
-                    className="w-full h-11 flex items-center gap-3 px-3 rounded-lg text-sm hover:bg-muted/70 transition-colors"
+                    className="w-full h-11 flex items-center gap-3 px-3 rounded-lg text-sm hover:bg-muted transition-colors"
                   >
                     {icon && <Image src={icon} alt="" width={18} height={18} />}
                     <span className="flex-1 text-left font-medium">{label}</span>
                     {isConnected ? (
-                      <span className="flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                        <span className="size-1.5 rounded-full bg-green-500" />
+                      <span className="flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full bg-success/10 text-success">
+                        <span className="size-1.5 rounded-full bg-success" />
                         Connected
                       </span>
                     ) : (
@@ -244,8 +244,8 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
                 <span className="font-semibold">{meta?.label}</span>
               </div>
               {(selectedProvider === "anthropic" || selectedProvider === "github-copilot") && (
-                <div className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg text-[11px] text-muted-foreground bg-amber-500/10 border border-amber-500/20">
-                  <Info className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                <div className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg text-[11px] text-muted-foreground bg-warning/10 border border-warning/20">
+                  <Info className="size-3.5 shrink-0 mt-0.5 text-warning" />
                   <span>
                     {selectedProvider === "anthropic" 
                       ? "Claude subscription may take ~5 mins to sync after connecting."
@@ -264,7 +264,7 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
                       key={i}
                       onClick={() => handleSelectMethod(i)}
                       disabled={authorizeMutation.isPending}
-                      className="w-full h-11 flex items-center gap-3 px-3 rounded-lg text-sm bg-muted/40 hover:bg-muted/70 transition-colors disabled:opacity-50"
+                      className="w-full h-11 flex items-center gap-3 px-3 rounded-lg text-sm bg-muted/40 hover:bg-muted transition-colors disabled:opacity-50"
                     >
                       {m.type === "oauth" ? <ExternalLink className="size-4 text-muted-foreground" /> : <Key className="size-4 text-muted-foreground" />}
                       <span className="flex-1 text-left font-medium">{m.label}</span>
@@ -272,7 +272,7 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
                     </button>
                   ))}
                   {!(authMethods?.[selectedProvider!] ?? []).some(m => m.type === "api") && (
-                    <button onClick={() => setStep("api-key")} className="w-full h-11 flex items-center gap-3 px-3 rounded-lg text-sm bg-muted/40 hover:bg-muted/70 transition-colors">
+                    <button onClick={() => setStep("api-key")} className="w-full h-11 flex items-center gap-3 px-3 rounded-lg text-sm bg-muted/40 hover:bg-muted transition-colors">
                       <Key className="size-4 text-muted-foreground" />
                       <span className="flex-1 text-left font-medium">Enter API key</span>
                     </button>
@@ -297,7 +297,7 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
                     <div className="text-center">
                       <p className="text-xs text-muted-foreground mb-3">Enter this code in your browser:</p>
                       <button 
-                        className="inline-block text-2xl font-mono font-bold tracking-[0.3em] py-4 px-6 bg-muted/60 rounded-lg select-all cursor-pointer hover:bg-muted transition-colors border border-dashed"
+                        className="inline-block text-2xl font-mono font-bold tracking-[0.3em] py-4 px-6 bg-muted rounded-lg select-all cursor-pointer hover:bg-muted/80 transition-colors border border-dashed"
                         onClick={() => navigator.clipboard.writeText(deviceCode)}
                       >
                         {deviceCode}
@@ -352,8 +352,8 @@ export default function ProviderDialog({ open, onOpenChange, projectId }: Props)
                 <span className="font-semibold">{meta?.label}</span>
               </div>
               {(selectedProvider === "anthropic" || selectedProvider === "github-copilot") && (
-                <div className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg text-[11px] text-muted-foreground bg-amber-500/10 border border-amber-500/20">
-                  <Info className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
+                <div className="flex items-start gap-2 px-3 py-2 mb-3 rounded-lg text-[11px] text-muted-foreground bg-warning/10 border border-warning/20">
+                  <Info className="size-3.5 shrink-0 mt-0.5 text-warning" />
                   <span>
                     {selectedProvider === "anthropic" 
                       ? "Claude subscription may take ~5 mins to sync after connecting."

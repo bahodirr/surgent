@@ -73,7 +73,7 @@ function PermissionPrompt({
           disabled={responding}
           className="flex-1 flex items-center justify-center gap-1.5 text-xs border-l bg-background hover:bg-muted disabled:opacity-50 transition-colors"
         >
-          <span className="size-1.5 rounded-full bg-emerald-500" />
+          <span className="size-1.5 rounded-full bg-success" />
           Always Allow
         </button>
         <button
@@ -241,7 +241,7 @@ function ApiError({ error }: { error: any }) {
   const isContext = code === "context_length_exceeded" || msg.includes("context");
 
   return (
-    <div className={`flex items-start gap-2 py-2 px-3 rounded-lg border text-xs sm:text-sm ${isContext ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 text-muted-foreground"}`}>
+    <div className={`flex items-start gap-2 py-2 px-3 rounded-lg border text-xs sm:text-sm ${isContext ? "bg-warning/10 border-warning/20 text-warning" : "bg-muted/50 text-muted-foreground"}`}>
       <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
       <p className="min-w-0 break-all">{isContext ? "Context limit reached. Start a new session." : msg}</p>
     </div>

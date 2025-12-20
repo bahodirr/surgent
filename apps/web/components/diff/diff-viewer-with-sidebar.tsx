@@ -39,8 +39,8 @@ export default function DiffViewerWithSidebar({ diffs, className, collapseUnchan
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>{diffs.length} file{diffs.length > 1 ? "s" : ""}</span>
               <span className="flex items-center gap-2 text-xs tabular-nums">
-                {totalDel > 0 && <span className="text-red-500">-{totalDel}</span>}
-                {totalAdd > 0 && <span className="text-green-500">+{totalAdd}</span>}
+                {totalDel > 0 && <span className="text-diff-del">-{totalDel}</span>}
+                {totalAdd > 0 && <span className="text-diff-add">+{totalAdd}</span>}
               </span>
             </div>
           </div>
@@ -66,8 +66,8 @@ export default function DiffViewerWithSidebar({ diffs, className, collapseUnchan
                   </span>
                   {(add > 0 || del > 0) && (
                     <span className="text-xs tabular-nums shrink-0 flex items-center gap-1.5">
-                      {del > 0 && <span className="text-red-500">-{del}</span>}
-                      {add > 0 && <span className="text-green-500">+{add}</span>}
+                      {del > 0 && <span className="text-diff-del">-{del}</span>}
+                      {add > 0 && <span className="text-diff-add">+{add}</span>}
                     </span>
                   )}
                 </button>

@@ -68,7 +68,7 @@ export default function DeployDialog({ open, onOpenChange, defaultName, onConfir
             <div className="h-9 px-3 flex items-center border border-input border-l-0 rounded-r-md bg-muted text-sm text-muted-foreground whitespace-nowrap">.surgent.dev</div>
           </div>
           <div className="text-xs text-muted-foreground">Will be published as: {previewDomain}</div>
-          {nameError ? <div className="text-xs text-red-500">{nameError}</div> : null}
+          {nameError ? <div className="text-xs text-danger">{nameError}</div> : null}
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={Boolean(isSubmitting)}>Cancel</Button>
